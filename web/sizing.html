@@ -150,13 +150,13 @@
        aria-labelledby="roof-t roof-d" style="color: rgb(var(--brand-blue-rgb))">
     <title id="roof-t">Decode speed against memory bandwidth, for a dense and a mixture-of-experts model</title>
     <desc id="roof-d">Two lines rising from the origin. The mixture-of-experts model, reading about 9 GiB per token, rises steeply and clears 60 tokens per second at 819 GB/s. The dense 24B model, reading 25 GiB, rises about three times more slowly. A dashed red line marks the 20 tokens-per-second comfort floor. The DGX Spark, at 273 GB/s on the dense model, sits below that floor.</desc>
-    <text x="84" y="334" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">0</text><text x="84" y="264" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">30</text><text x="84" y="194" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">60</text><text x="84" y="124" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">90</text><text x="84" y="54" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">120</text>
-    <line x1="92" y1="50" x2="92" y2="330" stroke="#9A9AA2" stroke-opacity=".45"/>
-    <line x1="92" y1="330" x2="792" y2="330" stroke="#9A9AA2" stroke-opacity=".45"/>
-    <text x="92" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">0</text><text x="300" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">273</text><text x="507" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">546</text><text x="715" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">819</text>
-    <text x="442" y="378" text-anchor="middle" font-size="12" fill="#8A8A92">memory bandwidth, GB/s</text>
-    <text x="30" y="190" font-size="12" fill="#8A8A92" transform="rotate(-90 30 190)" text-anchor="middle">tokens/second</text>
-    <text x="46" y="190" font-size="10.5" fill="#8A8A92" transform="rotate(-90 46 190)" text-anchor="middle">(higher is better)</text>
+    <text x="84" y="334" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">0</text><text x="84" y="264" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">30</text><text x="84" y="194" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">60</text><text x="84" y="124" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">90</text><text x="84" y="54" text-anchor="end" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">120</text>
+    <line x1="92" y1="50" x2="92" y2="330" stroke="rgb(var(--fig-muted-rgb))" stroke-opacity=".45"/>
+    <line x1="92" y1="330" x2="792" y2="330" stroke="rgb(var(--fig-muted-rgb))" stroke-opacity=".45"/>
+    <text x="92" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">0</text><text x="300" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">273</text><text x="507" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">546</text><text x="715" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="rgb(var(--fig-muted-rgb))">819</text>
+    <text x="442" y="378" text-anchor="middle" font-size="12" fill="rgb(var(--fig-muted-rgb))">memory bandwidth, GB/s</text>
+    <text x="30" y="190" font-size="12" fill="rgb(var(--fig-muted-rgb))" transform="rotate(-90 30 190)" text-anchor="middle">tokens/second</text>
+    <text x="46" y="190" font-size="10.5" fill="rgb(var(--fig-muted-rgb))" transform="rotate(-90 46 190)" text-anchor="middle">(higher is better)</text>
 
     <!-- the comfort floor -->
     <line x1="92" y1="283" x2="792" y2="283"
@@ -168,7 +168,7 @@
           font-weight="600" fill="rgb(var(--brand-red-rgb))">20 tok/s — the comfort floor</text>
 
     <polyline points="92,330 127,322 162,313 197,305 232,297 267,288 302,280 337,272 372,263 407,255 442,247 477,238 512,230 547,221 582,213 617,205 652,196 687,188 722,180 757,171 792,163" fill="none" stroke="currentColor" stroke-width="2.5"/>
-    <polyline points="92,330 127,327 162,324 197,321 232,318 267,315 302,312 337,309 372,306 407,303 442,300 477,297 512,294 547,291 582,288 617,285 652,282 687,279 722,276 757,273 792,270" fill="none" stroke="#8A8A92" stroke-width="2.5" stroke-dasharray="7 4"/>
+    <polyline points="92,330 127,327 162,324 197,321 232,318 267,315 302,312 337,309 372,306 407,303 442,300 477,297 512,294 547,291 582,288 617,285 652,282 687,279 722,276 757,273 792,270" fill="none" stroke="rgb(var(--fig-muted-rgb))" stroke-width="2.5" stroke-dasharray="7 4"/>
 
     <circle cx="715" cy="181" r="5" fill="currentColor"/>
     <text x="705" y="169" text-anchor="end" font-size="12" font-weight="600" fill="currentColor">Mac Studio M3 Ultra</text>
@@ -176,16 +176,16 @@
          line, so a label placed below either of them lands on it. Rendered,
          that read as text struck through by a dashed rule. Both now sit above
          their point, where the gap to the MoE line is wide. -->
-    <circle cx="715" cy="276" r="5" fill="#8A8A92"/>
-    <text x="703" y="264" text-anchor="end" font-size="12" fill="#8A8A92">same machine, dense model</text>
+    <circle cx="715" cy="276" r="5" fill="rgb(var(--fig-muted-rgb))"/>
+    <text x="703" y="264" text-anchor="end" font-size="12" fill="rgb(var(--fig-muted-rgb))">same machine, dense model</text>
     <circle cx="300" cy="312" r="5" fill="rgb(var(--brand-red-rgb))"/>
     <text x="288" y="302" text-anchor="end" font-size="12" font-weight="600" fill="rgb(var(--brand-red-rgb))">DGX Spark — below the floor</text>
 
     <g transform="translate(330,62)">
       <line x1="0" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="2.5"/>
       <text x="34" y="4" font-size="12" fill="currentColor">Qwen3-Coder-Next 80B/3B, AWQ4 — ~9 GiB active</text>
-      <line x1="0" y1="20" x2="26" y2="20" stroke="#8A8A92" stroke-width="2.5" stroke-dasharray="7 4"/>
-      <text x="34" y="24" font-size="12" fill="#8A8A92">Devstral Small 2 24B, dense FP8 — 25 GiB active</text>
+      <line x1="0" y1="20" x2="26" y2="20" stroke="rgb(var(--fig-muted-rgb))" stroke-width="2.5" stroke-dasharray="7 4"/>
+      <text x="34" y="24" font-size="12" fill="rgb(var(--fig-muted-rgb))">Devstral Small 2 24B, dense FP8 — 25 GiB active</text>
     </g>
   </svg>
   <figcaption class="mt-4 max-w-3xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">Two conclusions the prose can only assert. The mixture-of-experts line sits far above the dense one, so the best open coding model is also the fastest to serve. And the Spark's bandwidth puts it under the floor whatever it loads — capacity cannot buy its way out of a bandwidth wall.</figcaption>

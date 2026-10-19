@@ -54,6 +54,13 @@ jobs:
       - name: Dashboard accessibility
         run: python scripts/lint_a11y.py
 
+      # The site's figures are a separate problem: their text sits on tints of
+      # the brand colours themselves, so a token that passes against white can
+      # fail against its own card. The failures are light-scheme-only, which is
+      # precisely what a review done in dark mode cannot see.
+      - name: Figure contrast
+        run: python scripts/audit_figures.py
+
       # A deployment claim that nobody checks is a deployment claim that
       # drifts. `doctor` returns non-zero only on a broken rule set, so an
       # unreachable upstream in CI is a warning rather than a failure.

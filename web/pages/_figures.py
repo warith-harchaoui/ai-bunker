@@ -30,7 +30,7 @@ def flow(t: dict[str, str]) -> str:
         <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
       </marker>
       <marker id="arw-dim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-        <path d="M0 0 L10 5 L0 10 z" fill="#9A9AA2"/>
+        <path d="M0 0 L10 5 L0 10 z" fill="rgb(var(--fig-muted-rgb))"/>
       </marker>
     </defs>
 
@@ -43,42 +43,42 @@ def flow(t: dict[str, str]) -> str:
           fill="currentColor" letter-spacing=".08em">{t["gateway"]}</text>
 
     <rect x="14" y="150" width="170" height="120" rx="14" fill="none"
-          stroke="#9A9AA2" stroke-width="1.5"/>
+          stroke="rgb(var(--fig-muted-rgb))" stroke-width="1.5"/>
     <text x="99" y="200" text-anchor="middle" font-size="15" font-weight="600" fill="currentColor">{t["client"]}</text>
-    <text x="99" y="222" text-anchor="middle" font-size="11" fill="#8A8A92">{t["client_sub"]}</text>
+    <text x="99" y="222" text-anchor="middle" font-size="11" fill="rgb(var(--fig-muted-rgb))">{t["client_sub"]}</text>
 
     <rect x="700" y="150" width="150" height="120" rx="14" fill="none"
-          stroke="#9A9AA2" stroke-width="1.5"/>
+          stroke="rgb(var(--fig-muted-rgb))" stroke-width="1.5"/>
     <text x="775" y="200" text-anchor="middle" font-size="15" font-weight="600" fill="currentColor">{t["engine"]}</text>
-    <text x="775" y="222" text-anchor="middle" font-size="11" fill="#8A8A92">{t["engine_sub"]}</text>
+    <text x="775" y="222" text-anchor="middle" font-size="11" fill="rgb(var(--fig-muted-rgb))">{t["engine_sub"]}</text>
 
     <path d="M184 184 H228" stroke="currentColor" stroke-width="2" fill="none" marker-end="url(#arw)"/>
     <path d="M658 184 H700" stroke="currentColor" stroke-width="2" fill="none" marker-end="url(#arw)"/>
-    <path d="M700 240 H658" stroke="#9A9AA2" stroke-width="2" fill="none" marker-end="url(#arw-dim)"/>
-    <path d="M228 240 H184" stroke="#9A9AA2" stroke-width="2" fill="none" marker-end="url(#arw-dim)"/>
+    <path d="M700 240 H658" stroke="rgb(var(--fig-muted-rgb))" stroke-width="2" fill="none" marker-end="url(#arw-dim)"/>
+    <path d="M228 240 H184" stroke="rgb(var(--fig-muted-rgb))" stroke-width="2" fill="none" marker-end="url(#arw-dim)"/>
 
     <g>
       <rect x="284" y="80" width="172" height="86" rx="12" fill="rgb(var(--brand-orange-rgb))" fill-opacity=".10"
             stroke="rgb(var(--brand-orange-rgb))" stroke-opacity=".5"/>
       <text x="298" y="102" font-size="11" font-weight="700" fill="rgb(var(--brand-orange-rgb))" letter-spacing=".1em">01</text>
       <text x="298" y="124" font-size="13" font-weight="600" fill="currentColor">{t["s1"]}</text>
-      <text x="298" y="144" font-size="11.5" fill="#8A8A92">{t["s1a"]}</text>
-      <text x="298" y="159" font-size="11.5" fill="#8A8A92">{t["s1b"]}</text>
+      <text x="298" y="144" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["s1a"]}</text>
+      <text x="298" y="159" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["s1b"]}</text>
     </g>
     <g>
       <rect x="472" y="80" width="172" height="86" rx="12" fill="currentColor" fill-opacity=".10"
             stroke="currentColor" stroke-opacity=".45"/>
       <text x="486" y="102" font-size="11" font-weight="700" fill="currentColor" letter-spacing=".1em">02</text>
       <text x="486" y="124" font-size="13" font-weight="600" fill="currentColor">{t["s2"]}</text>
-      <text x="486" y="144" font-size="11.5" fill="#8A8A92">{t["s2a"]}</text>
-      <text x="486" y="159" font-size="11.5" fill="#8A8A92">{t["s2b"]}</text>
+      <text x="486" y="144" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["s2a"]}</text>
+      <text x="486" y="159" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["s2b"]}</text>
     </g>
     <g>
       <rect x="284" y="196" width="360" height="76" rx="12" fill="currentColor" fill-opacity=".10"
             stroke="currentColor" stroke-opacity=".45"/>
       <text x="298" y="218" font-size="11" font-weight="700" fill="currentColor" letter-spacing=".1em">03</text>
       <text x="298" y="240" font-size="13" font-weight="600" fill="currentColor">{t["s3"]}</text>
-      <text x="298" y="259" font-size="11.5" fill="#8A8A92">{t["s3a"]}</text>
+      <text x="298" y="259" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["s3a"]}</text>
       <text x="630" y="240" text-anchor="end" font-size="12" font-weight="600"
             fill="rgb(var(--brand-red-rgb))">{t["s3_refuse"]}</text>
     </g>
@@ -87,7 +87,7 @@ def flow(t: dict[str, str]) -> str:
             stroke="rgb(var(--brand-red-rgb))" stroke-opacity=".45"/>
       <text x="298" y="322" font-size="11" font-weight="700" fill="rgb(var(--brand-red-rgb))" letter-spacing=".1em">04</text>
       <text x="298" y="344" font-size="13" font-weight="600" fill="currentColor">{t["s4"]}</text>
-      <text x="298" y="363" font-size="11.5" fill="#8A8A92">{t["s4a"]}</text>
+      <text x="298" y="363" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["s4a"]}</text>
       <text x="630" y="344" text-anchor="end" font-size="12" font-weight="600"
             fill="rgb(var(--brand-red-rgb))">{t["s4_refuse"]}</text>
     </g>
@@ -135,13 +135,13 @@ def roofline(t: dict[str, str]) -> str:
     yticks = "".join(
         f'<text x="84" y="{330 - v / 120 * 280 + 4:.0f}" text-anchor="end" font-size="11" '
         f'font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" '
-        f'fill="#8A8A92">{v}</text>'
+        f'fill="rgb(var(--fig-muted-rgb))">{v}</text>'
         for v in (0, 30, 60, 90, 120)
     )
     xticks = "".join(
         f'<text x="{92 + v / 920 * 700:.0f}" y="352" text-anchor="middle" font-size="11" '
         f'font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" '
-        f'fill="#8A8A92">{v}</text>'
+        f'fill="rgb(var(--fig-muted-rgb))">{v}</text>'
         for v in (0, 273, 546, 819)
     )
     return f"""
@@ -151,12 +151,12 @@ def roofline(t: dict[str, str]) -> str:
     <title id="roof-t">{t["title"]}</title>
     <desc id="roof-d">{t["desc"]}</desc>
     {yticks}
-    <line x1="92" y1="50" x2="92" y2="330" stroke="#9A9AA2" stroke-opacity=".45"/>
-    <line x1="92" y1="330" x2="792" y2="330" stroke="#9A9AA2" stroke-opacity=".45"/>
+    <line x1="92" y1="50" x2="92" y2="330" stroke="rgb(var(--fig-muted-rgb))" stroke-opacity=".45"/>
+    <line x1="92" y1="330" x2="792" y2="330" stroke="rgb(var(--fig-muted-rgb))" stroke-opacity=".45"/>
     {xticks}
-    <text x="442" y="378" text-anchor="middle" font-size="12" fill="#8A8A92">{t["x"]}</text>
-    <text x="30" y="190" font-size="12" fill="#8A8A92" transform="rotate(-90 30 190)" text-anchor="middle">{t["y"]}</text>
-    <text x="46" y="190" font-size="10.5" fill="#8A8A92" transform="rotate(-90 46 190)" text-anchor="middle">{t["polarity"]}</text>
+    <text x="442" y="378" text-anchor="middle" font-size="12" fill="rgb(var(--fig-muted-rgb))">{t["x"]}</text>
+    <text x="30" y="190" font-size="12" fill="rgb(var(--fig-muted-rgb))" transform="rotate(-90 30 190)" text-anchor="middle">{t["y"]}</text>
+    <text x="46" y="190" font-size="10.5" fill="rgb(var(--fig-muted-rgb))" transform="rotate(-90 46 190)" text-anchor="middle">{t["polarity"]}</text>
 
     <!-- the comfort floor -->
     <line x1="92" y1="{330 - 20 / 120 * 280:.0f}" x2="792" y2="{330 - 20 / 120 * 280:.0f}"
@@ -168,7 +168,7 @@ def roofline(t: dict[str, str]) -> str:
           font-weight="600" fill="rgb(var(--brand-red-rgb))">{t["floor"]}</text>
 
     <polyline points="{pts(9)}" fill="none" stroke="currentColor" stroke-width="2.5"/>
-    <polyline points="{pts(25)}" fill="none" stroke="#8A8A92" stroke-width="2.5" stroke-dasharray="7 4"/>
+    <polyline points="{pts(25)}" fill="none" stroke="rgb(var(--fig-muted-rgb))" stroke-width="2.5" stroke-dasharray="7 4"/>
 
     <circle cx="{m3_x:.0f}" cy="{m3_y:.0f}" r="5" fill="currentColor"/>
     <text x="{m3_x - 10:.0f}" y="{m3_y - 12:.0f}" text-anchor="end" font-size="12" font-weight="600" fill="currentColor">{t["p_m3"]}</text>
@@ -176,16 +176,16 @@ def roofline(t: dict[str, str]) -> str:
          line, so a label placed below either of them lands on it. Rendered,
          that read as text struck through by a dashed rule. Both now sit above
          their point, where the gap to the MoE line is wide. -->
-    <circle cx="{studio_dense_x:.0f}" cy="{studio_dense_y:.0f}" r="5" fill="#8A8A92"/>
-    <text x="{studio_dense_x - 12:.0f}" y="{studio_dense_y - 12:.0f}" text-anchor="end" font-size="12" fill="#8A8A92">{t["p_dense"]}</text>
+    <circle cx="{studio_dense_x:.0f}" cy="{studio_dense_y:.0f}" r="5" fill="rgb(var(--fig-muted-rgb))"/>
+    <text x="{studio_dense_x - 12:.0f}" y="{studio_dense_y - 12:.0f}" text-anchor="end" font-size="12" fill="rgb(var(--fig-muted-rgb))">{t["p_dense"]}</text>
     <circle cx="{spark_x:.0f}" cy="{spark_y:.0f}" r="5" fill="rgb(var(--brand-red-rgb))"/>
     <text x="{spark_x - 12:.0f}" y="{spark_y - 10:.0f}" text-anchor="end" font-size="12" font-weight="600" fill="rgb(var(--brand-red-rgb))">{t["p_spark"]}</text>
 
     <g transform="translate(330,62)">
       <line x1="0" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="2.5"/>
       <text x="34" y="4" font-size="12" fill="currentColor">{t["l_moe"]}</text>
-      <line x1="0" y1="20" x2="26" y2="20" stroke="#8A8A92" stroke-width="2.5" stroke-dasharray="7 4"/>
-      <text x="34" y="24" font-size="12" fill="#8A8A92">{t["l_dense"]}</text>
+      <line x1="0" y1="20" x2="26" y2="20" stroke="rgb(var(--fig-muted-rgb))" stroke-width="2.5" stroke-dasharray="7 4"/>
+      <text x="34" y="24" font-size="12" fill="rgb(var(--fig-muted-rgb))">{t["l_dense"]}</text>
     </g>
   </svg>
   <figcaption class="mt-4 max-w-3xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">{t["caption"]}</figcaption>
@@ -216,7 +216,7 @@ def floor_bar(t: dict[str, str]) -> str:
         )
         if w > 70:
             labels.append(
-                f'<text x="{x + w / 2:.0f}" y="178" text-anchor="middle" font-size="11" fill="#8A8A92">{name}</text>'
+                f'<text x="{x + w / 2:.0f}" y="178" text-anchor="middle" font-size="11" fill="rgb(var(--fig-muted-rgb))">{name}</text>'
                 f'<text x="{x + w / 2:.0f}" y="193" text-anchor="middle" font-size="11.5" font-weight="600" fill="currentColor">{value:,}</text>'
             )
         x += w
@@ -230,8 +230,8 @@ def floor_bar(t: dict[str, str]) -> str:
     <text x="92" y="30" font-size="12" font-weight="600" fill="currentColor">{t["window"]}</text>
     <rect x="92" y="42" width="700" height="14" rx="7" fill="rgb(var(--brand-green-rgb))" fill-opacity=".18"/>
     <rect x="92" y="42" width="15" height="14" rx="7" fill="rgb(var(--brand-orange-rgb))"/>
-    <text x="92" y="76" font-size="11.5" fill="#8A8A92">{t["floor_share"]}</text>
-    <text x="792" y="76" text-anchor="end" font-size="11.5" fill="#8A8A92">{t["left"]}</text>
+    <text x="92" y="76" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["floor_share"]}</text>
+    <text x="792" y="76" text-anchor="end" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["left"]}</text>
 
     <text x="92" y="108" font-size="12" font-weight="600" fill="currentColor">{t["made_of"]}</text>
     {"".join(segs)}
@@ -239,9 +239,9 @@ def floor_bar(t: dict[str, str]) -> str:
 
     <g transform="translate(92,214)">
       <rect x="0" y="-9" width="10" height="10" rx="2" fill="rgb(var(--brand-orange-rgb))"/>
-      <text x="16" y="0" font-size="11.5" fill="#8A8A92">{t["l_client"]}</text>
+      <text x="16" y="0" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["l_client"]}</text>
       <rect x="150" y="-9" width="10" height="10" rx="2" fill="rgb(var(--brand-blue-rgb))"/>
-      <text x="166" y="0" font-size="11.5" fill="#8A8A92">{t["l_us"]}</text>
+      <text x="166" y="0" font-size="11.5" fill="rgb(var(--fig-muted-rgb))">{t["l_us"]}</text>
     </g>
   </svg>
   <figcaption class="mt-4 max-w-3xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">{t["caption"]}</figcaption>

@@ -95,6 +95,18 @@ client kits and a dashboard.
   The contrast auditor found four real failures on first run, none visible by
   eye.
 
+### Site
+
+- Eight hand-written pages in two languages, assembled from one shell rather
+  than generated from Markdown, with the figures hand-authored as SVG.
+- `scripts/audit_figures.py` checks the figures' contrast in **both** colour
+  schemes against pairs that are declared rather than discovered. The figures'
+  text sits on tints of the brand colours themselves, so a token that passes
+  against white can fail against its own card — and the failures were
+  light-scheme-only, which no amount of dark-mode review would have found.
+- Every number the site quotes is tested against the repository that produced
+  it, so hand-written pages cannot drift from the code.
+
 ### Known limitations
 
 - Command screening does not apply to streamed completions: a tool call arrives

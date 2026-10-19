@@ -207,3 +207,44 @@ def test_the_stylesheet_is_built_and_committed():
         ["git", "check-ignore", "-q", str(css)], cwd=ROOT, check=False
     ).returncode
     assert ignored != 0, "app.css is gitignored; it must ship"
+
+
+def test_the_figures_meet_their_contrast_floor():
+    """The figures' text sits on tints of the brand colours themselves, so a
+    token that passes against white can still fail against its own card."""
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "audit_figures.py")],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "all pairs meet" in result.stdout
+
+
+def test_the_figure_audit_can_fail():
+    """An auditor nobody has seen fail is an auditor nobody should trust. The
+    figures shipped a fixed ``#8A8A92`` that scored 5.74:1 on the dark page and
+    3.43:1 on white; restoring it must put the audit back in the red."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "audit_figures", ROOT / "scripts" / "audit_figures.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    # The grey as it was, against the page it was never checked on.
+    assert module.contrast((0x8A, 0x8A, 0x92), (255, 255, 255)) < module.FLOOR
+    # And the replacement, against the darkest surface it actually lands on.
+    assert module.contrast((0x65, 0x65, 0x69), (255, 255, 255)) >= module.FLOOR
+
+
+def test_the_figures_carry_no_hard_coded_colour():
+    """A literal hex in a figure cannot know which scheme it is on. That is the
+    bug this guards: the greys were fixed values tuned for dark, and the light
+    scheme inherited them silently."""
+    source = (WEB / "pages" / "_figures.py").read_text(encoding="utf-8")
+    literals = re.findall(r'(?:fill|stroke)="(#[0-9A-Fa-f]{3,8})"', source)
+    assert not literals, f"figures carry hard-coded colours: {sorted(set(literals))}"
