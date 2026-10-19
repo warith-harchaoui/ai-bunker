@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Both names on purpose. The workflow said `main` while the repository's
+    # branch was `master`, so CI had never run once -- on a project whose
+    # README advertises a green gate. Accepting both is cheaper than imposing
+    # a rename, and it cannot silently stop working again.
+    branches: [main, master]
   pull_request:
 
 concurrency:
