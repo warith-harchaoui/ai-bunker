@@ -60,6 +60,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from ai_bunker import __version__
+from ai_bunker.a2a import agent_card, handle_message_send
 from ai_bunker.budget import Counter
 from ai_bunker.charter import build_index, load_charter, read_page
 from ai_bunker.config import Settings, load_settings
@@ -68,7 +69,7 @@ from ai_bunker.pipeline import (
     apply_outbound,
     refusal_as_tool_result,
 )
-from ai_bunker.rules import load_rules
+from ai_bunker.rules import decisions_for, load_rules
 
 #: How long to wait on an upstream. Generous: a 256k prompt on a busy GPU is
 #: slow to first token, and a gateway that times out before the model answers
@@ -283,6 +284,58 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return applied.budget.to_dict()
 
     # -- charter ---------------------------------------------------------
+
+    # -- Agent2Agent ------------------------------------------------------
+    #
+    # Deliberately unauthenticated, like /health: a card exists to be read by
+    # a peer that has not met this agent yet, and one behind a key cannot be
+    # discovered. It carries no secrets -- it names skills and says whether a
+    # key is needed to use them.
+
+    @app.get("/.well-known/agent-card.json", include_in_schema=False)
+    async def a2a_card(request: Request) -> JSONResponse:
+        """A2A discovery."""
+        state: State = app.state.bunker
+        base = str(request.base_url).rstrip("/")
+        card = agent_card(
+            base_url=base,
+            charter=state.charter,
+            authenticated=bool(state.settings.api_key),
+            sovereign=not any(u.remote for u in state.settings.upstreams.values()),
+        )
+        return JSONResponse(card, media_type="application/a2a+json")
+
+    @app.post("/a2a/v1/message:send", dependencies=[Depends(_authenticate)])
+    async def a2a_message_send(request: Request) -> JSONResponse:
+        """Screen one A2A message, or serve the charter, and return a Task.
+
+        An A2A message is text another agent wrote, arriving in this one's
+        context. That is the event stage 1 of the pipeline exists for, so it
+        runs the same rules -- not a parallel set that would drift.
+        """
+        state: State = app.state.bunker
+        body = await request.json()
+        result = handle_message_send(
+            body,
+            state.rules,
+            state.charter,
+            mark_provenance=state.settings.mark_provenance,
+        )
+        # Carried out of band by handle_message_send so the wire format stays
+        # exactly what the specification describes.
+        violations = result.pop("_violations", [])
+        if violations:
+            state.audit(
+                [
+                    d.as_dict()
+                    for d in decisions_for(
+                        violations,
+                        charter=state.charter.fingerprint if state.charter else "",
+                    )
+                ]
+            )
+            osh.info(f"[a2a] screened a peer message; {len(violations)} rule(s) fired.")
+        return JSONResponse(result, media_type="application/a2a+json")
 
     @app.get(
         "/v1/charter",

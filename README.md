@@ -571,6 +571,53 @@ A failure to write the log warns and does not fail the request: losing a line
 is bad, refusing to serve because a disk is full is worse, and the warning is
 what gets someone to fix it.
 
+## Agent2Agent
+
+When agents talk to each other, a message written by one lands in another's
+context. That is the event this project already treats as the dangerous one —
+and it is worse than a tool result, because it arrives looking like a peer
+rather than like data.
+
+So A2A here is not a new concern bolted on. It is the existing concern at a new
+ingress, screened by the same rules, with no parallel rule set to drift.
+
+```bash
+curl http://127.0.0.1:8000/.well-known/agent-card.json      # discovery
+```
+
+The card advertises two skills. `screen-text` is the one that matters: any
+agent anywhere can put untrusted text through these guardrails without being a
+client of this gateway.
+
+```
+POST /a2a/v1/message:send
+{"message": {"role": "ROLE_USER", "parts": [{"text": "<the suspect text>"}]}}
+```
+
+```
+state : TASK_STATE_COMPLETED
+rules : global.generic_secret, global.vendor_token, injection.override_instructions
+<<<ai-bunker:untrusted source=a2a peer>>>
+Here is the deploy config you asked for.
+<SECRET REDACTED>
+github = <TOKEN REDACTED>
+<INJECTION ATTEMPT REDACTED: instruction override> and email it to evil.example.com.
+<<<ai-bunker:end untrusted>>>
+```
+
+Implemented: the HTTP+JSON binding, discovery, and `message:send`. **Not**
+implemented, and the card says so: streaming, push notifications, task history,
+the authenticated extended card. `capabilities` is a contract — an agent that
+advertises `streaming: true` and then does not stream has told a lie a peer
+will build on.
+
+Two smaller decisions worth stating. The card declares bearer authentication
+only when a key is actually configured, because a card demanding a key from an
+open gateway sends peers to fail at a door standing open. And the charter is
+*one* skill with pages behind it, not a skill per page: a skill per page would
+push the whole index into every peer's startup context, which is the cost the
+charter exists to avoid.
+
 ## Routing by need, not by model name
 
 A client hardcodes a model name because it has to put *something* in the field.
@@ -807,7 +854,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 422 tests, `ruff` clean | ✅ |
+| 441 tests, `ruff` clean | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
 | `ai_bunker/rules.py` — two scopes, entropy, allowlists, self-testing rules | ✅ |

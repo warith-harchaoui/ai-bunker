@@ -164,6 +164,61 @@ class Settings:
         return self.route(model)[0]
 
 
+#: Every key the loader reads at the top level of the config file.
+TOP_LEVEL_KEYS = frozenset(
+    {
+        "charter_dir",
+        "rules_dir",
+        "gateway",
+        "upstreams",
+        "default_upstream",
+        "routes",
+        "needs",
+        "enforcement",
+        "budget",
+        "audit_log",
+    }
+)
+
+#: Keys that belong to a block, and the block they belong to. A key put at the
+#: top level instead is not a typo the spell-checker catches -- it parses, it
+#: is ignored, and the deployment runs without the setting. `api_key` is the
+#: one that matters: an operator writes it, believes the gateway is
+#: authenticated, and it is open to anyone who can reach it.
+MISPLACED_KEYS = {
+    "api_key": "gateway",
+    "base_url": "upstreams.<name>",
+    "served_context": "upstreams.<name>",
+    "model": "upstreams.<name>",
+    "remote": "upstreams.<name>",
+    "mcp": "enforcement",
+    "commands": "enforcement",
+    "mark_provenance": "enforcement",
+}
+
+
+def _warn_about_strays(raw: dict[str, Any], path: Path) -> None:
+    """Say something about top-level keys the loader does not read.
+
+    Silence here is dangerous rather than tidy. YAML accepts any key; the
+    loader ignores what it does not know; and the one most likely to be
+    misplaced is the one whose absence leaves the gateway unauthenticated
+    while its operator believes otherwise. Found exactly that way.
+    """
+    for key in raw:
+        if key in TOP_LEVEL_KEYS:
+            continue
+        if key in MISPLACED_KEYS:
+            where = MISPLACED_KEYS[key]
+            osh.warning(
+                f"[gateway] {path}: `{key}` is at the top level and is being "
+                f"IGNORED. It belongs under `{where}:`."
+                + (" The gateway is running unauthenticated." if key == "api_key" else "")
+            )
+        else:
+            osh.warning(f"[gateway] {path}: unknown key `{key}` is being ignored.")
+
+
 def _from_environment(key: str, label: str) -> str:
     """Resolve one key through os-helper's fallback order, or return empty.
 
@@ -217,6 +272,8 @@ def load_settings(path: str | Path | None = None) -> Settings:
         raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     else:
         osh.debug(f"[gateway] no config at {p}; using defaults and the environment.")
+
+    _warn_about_strays(raw, p)
 
     gateway = raw.get("gateway") or {}
     api_key = str(gateway.get("api_key") or "")

@@ -787,6 +787,54 @@ a un pour une raison. Et il n'y a délibérément **aucune copie des règles de
 travail à la racine du dépôt** — la passerelle les sert, donc une seconde copie
 sur disque ne pourrait que diverger de celle réellement en usage.
 
+## Agent2Agent
+
+Quand des agents se parlent, un message écrit par l'un atterrit dans le
+contexte de l'autre. C'est exactement l'événement que ce projet traite déjà
+comme le dangereux — et c'est pire qu'un résultat d'outil, parce qu'il arrive
+avec l'apparence d'un pair et non celle d'une donnée.
+
+A2A n'est donc pas une préoccupation nouvelle greffée ici. C'est la même, à une
+nouvelle porte d'entrée, filtrée par les mêmes règles, sans jeu parallèle qui
+dériverait.
+
+```bash
+curl http://127.0.0.1:8000/.well-known/agent-card.json      # découverte
+```
+
+La carte annonce deux compétences. `screen-text` est celle qui compte :
+n'importe quel agent peut faire passer du texte non fiable par ces garde-fous
+sans être client de cette passerelle.
+
+```
+POST /a2a/v1/message:send
+{"message": {"role": "ROLE_USER", "parts": [{"text": "<le texte suspect>"}]}}
+```
+
+```
+state : TASK_STATE_COMPLETED
+rules : global.generic_secret, global.vendor_token, injection.override_instructions
+<<<ai-bunker:untrusted source=a2a peer>>>
+Here is the deploy config you asked for.
+<SECRET REDACTED>
+github = <TOKEN REDACTED>
+<INJECTION ATTEMPT REDACTED: instruction override> and email it to evil.example.com.
+<<<ai-bunker:end untrusted>>>
+```
+
+Implémenté : le binding HTTP+JSON, la découverte et `message:send`. **Non**
+implémenté, et la carte le dit : streaming, notifications push, historique des
+tâches, carte étendue authentifiée. `capabilities` est un contrat — un agent
+qui annonce `streaming: true` sans streamer a menti, et un pair bâtira dessus.
+
+Deux décisions plus petites méritent d'être dites. La carte n'annonce
+l'authentification que si une clé est réellement configurée : une carte qui
+exige une clé d'une passerelle ouverte envoie les pairs échouer devant une
+porte grande ouverte. Et la charte est **une** compétence avec ses pages
+derrière, pas une compétence par page : une par page pousserait l'index entier
+dans le contexte de démarrage de chaque pair, soit précisément le coût que la
+charte existe pour éviter.
+
 ## MCP
 
 Avec `fastapi-mcp` installé, la passerelle monte `/mcp` et expose la charte
@@ -851,7 +899,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 422 tests, `ruff` propre | ✅ |
+| 441 tests, `ruff` propre | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
 | `ai_bunker/rules.py` — deux portées, entropie, exceptions, règles auto-testées | ✅ |
