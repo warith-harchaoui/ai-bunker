@@ -52,5 +52,5 @@ header is edited once rather than eight times.
 
 The pages are **written by hand**, not generated from the Markdown. That is a
 deliberate choice and it carries a risk: the figures quoted here (354 tests,
-17 rules, 107 assertions) can drift from the repository. `tests/test_site.py`
+19 rules, 120 assertions) can drift from the repository. `tests/test_site.py`
 asserts they match.

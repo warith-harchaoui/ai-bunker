@@ -32,6 +32,7 @@ SUBCOMMANDS = (
     "rules",
     "charter",
     "skill",
+    "spec",
     "adopt",
     "serve",
     "doctor",

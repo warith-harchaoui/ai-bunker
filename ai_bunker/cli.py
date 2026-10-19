@@ -58,6 +58,9 @@ from ai_bunker.skill import (
     warnings,
     write_skill,
 )
+from ai_bunker.spec import export as spec_export
+from ai_bunker.spec import load as spec_load
+from ai_bunker.spec import run as spec_run
 
 # Indicative EUR for a complete, rack-ready node — not quotes. Orders of
 # magnitude exist here so "cost per person carried" can be computed at all;
@@ -478,6 +481,54 @@ def cmd_skill(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_spec(args: argparse.Namespace) -> int:
+    """Render the rules as Gherkin, or run Gherkin against the rules.
+
+    The second direction is the one that earns its keep. A scenario nobody
+    generated is a specification somebody wrote, and an implementation that
+    fails it has a gap -- which is how seven of them were found, including
+    injection rules that were English-only in a bilingual project.
+    """
+    rules = load_rules(args.rules)
+
+    if args.export or args.print_:
+        sources = sorted({r.source for r in rules})
+        out = Path(args.export) if args.export else None
+        if out:
+            osh.make_directory(str(out))
+        for source in sources:
+            text = spec_export(rules, source=source)
+            if args.print_:
+                print(text)
+                continue
+            assert out is not None
+            path = out / (source.removesuffix(".yaml") + ".feature")
+            path.write_text(text, encoding="utf-8")
+            print(f"  {path}")
+        return 0
+
+    directory = args.run or "features"
+    if not Path(directory).is_dir():
+        print(f"ai-bunker: no scenarios under {directory}/", file=sys.stderr)
+        return 2
+
+    try:
+        scenarios = spec_load(directory)
+    except ValueError as exc:
+        print(f"ai-bunker: {exc}", file=sys.stderr)
+        return 2
+
+    results = spec_run(scenarios, rules)
+    failed = [r for r in results if not r.passed]
+    for result in failed:
+        print(f"  [fail] {result.scenario.feature} / {result.scenario.name}")
+        print(f"         {result.detail}")
+    print(f"\n{len(results)} scenario(s), {len(results) - len(failed)} passed")
+    if failed:
+        print(f"{len(failed)} scenario(s) describe behaviour this deployment does not have.")
+    return 1 if failed else 0
+
+
 def cmd_adopt(args) -> int:
     settings = load_settings(args.config)
     upstream = (
@@ -692,6 +743,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--print", dest="print_", action="store_true", help="Print SKILL.md, write nothing."
     )
     sk.set_defaults(func=cmd_skill)
+
+    sp = sub.add_parser(
+        "spec",
+        help="The rule set as Gherkin a non-programmer can read and approve.",
+    )
+    sp.add_argument("--rules", default="charter/rules", help="Rules to read.")
+    sp.add_argument(
+        "--export",
+        metavar="DIR",
+        help="Write one .feature per rules file into DIR.",
+    )
+    sp.add_argument(
+        "--run",
+        metavar="DIR",
+        default=None,
+        help="Run every scenario under DIR against the engine (default: features/).",
+    )
+    sp.add_argument("--print", dest="print_", action="store_true", help="Print, write nothing.")
+    sp.set_defaults(func=cmd_spec)
 
     sv = sub.add_parser("serve", help="Run the gateway.")
     sv.add_argument("--config", default=None, help="Gateway config (default: config/gateway.yaml).")

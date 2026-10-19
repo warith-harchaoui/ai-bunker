@@ -86,8 +86,8 @@ export AI_BUNKER_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urls
 
 $ ai-bunker doctor
   [ok  ] charter carries operating rules
-  [ok  ] 17 rules loaded
-  [ok  ] 107 rule assertions pass
+  [ok  ] 19 rules loaded
+  [ok  ] 120 rule assertions pass
   [ok  ] 100% of rules carry evidence
   [WARN] upstream local answers at http://127.0.0.1:8001/v1   not reachable
   [ok  ] no route leaves this network
@@ -154,7 +154,7 @@ Adopting ai-bunker into /path/to/project:
       <div class="mt-14 rounded-2xl border border-neutral-200 bg-neutral-50 p-6 dark:border-neutral-800 dark:bg-neutral-900/40">
         <h2 class="font-serif text-xl font-semibold tracking-tight">Before you depend on it</h2>
         <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
-          This is <code class="font-mono text-sm">0.1.0-alpha</code>: 441 tests and a green CI
+          This is <code class="font-mono text-sm">0.1.0-alpha</code>: 464 tests and a green CI
           gate, next to projects with years of production use. Command screening does not apply
           to streamed completions, and <code class="font-mono text-sm">/health</code> reports
           which guarantees are live rather than implying all of them are.
