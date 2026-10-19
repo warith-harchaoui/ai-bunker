@@ -74,6 +74,17 @@ TOKENIZE_TIMEOUT = 120
 
 Backend = Literal["server", "local", "ratio"]
 
+#: How to ask an engine to tokenize. The two engines this project names do not
+#: agree: vLLM takes ``{"model", "prompt"}``, llama.cpp takes ``{"content"}``.
+#: Sending vLLM's body to llama.cpp does not fail -- it returns ``{"tokens":
+#: []}``, a silent zero -- so a llama.cpp deployment fell back to estimates
+#: while its operator believed the engine was counting. Order matters only for
+#: which is tried first; both are cheap.
+TOKENIZE_DIALECTS: tuple[tuple[str, str], ...] = (
+    ("vllm", "prompt"),
+    ("llama.cpp", "content"),
+)
+
 
 # ---------------------------------------------------------------------------
 # Counters
@@ -108,6 +119,8 @@ class Counter:
         self.model = model
         self.allow_ratio = allow_ratio
         self._local: Any = None
+        #: Resolved by the probe in `_server_works`; see TOKENIZE_DIALECTS.
+        self._dialect: str = TOKENIZE_DIALECTS[0][1]
         self.backend: Backend = self._pick_backend()
 
     # -- backend selection ------------------------------------------------
@@ -118,13 +131,25 @@ class Counter:
         return root[: -len("/v1")] if root.endswith("/v1") else root
 
     def _server_works(self) -> bool:
+        """Probe each dialect, and remember the one that answers.
+
+        A zero here is as disqualifying as an exception: an engine that
+        tokenizes "ping" into nothing is not tokenizing. That is exactly what
+        llama.cpp does when handed vLLM's request body, and taking it at face
+        value would mean every budget on that engine counted zero.
+        """
         if not self.base_url or not self.model:
             return False
-        try:
-            return self._count_server("ping") > 0
-        except Exception as exc:  # any failure here means "unusable", not "crash"
-            osh.debug(f"Server tokenizer unavailable ({exc}); trying local.")
-            return False
+        for name, key in TOKENIZE_DIALECTS:
+            try:
+                if self._count_server("ping", key) > 0:
+                    self._dialect = key
+                    osh.debug(f"Server tokenizer speaks the {name} dialect.")
+                    return True
+            except Exception as exc:  # unusable, not a crash
+                osh.debug(f"Server tokenizer refused the {name} dialect ({exc}).")
+        osh.debug("No /tokenize dialect answered; trying local.")
+        return False
 
     def _load_local(self) -> bool:
         """Load the model's tokenizer in-process, if `tokenizers` is installed."""
@@ -163,7 +188,7 @@ class Counter:
 
     # -- counting ---------------------------------------------------------
 
-    def _count_server(self, text: str) -> int:
+    def _count_server(self, text: str, key: str | None = None) -> int:
         """Ask the serving engine to count.
 
         Uses ``httpx`` when it is installed and ``urllib`` otherwise. Not
@@ -174,7 +199,9 @@ class Counter:
         unverified long enough to ship broken.
         """
         url = f"{self._tokenize_root()}/tokenize"
-        body = {"model": self.model, "prompt": text}
+        # `model` is harmless to the engines that ignore it and required by
+        # the ones that do not.
+        body = {"model": self.model, key or self._dialect: text}
         try:
             import httpx  # optional: part of the [api] extra
 

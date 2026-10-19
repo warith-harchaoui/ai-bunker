@@ -349,7 +349,32 @@ async function loadHealth() {
   return h;
 }
 
+// The charter tile and the budget tile describe the same injected text, and
+// they used to disagree on screen -- 607 against 595 -- because this one
+// estimated while the other asked the server. They now share a number
+// whenever the server can supply one. Both loads are concurrent, so either
+// may arrive first and each re-renders the line.
+let lastBudget = null;
+let injectedChars = null;
+
+function renderIndexCost() {
+  if (injectedChars === null) return;
+  // The ai-bunker-owned items, not the whole floor: once a captured request
+  // is measured the floor also carries the client's system prompt and tool
+  // schemas, which this line is not about.
+  const ours = lastBudget && lastBudget.exact
+    ? (lastBudget.items || [])
+        .filter((i) => i.owner === "ai-bunker")
+        .reduce((a, i) => a + i.tokens, 0)
+    : null;
+  $("idx-cost").textContent = ours
+    ? `${n(injectedChars)} chars = ${n(ours)} tokens`
+    : `${n(injectedChars)} chars ≈ ${n(Math.round(injectedChars / CHARS_PER_TOKEN))} tokens`;
+}
+
 function renderBudget(b) {
+  lastBudget = b;
+  renderIndexCost();
   // The window strip, at window scale: is there room at all?
   const window_ = Math.max(b.compaction_starts_at, b.floor_tokens, 1);
   const strip = $("strip");
@@ -493,8 +518,8 @@ async function loadCharter() {
   $("packs").textContent = `${Object.keys(c.packs).length} / ${pageCount}`;
   $("blocks").textContent = [c.operating_rules, c.index].filter(Boolean).join("\n\n");
 
-  const injected = (c.operating_rules || "").length + (c.index || "").length;
-  $("idx-cost").textContent = `${n(injected)} chars ≈ ${n(Math.round(injected / CHARS_PER_TOKEN))} tokens`;
+  injectedChars = (c.operating_rules || "").length + (c.index || "").length;
+  renderIndexCost();
   $("pages-cost").textContent = `${pageCount} page(s), 0 chars until one is opened`;
 
   const holder = $("pages");

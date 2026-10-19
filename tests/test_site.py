@@ -308,3 +308,26 @@ def test_nothing_unreferenced_would_be_uploaded():
         assert any("_orphan_probe.png" in p for p in found), found
     finally:
         stray.unlink()
+
+
+def test_no_page_loads_a_script_twice():
+    """A script included twice runs twice, and every listener it registers
+    fires twice per event. The footer shell and the page template both emitted
+    js/theme.js, so each click on the theme toggle flipped the scheme and then
+    flipped it back: a control that was present, wired, silent, and dead, on
+    all eight pages in production."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("publish", WEB / "publish.py")
+    publish = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(publish)
+    assert publish.double_loads() == []
+
+
+@pytest.mark.parametrize("page", [p.relative_to(WEB).as_posix() for p in PAGES])
+def test_the_theme_toggle_is_wired_exactly_once(page):
+    """The guard above is static. This one reads the markup the way the
+    browser does: one button, one script that wires it."""
+    text = (WEB / page).read_text(encoding="utf-8")
+    assert text.count('id="theme-toggle"') == 1, "more than one element claims the id"
+    assert len(re.findall(r'<script[^>]+src="[^"]*js/theme\.js"', text)) == 1

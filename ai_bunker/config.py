@@ -38,6 +38,12 @@ class Upstream:
     api_key: str = ""
     #: What the engine actually serves. The budget is measured against this.
     served_context: int = 131_072
+    #: The model this upstream serves, used when the client did not name one.
+    #: Without it the floor of an empty session -- the charter and the index,
+    #: which the dashboard shows first -- has no tokenizer to be counted
+    #: against, so the operator's main instrument reports an estimate on a
+    #: deployment perfectly capable of being exact.
+    model: str = ""
     #: True when the request leaves the local network. Recorded so every
     #: routed request can be logged as such, rather than discovered later.
     remote: bool = False
@@ -147,7 +153,11 @@ class Settings:
             f"No upstream for model {model!r} (need {asked or 'none'}) and no usable "
             f"default. Configured upstreams: {', '.join(sorted(self.upstreams)) or 'none'}.",
         )
-        return self.upstreams[name], resolved, why
+        upstream = self.upstreams[name]
+        if not resolved and upstream.model:
+            resolved = upstream.model
+            why += f" (serving {upstream.model!r})"
+        return upstream, resolved, why
 
     def upstream_for(self, model: str) -> Upstream:
         """Resolve a model name to an upstream. Kept for callers with no need."""
@@ -230,6 +240,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
             base_url=str(spec.get("base_url") or ""),
             api_key=key,
             served_context=int(spec.get("served_context") or 131_072),
+            model=str(spec.get("model") or ""),
             remote=_as_bool(spec.get("remote"), False),
         )
 

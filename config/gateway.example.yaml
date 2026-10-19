@@ -19,6 +19,11 @@ upstreams:
     # against this figure, so it has to be true rather than aspirational.
     served_context: 262144
     remote: false
+    # The model this engine serves. Set it: without it, a request that names
+    # no model -- which is what the dashboard's empty-session floor is -- has
+    # no tokenizer to be counted against, and the operator's main instrument
+    # reports `ratio (estimate)` on a deployment that could be exact.
+    model: mistralai/Devstral-Small-2507
 
   # Uncomment to enable a premium route. Doing so is the ONLY way a request
   # can leave this network, it has to be written by a human, and `ai-bunker

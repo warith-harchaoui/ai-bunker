@@ -764,3 +764,45 @@ def test_routing_without_a_need_is_unchanged(needs_client, upstream):
     """Adding needs must not move a deployment that does not use them."""
     needs_client.post("/v1/chat/completions", json=_chat(model="devstral"), headers=AUTH)
     assert upstream.last["model"] == "devstral"
+
+
+def test_an_upstream_can_name_the_model_it_serves():
+    """Without this the dashboard's first view -- the floor of an empty
+    session -- has no tokenizer to count against, so the operator's main
+    instrument reports an estimate on a deployment that could be exact."""
+    from ai_bunker.config import Settings, Upstream
+
+    settings = Settings(
+        api_key="k",
+        upstreams={
+            "local": Upstream(
+                name="local",
+                base_url="http://up.test/v1",
+                served_context=32768,
+                model="the-served-model",
+            )
+        },
+        default_upstream="local",
+    )
+
+    _upstream, resolved, why = settings.route("", "")
+    assert resolved == "the-served-model"
+    assert "the-served-model" in why, "the reason has to name what it substituted"
+
+    # A client that does name a model still wins: the upstream's entry is a
+    # fallback, not an override.
+    _, resolved, _ = settings.route("something-else", "")
+    assert resolved == "something-else"
+
+
+def test_an_upstream_without_a_model_is_unchanged():
+    """The field is optional, and absent means exactly what it did before."""
+    from ai_bunker.config import Settings, Upstream
+
+    settings = Settings(
+        api_key="k",
+        upstreams={"local": Upstream(name="local", base_url="http://up.test/v1")},
+        default_upstream="local",
+    )
+    _, resolved, _ = settings.route("", "")
+    assert resolved == ""

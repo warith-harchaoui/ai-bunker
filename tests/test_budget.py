@@ -434,3 +434,65 @@ def test_a_non_object_capture_is_rejected(tmp_path):
     path.write_text("[1, 2, 3]", encoding="utf-8")
     with pytest.raises(AssertionError, match="not a JSON object"):
         load_request(path)
+
+
+# ---------------------------------------------------------------------------
+# The two engines this project names do not speak the same /tokenize dialect.
+# ---------------------------------------------------------------------------
+
+
+class _FakeEngine:
+    """An engine that answers one dialect and silently ignores the other.
+
+    This is not a contrivance. llama.cpp hands back ``{"tokens": []}`` when
+    given vLLM's request body -- a zero, not an error -- which is how a
+    llama.cpp deployment fell back to estimates while its operator believed
+    the server was counting.
+    """
+
+    def __init__(self, speaks: str):
+        self.speaks = speaks
+        self.asked: list[str] = []
+
+    def post(self, url, json=None, timeout=None):
+        self.asked += [k for k in json if k != "model"]
+        text = json.get(self.speaks)
+        tokens = list(range(len(text.split()))) if text else []
+        return _FakeResponse({"tokens": tokens})
+
+
+class _FakeResponse:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self._payload
+
+
+@pytest.mark.parametrize("dialect", ["prompt", "content"])
+def test_the_counter_finds_whichever_tokenize_dialect_the_engine_speaks(monkeypatch, dialect):
+    import httpx
+
+    engine = _FakeEngine(speaks=dialect)
+    monkeypatch.setattr(httpx, "post", engine.post)
+
+    c = Counter(base_url="http://engine.test/v1", model="m", allow_ratio=True)
+    assert c.backend == "server", f"gave up on an engine that speaks {dialect!r}"
+    assert c.exact is True
+    assert c.count("one two three") == 3
+    assert dialect in engine.asked
+
+
+def test_an_engine_that_tokenizes_into_nothing_is_not_trusted(monkeypatch):
+    """A zero is as disqualifying as an exception. Taking it at face value
+    would mean every budget on that engine counted zero, and a budget of zero
+    passes every gate."""
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", _FakeEngine(speaks="neither").post)
+    c = Counter(base_url="http://engine.test/v1", model="m", allow_ratio=True)
+    assert c.backend == "ratio"
+    assert c.exact is False

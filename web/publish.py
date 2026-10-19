@@ -96,7 +96,37 @@ def check() -> list[str]:
         problems.append("css/app.css is empty — run the Tailwind build")
 
     problems += orphans()
+    problems += double_loads()
 
+    return problems
+
+
+def double_loads() -> list[str]:
+    """Scripts and stylesheets pulled in more than once by the same page.
+
+    Not a cosmetic complaint. A script included twice *runs* twice, and every
+    listener it registers fires twice per event. That is what happened here:
+    the footer shell and the page template both emitted `js/theme.js`, so each
+    click on the theme toggle flipped the scheme and then flipped it straight
+    back. The control looked present, was wired, logged nothing, and did
+    nothing -- on all eight pages, in production.
+
+    Images are deliberately not checked: the same picture twice on a page is
+    ordinary, and only executable or cascading assets misbehave when repeated.
+    """
+    problems = []
+    for page in pages():
+        text = page.read_text(encoding="utf-8")
+        loaded = re.findall(r'<script[^>]+src="([^"]+)"', text)
+        loaded += re.findall(r'<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"', text)
+        seen = set()
+        for asset in loaded:
+            if asset in seen:
+                problems.append(
+                    f"{page.relative_to(HERE)}: {asset} is loaded twice; a script "
+                    "that runs twice registers every listener twice"
+                )
+            seen.add(asset)
     return problems
 
 
