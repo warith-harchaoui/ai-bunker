@@ -103,6 +103,16 @@ class Settings:
     #: protocol exists to prevent, and the check costs nothing on calls that
     #: do not move money.
     check_payments: bool = True
+    #: Key set that mandate signatures are verified against: a path (the
+    #: sovereign case -- rotating a key is copying a file) or a URL. Without
+    #: one, a payment carrying a mandate is REFUSED rather than passed, and
+    #: the refusal says the signature was not verified.
+    mandate_jwks: str = ""
+    #: Issuers allowed to sign mandates. Empty accepts any issuer whose key is
+    #: in the set above.
+    mandate_issuers: tuple[str, ...] = ()
+    #: One revoked mandate id per line.
+    mandate_revocations: str = ""
     #: OTLP/HTTP collector base URL. The decision log is already a trajectory
     #: record; this ships it where trajectory-evaluation tooling can read it.
     #: Empty disables export entirely -- and a collector that is down never
@@ -195,6 +205,7 @@ TOP_LEVEL_KEYS = frozenset(
         "budget",
         "audit_log",
         "telemetry",
+        "mandates",
     }
 )
 
@@ -292,6 +303,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
         osh.debug(f"[gateway] no config at {p}; using defaults and the environment.")
 
     telemetry = raw.get("telemetry") or {}
+    mandates = raw.get("mandates") or {}
 
     _warn_about_strays(raw, p)
 
@@ -347,6 +359,9 @@ def load_settings(path: str | Path | None = None) -> Settings:
         enable_mcp=_as_bool(enforcement.get("mcp"), True),
         project_root=str(enforcement.get("project_root") or ""),
         check_payments=_as_bool(enforcement.get("payments"), True),
+        mandate_jwks=str(mandates.get("jwks") or ""),
+        mandate_issuers=tuple(str(i) for i in (mandates.get("issuers") or []) if i),
+        mandate_revocations=str(mandates.get("revocations") or ""),
         telemetry_endpoint=str(telemetry.get("endpoint") or ""),
         telemetry_service=str(telemetry.get("service_name") or "ai-bunker"),
         enforce_budget=_as_bool(enforcement.get("budget"), True),

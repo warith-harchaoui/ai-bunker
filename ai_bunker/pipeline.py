@@ -235,6 +235,7 @@ def screen_outbound(
     shell_tools: tuple[str, ...] = SHELL_TOOLS,
     project_root: str | None = None,
     check_payments: bool = True,
+    trust: Any = None,
 ) -> tuple[Rule | None, str | None, list[Violation]]:
     """Screen the shell commands a model is asking to run.
 
@@ -276,7 +277,7 @@ def screen_outbound(
         for call in tool_calls:
             function = call.get("function") or {}
             finding = payment_inspect(
-                str(function.get("name") or ""), function.get("arguments") or {}
+                str(function.get("name") or ""), function.get("arguments") or {}, trust
             )
             if finding.ok:
                 continue
@@ -368,6 +369,7 @@ def apply_outbound(
     shell_tools: tuple[str, ...] = SHELL_TOOLS,
     project_root: str | None = None,
     check_payments: bool = True,
+    trust: Any = None,
 ) -> Applied:
     """Run stage 4 over a model response.
 
@@ -387,6 +389,7 @@ def apply_outbound(
         shell_tools=shell_tools,
         project_root=project_root,
         check_payments=check_payments,
+        trust=trust,
     )
     if refusal is not None:
         osh.warning(f"[gateway] {refusal.id} refused a tool call: {refusal.description}")

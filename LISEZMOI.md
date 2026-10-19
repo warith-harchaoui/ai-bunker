@@ -564,18 +564,51 @@ Les paiements sont filtrés sur **tous** les appels d'outils, pas seulement les
 shells : un paiement n'arrive jamais sous forme de commande, donc ne vérifier
 que `bash` inspecterait le seul endroit où cela ne se produit pas.
 
-**Ce que cela ne fait pas, dit explicitement parce qu'on le supposerait
-sinon.** Le contrôle vérifie qu'un mandat est présent et qu'il en a la forme —
-un JWS compact dont la charge utile s'analyse et n'est pas expirée, ou un objet
-de créance portant une preuve. Il **ne vérifie pas la signature**. Cela
-demande les clés publiques de l'émetteur, une liste de confiance et un
-contrôle de révocation, dont une passerelle de service ne dispose pas et ne
-doit pas disposer. Un succès ici signifie *un mandat était joint*, jamais *le
-mandat est valide*, et le message de refus le dit à qui le lit.
+**Trois contrôles, et le troisième est celui que la présence manque.** Un
+mandat est joint ; sa signature se vérifie contre une clé que ce déploiement
+accorde ; et ce qu'il autorise correspond à ce qui est débité.
 
-Cette limite est plus étroite qu'il n'y paraît : forger un mandat demande une
-clé, alors que la défaillance courante est l'absence totale de mandat, parce
-que l'agent a simplement appelé l'API.
+```yaml
+mandates:
+  jwks: config/wallet-keys.json     # un fichier : jamais de réseau
+  issuers: ["https://wallet.example"]
+  revocations: config/revoked.txt
+```
+
+La signature est réellement vérifiée — ES256/384, RS256/384/512, PS256, EdDSA
+— contre un jeu de clés qui est un **fichier** dans le déploiement visé : faire
+tourner une clé, c'est copier un fichier, et la passerelle n'atteint jamais
+l'internet pour refuser un paiement. `alg: none` n'est pas dans l'ensemble
+accepté : un champ d'algorithme contrôlé par l'attaquant ne doit jamais
+sélectionner un chemin qui saute la vérification.
+
+Le troisième contrôle est le plus important, et celui qu'un contrôle de
+présence laisse grand ouvert :
+
+```
+mandat signé pour 42,00 EUR chez Acme, débit de 4 200,00 EUR chez Acme
+  → la signature est valide, et le paiement est refusé
+```
+
+Un mandat est un **plafond, pas une instruction** : débiter moins qu'autorisé
+passe, car le refuser casserait toute capture partielle légitime. Un mandat
+qui n'énonce ni montant, ni devise, ni bénéficiaire est refusé d'emblée — une
+autorisation qui ne contraint rien autorise tout. Les montants sont comparés
+en unités mineures entières, parce que `0,1 + 0,2` ne fait pas `0,3` et qu'une
+comparaison qui passe sur une erreur d'arrondi est un paiement que personne
+n'a accepté. Quand le mandat porte une empreinte du panier, elle lie des
+champs que personne n'avait pensé à énumérer.
+
+Sans jeu de clés configuré, un paiement portant un mandat est **refusé**, pas
+transmis. *N'a pas pu être vérifié* et *vérifié et conforme* sont deux
+réponses différentes, jamais rapportées comme une seule.
+
+**Ce qui reste à faire.** Les **chaînes** de mandats ne sont pas vérifiées.
+AP2 relie un Payment Mandate à un Checkout Mandate, lui-même relié à ce que
+l'utilisateur a vu sur la Trusted Surface ; vérifier un maillon ne dit rien
+des autres. Un mandat vérifié ici est *signé par une clé de confiance pour ce
+débit*, ce qui n'est pas *la preuve que l'utilisateur a vu ce panier*. Le
+message de refus le dit.
 
 ### Les trajectoires, pour l'outillage qui existe déjà
 
@@ -1048,7 +1081,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 539 tests, `ruff` propre | ✅ |
+| 560 tests, `ruff` propre | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
 | `ai_bunker/rules.py` — deux portées, entropie, exceptions, règles auto-testées | ✅ |

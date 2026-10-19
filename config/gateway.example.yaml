@@ -126,3 +126,22 @@ audit_log: logs/decisions.jsonl
 telemetry:
   endpoint: ""              # e.g. http://127.0.0.1:4318
   service_name: ai-bunker
+
+# Mandate verification (AP2). Without a key set here, a payment carrying a
+# mandate is REFUSED rather than passed: "could not be checked" and "checked
+# and fine" are not the same answer and are never reported as one.
+#
+# `jwks` is a path or a URL. A path is the sovereign case -- rotating a key is
+# copying a file, and the gateway never reaches the internet to refuse a
+# payment. A URL is fetched once and cached for an hour, never on the
+# enforcement path.
+#
+# What is verified: the signature, the issuer against `issuers`, revocation
+# against `revocations`, expiry and not-before. What is NOT verified: mandate
+# chains. A Payment Mandate references a Checkout Mandate which references
+# what the user saw on the Trusted Surface, and checking one link says
+# nothing about the others.
+mandates:
+  jwks: ""                  # e.g. config/wallet-keys.json
+  issuers: []               # e.g. ["https://wallet.example"]
+  revocations: ""           # one revoked mandate id per line

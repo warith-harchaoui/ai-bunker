@@ -64,6 +64,7 @@ from ai_bunker.a2a import agent_card, handle_message_send
 from ai_bunker.budget import Counter
 from ai_bunker.charter import build_index, load_charter, read_page
 from ai_bunker.config import Settings, load_settings
+from ai_bunker.mandates import Trust, load_trust
 from ai_bunker.pipeline import (
     apply_inbound,
     apply_outbound,
@@ -127,6 +128,18 @@ class State:
                 )
             self.counters[key] = counter
         return self.counters[key]
+
+    def trust(self) -> Trust | None:
+        """The mandate key set, loaded once. None when none is configured."""
+        if not self.settings.mandate_jwks:
+            return None
+        if getattr(self, "_trust", None) is None:
+            self._trust = load_trust(
+                self.settings.mandate_jwks,
+                issuers=self.settings.mandate_issuers,
+                revoked_file=self.settings.mandate_revocations,
+            )
+        return self._trust
 
     def exporter(self) -> Exporter | None:
         """The OTLP exporter, built once, or None when none is configured."""
@@ -495,6 +508,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 charter_fingerprint=state.charter.fingerprint[:16],
                 project_root=s.project_root or None,
                 check_payments=s.check_payments,
+                trust=state.trust(),
             )
             state.audit(outbound.audit())
             if outbound.refusal is not None:

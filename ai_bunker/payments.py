@@ -14,18 +14,23 @@ authorisation; it presents one produced somewhere it cannot reach. An agent
 initiating a payment with no mandate is not doing AP2 badly, it is doing
 something AP2 exists to prevent.
 
-What this checks, and what it cannot
-------------------------------------
-It checks that a mandate is **present and shaped like one**. It does **not**
-verify the signature, and must never be described as if it did: verification
-needs the issuer's public keys, a trust list and a revocation check, none of
-which a serving gateway has or should have. Saying "the mandate is valid"
-would be a lie that someone would build on.
+Three checks, and what each one is worth
+----------------------------------------
+1. **Presence and shape.** A mandate is attached and looks like one. Catches
+   the common failure, which is an agent that simply called the API.
+2. **Signature** (`mandates.py`). Verified against a key set the operator
+   configured, an issuer list the operator wrote, and a revocation list.
+   Without `cryptography` or without a configured trust, the payment is
+   refused saying `the signature was NOT verified` -- "failed" and "could not
+   be attempted" are never reported as the same thing.
+3. **What was authorised** (`ucp.py`). A signature says the mandate is
+   genuine, not that it is a mandate for *this* charge. One signed for 42 EUR
+   at one merchant is valid, unexpired and wrong on a 4,200 EUR charge
+   elsewhere.
 
-That limit is narrower than it sounds. The overwhelmingly common failure is
-not a forged mandate -- forging one requires a key -- it is no mandate at all,
-because the agent simply called the API. This catches that, and says plainly
-what it leaves to a real verifier.
+What remains undone is chain verification: AP2 links a Payment Mandate to a
+Checkout Mandate to what the user saw on the Trusted Surface, and verifying
+one link says nothing about the others.
 
 Author
 ------
@@ -41,6 +46,11 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+from ai_bunker.mandates import Trust
+from ai_bunker.mandates import claims_of as mandate_claims
+from ai_bunker.mandates import verify as verify_mandate
+from ai_bunker.ucp import compare as compare_cart
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle avoided at runtime
     from ai_bunker.rules import Rule
@@ -94,6 +104,12 @@ class Finding:
     moves_money: bool = False
     mandate_key: str = ""
     shape: str = ""
+    #: True only when a signature was checked against a trusted key AND
+    #: passed. False covers both "failed" and "could not be attempted", which
+    #: is why `problems` says which.
+    verified: bool = False
+    issuer: str = ""
+    cart_method: str = ""
     problems: list[str] = field(default_factory=list)
 
     @property
@@ -169,8 +185,13 @@ def _jws_problems(token: str) -> list[str]:
     return problems
 
 
-def inspect(tool_name: str, arguments: Any) -> Finding:
-    """Does this tool call move money, and does it carry a mandate?"""
+def inspect(tool_name: str, arguments: Any, trust: Trust | None = None) -> Finding:
+    """Does this tool call move money, and is it the payment that was authorised?
+
+    `trust` is the deployment's key set. Absent, only presence and shape are
+    checked and the finding says so; present, the signature is verified and
+    the cart compared against what the mandate actually authorised.
+    """
     blob = json.dumps(arguments) if not isinstance(arguments, str) else arguments
     moves = bool(PAYMENT_TOOLS.search(tool_name)) or bool(PAYMENT_HOSTS.search(blob))
     finding = Finding(tool=tool_name, moves_money=moves)
@@ -197,6 +218,35 @@ def inspect(tool_name: str, arguments: Any) -> Finding:
     finding.mandate_key = key
     finding.shape, problems = _shape_of(mandate)
     finding.problems += problems
+    if problems:
+        return finding
+
+    if trust is None:
+        finding.problems.append(
+            "the signature was NOT verified: no trust is configured, so this "
+            "mandate is an unverified assertion"
+        )
+        return finding
+
+    if finding.shape != "jws":
+        finding.problems.append(
+            "only a compact JWS can be verified here; this mandate is a "
+            f"{finding.shape} object, whose proof this gateway cannot check"
+        )
+        return finding
+
+    verdict = verify_mandate(str(mandate).strip(), trust)
+    finding.verified = verdict.verified
+    finding.issuer = verdict.issuer
+    if not verdict.verified:
+        finding.problems += verdict.problems
+        return finding
+
+    # Signed by a trusted key. Now: signed for THIS charge?
+    comparison = compare_cart(parsed, mandate_claims(str(mandate).strip()))
+    finding.cart_method = comparison.method
+    if not comparison.ok:
+        finding.problems += comparison.problems
     return finding
 
 
@@ -204,11 +254,12 @@ def refusal_message(finding: Finding) -> str:
     return (
         "This call moves money and will not be forwarded: "
         + "; ".join(finding.problems)
-        + ". The gateway checks that a mandate is present and shaped like one. "
-        "It does NOT verify the signature -- that needs the issuer's keys, a "
-        "trust list and a revocation check, which a serving gateway does not "
-        "have. Treat a pass here as 'a mandate was attached', never as 'the "
-        "mandate is valid'."
+        + ". A payment is forwarded only when a mandate is attached, its "
+        "signature verifies against a key this deployment trusts, and what it "
+        "authorises matches what is being charged. Mandate CHAINS are not "
+        "verified: a verified mandate here is signed by a trusted key for this "
+        "charge, which is not the same as proof the user saw this cart on a "
+        "Trusted Surface."
     )
 
 

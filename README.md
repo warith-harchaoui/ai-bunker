@@ -538,16 +538,49 @@ Payments are screened across **every** tool call, not only the shell ones: a
 payment never arrives as a command, so checking only `bash` would inspect the
 one place it does not happen.
 
-**What this does not do, stated because it would otherwise be assumed.** It
-checks a mandate is present and shaped like one — a compact JWS whose payload
-parses and has not expired, or a credential object carrying a proof. It does
-**not verify the signature**. That needs the issuer's public keys, a trust
-list and a revocation check, none of which a serving gateway has or should
-have. A pass here means *a mandate was attached*, never *the mandate is
-valid*, and the refusal message says so to whoever reads it.
+**Three checks, and the third is the one presence misses.** A mandate is
+attached; its signature verifies against a key this deployment trusts; and
+what it authorises matches what is being charged.
 
-That limit is narrower than it sounds. Forging a mandate requires a key; the
-common failure is no mandate at all, because the agent just called the API.
+```yaml
+mandates:
+  jwks: config/wallet-keys.json     # a file: no network, ever
+  issuers: ["https://wallet.example"]
+  revocations: config/revoked.txt
+```
+
+The signature is verified for real — ES256/384, RS256/384/512, PS256, EdDSA —
+against a key set that is a **file** in the intended deployment, so rotating a
+key is copying a file and the gateway never reaches the internet to refuse a
+payment. `alg: none` is not in the accepted set, because an algorithm field an
+attacker controls must never select a code path that skips verification.
+
+The third check is the one that matters most, and the one a presence check
+leaves wide open:
+
+```
+mandate signed for 42.00 EUR to Acme, charge of 4200.00 EUR to Acme
+  → signature verifies, and the payment is refused
+```
+
+A mandate is a **ceiling, not an instruction**: charging less than authorised
+is allowed, because refusing it would break every legitimate partial capture.
+A mandate that states no amount, currency or payee is refused outright — an
+authorisation that constrains nothing authorises everything. Amounts are
+compared as integer minor units, because `0.1 + 0.2` is not `0.3` and a
+comparison that passes on a rounding error is a payment nobody agreed to. When
+the mandate carries a digest of the cart, that binds fields nobody thought to
+enumerate.
+
+Without a configured key set, a payment carrying a mandate is **refused**, not
+passed. *Could not be checked* and *checked and fine* are different answers and
+are never reported as one.
+
+**What is still not done.** Mandate **chains** are not verified. AP2 links a
+Payment Mandate to a Checkout Mandate to what the user saw on the Trusted
+Surface; checking one link says nothing about the others. A verified mandate
+here is *signed by a trusted key for this charge*, which is not the same as
+*proof the user saw this cart*. The refusal message says so.
 
 ### Trajectories, for tooling that already exists
 
@@ -993,7 +1026,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 539 tests, `ruff` clean | ✅ |
+| 560 tests, `ruff` clean | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
 | `ai_bunker/rules.py` — two scopes, entropy, allowlists, self-testing rules | ✅ |
