@@ -46,6 +46,8 @@ import os_helper as osh
 
 from ai_bunker.budget import Budget, Counter, measure_request
 from ai_bunker.charter import Charter, system_blocks
+from ai_bunker.dependencies import as_rule as dependency_rule
+from ai_bunker.dependencies import check as dependency_check
 from ai_bunker.rules import (
     Decision,
     Rule,
@@ -229,6 +231,7 @@ def screen_outbound(
     rules: list[Rule],
     *,
     shell_tools: tuple[str, ...] = SHELL_TOOLS,
+    project_root: str | None = None,
 ) -> tuple[Rule | None, str | None, list[Violation]]:
     """Screen the shell commands a model is asking to run.
 
@@ -251,6 +254,17 @@ def screen_outbound(
         notes.extend(matched)
         if blocked is not None and refusal is None:
             refusal, refused = blocked, command
+
+        # A package name the project never declared is either a hallucination
+        # or a dependency nobody approved. Decided in code rather than by a
+        # pattern, because the answer depends on the repository, not on the
+        # shape of the command.
+        if project_root and refusal is None:
+            result = dependency_check(command, project_root)
+            if not result.ok:
+                refusal, refused = dependency_rule(result), command
+                notes.append(Violation(rule=refusal, count=len(result.undeclared)))
+
     return refusal, refused, notes
 
 
@@ -332,6 +346,7 @@ def apply_outbound(
     rules: list[Rule],
     charter_fingerprint: str = "",
     shell_tools: tuple[str, ...] = SHELL_TOOLS,
+    project_root: str | None = None,
 ) -> Applied:
     """Run stage 4 over a model response.
 
@@ -345,7 +360,9 @@ def apply_outbound(
         message = choice.get("message") or {}
         calls.extend(message.get("tool_calls") or [])
 
-    refusal, command, notes = screen_outbound(calls, rules, shell_tools=shell_tools)
+    refusal, command, notes = screen_outbound(
+        calls, rules, shell_tools=shell_tools, project_root=project_root
+    )
     if refusal is not None:
         osh.warning(f"[gateway] {refusal.id} refused a tool call: {refusal.description}")
 

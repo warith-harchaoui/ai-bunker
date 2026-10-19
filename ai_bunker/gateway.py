@@ -476,6 +476,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 response,
                 rules=state.rules,
                 charter_fingerprint=state.charter.fingerprint[:16],
+                project_root=s.project_root or None,
             )
             state.audit(outbound.audit())
             if outbound.refusal is not None:

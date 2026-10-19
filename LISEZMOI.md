@@ -502,6 +502,44 @@ qu'un scénario qui refuse de se charger.
   positifs. Cela veut aussi dire envoyer le secret à un tiers — l'inverse exact
   de la promesse de ce projet. Le seuil d'entropie est le substitut local.
 
+### Les paquets hallucinés, refusés sans appel réseau
+
+Les modèles inventent des noms de paquets. Un attaquant qui enregistre un nom
+inventé obtient l'exécution de code sur toute machine dont l'agent l'installe.
+
+La défense habituelle — demander à un registre si le paquet existe — est
+doublement fausse ici. Elle place un appel réseau sur le chemin d'application
+d'un outil dont la thèse est que rien ne sort du réseau, et elle ne marche
+pas : le paquet malveillant **est** enregistré, précisément pour que le
+contrôle passe.
+
+Un projet déclare déjà ses dépendances, dans des fichiers versionnés et
+modifiés par des humains dans des commits relus. La question n'est donc pas
+*ce paquet existe-t-il* mais *ce projet l'a-t-il demandé*, à quoi l'on répond
+en lisant le dépôt, sans aucun réseau.
+
+```yaml
+enforcement:
+  project_root: /srv/repos/notre-app     # vide désactive le contrôle
+```
+
+```
+pip install reqeusts   →  refusé : deps.undeclared_package
+pip install httpx      →  autorisé : déclaré dans pyproject.toml
+pip install -r requirements.txt  →  autorisé : c'est l'ensemble déclaré
+```
+
+Une vraie nouvelle dépendance est refusée aussi. C'est voulu, pas un effet de
+bord : choisir une dépendance engage une licence, un mainteneur et une chaîne
+d'approvisionnement, et ce n'est pas à un agent de le décider en cours de
+tâche.
+
+Deux limites assumées. Un projet sans manifeste ne déclare rien, ce qui
+refuserait tout installation en ayant l'air de fonctionner — il avertit à la
+place. Et le contrôle est inactif tant que `project_root` n'est pas défini :
+une passerelle qui sert plusieurs dépôts ne peut pas savoir quel manifeste
+s'applique, et deviner serait pire que s'abstenir.
+
 ### Journal de décision
 
 Chaque règle qui se déclenche produit un enregistrement d'audit : quelle règle,
@@ -941,7 +979,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 464 tests, `ruff` propre | ✅ |
+| 489 tests, `ruff` propre | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
 | `ai_bunker/rules.py` — deux portées, entropie, exceptions, règles auto-testées | ✅ |

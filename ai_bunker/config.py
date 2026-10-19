@@ -92,6 +92,12 @@ class Settings:
     #: cold interpreter -- measured, not guessed. A deployment whose clients
     #: all speak HTTP pays that for nothing.
     enable_mcp: bool = True
+    #: Repository whose manifests say which packages are approved. Set it to
+    #: refuse an install of anything the project never declared -- the offline
+    #: answer to hallucinated package names, which no registry lookup can give
+    #: because the malicious package is registered precisely so the lookup
+    #: passes. Empty disables the check.
+    project_root: str = ""
     audit_log: str = ""
 
     @property
@@ -325,6 +331,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
         min_working_tokens=int(budget.get("min_working_tokens") or MIN_WORKING_TOKENS),
         mark_provenance=_as_bool(enforcement.get("mark_provenance"), True),
         enable_mcp=_as_bool(enforcement.get("mcp"), True),
+        project_root=str(enforcement.get("project_root") or ""),
         enforce_budget=_as_bool(enforcement.get("budget"), True),
         enforce_commands=_as_bool(enforcement.get("commands"), True),
         audit_log=str(raw.get("audit_log") or ""),

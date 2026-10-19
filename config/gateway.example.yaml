@@ -86,6 +86,15 @@ enforcement:
   commands: true
   mark_provenance: true
 
+  # The repository whose manifests say which packages are approved. Set it to
+  # refuse any install of a package the project never declared -- the offline
+  # answer to hallucinated package names. A registry lookup cannot give that
+  # answer: the malicious package IS registered, precisely so the lookup
+  # passes. The cost is deliberate -- a genuine new dependency is refused too,
+  # until a human writes it into a manifest and commits it.
+  # Empty disables the check.
+  project_root: ""
+
   # Expose the charter over MCP at /mcp. On by default. Importing fastapi-mcp
   # costs roughly 24 seconds of startup on a cold interpreter (measured), so a
   # deployment whose clients all speak plain HTTP can reasonably turn it off.

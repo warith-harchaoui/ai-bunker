@@ -480,6 +480,42 @@ did not is worse than one that refuses to load.
   sending the secret to a third party — the exact inverse of the promise this
   project makes. The entropy gate is the local substitute.
 
+### Hallucinated packages, refused without a network call
+
+Models invent package names. An attacker who registers an invented one owns
+code execution on every machine whose agent installs it.
+
+The usual defence — ask a registry whether the package exists — is wrong here
+twice. It puts a network call on the enforcement path of a tool whose claim is
+that nothing leaves the network, and it does not work: the malicious package
+**is** registered, precisely so the check passes.
+
+A project already states what it depends on, in files under version control
+changed by humans in reviewed commits. So the question is not *does this
+package exist* but *did this project ask for it*, which is answered by reading
+the repository and needs no network at all.
+
+```yaml
+enforcement:
+  project_root: /srv/repos/our-app     # empty disables the check
+```
+
+```
+pip install reqeusts   →  refused: deps.undeclared_package
+pip install httpx      →  allowed: declared in pyproject.toml
+pip install -r requirements.txt  →  allowed: that IS the declared set
+```
+
+A genuine new dependency is refused too. That is intended, not a side effect:
+choosing a dependency has a licence, a maintainer and a supply chain attached,
+and it is not an agent's decision to take mid-task.
+
+Two honest limits. A project with no manifest declares nothing, which would
+refuse every install and look like the check working — it warns instead. And
+the check is off unless `project_root` is set, because a gateway serving
+several repositories cannot know which manifest applies, and guessing would be
+worse than abstaining.
+
 ### Decision log
 
 Every rule that fires produces an audit record: which rule, which scope, what
@@ -894,7 +930,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 464 tests, `ruff` clean | ✅ |
+| 489 tests, `ruff` clean | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
 | `ai_bunker/rules.py` — two scopes, entropy, allowlists, self-testing rules | ✅ |
