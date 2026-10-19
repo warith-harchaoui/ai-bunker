@@ -41,7 +41,7 @@ BODY = r"""
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">01</span>Installer
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">01</span>Installer
           </h2>
           <p class="mt-3 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
             Python 3.10–3.13 et git. Un GPU n'est nécessaire que sur la machine qui
@@ -55,7 +55,7 @@ pip install -e ".[api]"</code></pre>
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">02</span>Savoir ce qu'il vous faut
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">02</span>Savoir ce qu'il vous faut
           </h2>
           <p class="mt-3 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
             Avant d'acheter quoi que ce soit. La réponse la moins chère est souvent la machine
@@ -80,7 +80,7 @@ pip install -e ".[api]"</code></pre>
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">03</span>Configurer, et vérifier les promesses
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">03</span>Configurer, et vérifier les promesses
           </h2>
           <pre class="mt-5 overflow-x-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-5 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>cp config/gateway.example.yaml config/gateway.yaml
 export AI_BUNKER_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
@@ -103,7 +103,7 @@ $ ai-bunker doctor
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">04</span>Servir, et y pointer un client
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">04</span>Servir, et y pointer un client
           </h2>
           <pre class="mt-5 overflow-x-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-5 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>ai-bunker serve                      # localhost:8000
 
@@ -130,7 +130,7 @@ export OPENAI_API_KEY="$AI_BUNKER_API_KEY"</code></pre>
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">05</span>Équiper un dépôt
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">05</span>Équiper un dépôt
           </h2>
           <pre class="mt-5 overflow-x-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-5 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>$ ai-bunker adopt /chemin/du/projet --list
 Adopting ai-bunker into /chemin/du/projet:

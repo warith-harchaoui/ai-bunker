@@ -123,7 +123,7 @@
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">01</span>Install
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">01</span>Install
           </h2>
           <p class="mt-3 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
             Python 3.10–3.13 and git. A GPU is needed only on the machine that <em>serves</em>;
@@ -137,7 +137,7 @@ pip install -e ".[api]"</code></pre>
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">02</span>Find out what you need
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">02</span>Find out what you need
           </h2>
           <p class="mt-3 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
             Before buying anything. The cheapest answer is often the machine you already own,
@@ -162,7 +162,7 @@ pip install -e ".[api]"</code></pre>
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">03</span>Configure, and check the claims
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">03</span>Configure, and check the claims
           </h2>
           <pre class="mt-5 overflow-x-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-5 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>cp config/gateway.example.yaml config/gateway.yaml
 export AI_BUNKER_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
@@ -185,7 +185,7 @@ $ ai-bunker doctor
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">04</span>Serve, and point a client at it
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">04</span>Serve, and point a client at it
           </h2>
           <pre class="mt-5 overflow-x-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-5 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>ai-bunker serve                      # localhost:8000
 
@@ -212,7 +212,7 @@ export OPENAI_API_KEY="$AI_BUNKER_API_KEY"</code></pre>
 
         <li>
           <h2 class="font-serif text-2xl font-semibold tracking-tight">
-            <span class="mr-3 font-mono text-base text-neutral-400">05</span>Equip a repository
+            <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">05</span>Equip a repository
           </h2>
           <pre class="mt-5 overflow-x-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-5 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>$ ai-bunker adopt /path/to/project --list
 Adopting ai-bunker into /path/to/project:

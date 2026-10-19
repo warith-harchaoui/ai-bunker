@@ -180,6 +180,25 @@ def _structural(linter: Linter, source: str) -> list[Finding]:
     if _INTERACTIVE and "min-height" not in source and "min-h" not in source:
         out.append(Finding("A11Y014", 1, "no minimum hit area declared for controls"))
 
+    # A Tailwind text colour with no `dark:` prefix applies in the light scheme,
+    # and the faint end of the neutral scale does not clear 4.5:1 against white.
+    # This is the shape of bug a dark-mode review cannot see: `text-neutral-400`
+    # is 9.2:1 on #0B0B0C and 2.42:1 on white, so it looks deliberate in the
+    # scheme it was chosen in. Five step numbers per language shipped that way.
+    for line_no, line in enumerate(source.splitlines(), 1):
+        for cls in re.findall(r'class="([^"]*)"', line):
+            for token in cls.split():
+                shade = re.fullmatch(r"text-(?:neutral|gray|zinc|stone)-(\d{3})", token)
+                if shade and int(shade.group(1)) <= 400:
+                    out.append(
+                        Finding(
+                            "A11Y015",
+                            line_no,
+                            f"{token} applies in the light scheme and is below 4.5:1 on white"
+                            " (prefix it with dark: or use a darker shade)",
+                        )
+                    )
+
     return out
 
 
