@@ -13,7 +13,17 @@ rules:
       # The value is CAPTURED so the entropy gate scores the credential rather
       # than the "api_key = " prefix, which would drag a real secret under the
       # threshold.
-      pattern: '(?:api[_-]?key|secret|token|password|passwd)\s*[:=]\s*["'']?([A-Za-z0-9_\-\.]{16,64})["'']?'
+      #
+      # The keyword is surrounded by bounded identifier runs because the name
+      # that matters most in practice does not put the keyword next to the
+      # separator: `AWS_SECRET_ACCESS_KEY=` is the literal spelling in
+      # ~/.aws/credentials, and a pattern anchored on `secret\s*=` walks past
+      # it. Bounded on both sides, so there is no nested quantifier to stall on.
+      #
+      # `/`, `+` and `=` are in the value class because base64 is what most
+      # credentials actually look like; without them a real AWS secret key
+      # escapes on the first slash.
+      pattern: '[A-Za-z0-9_\-]{0,40}(?:api[_-]?key|secret|token|password|passwd)[A-Za-z0-9_\-]{0,40}\s*[:=]\s*["'']?([A-Za-z0-9_\-\./+=]{16,64})["'']?'
       flags: i
       # Measured, not guessed: across ten common placeholders and six
       # real-shaped credentials, placeholders top out at 3.75 bits/char and
@@ -34,12 +44,46 @@ rules:
         - 'api_key = "sk_live_8Kq2mZx9PvN3wR7t"'
         - "API_KEY: ghp_A7kQm2Zx9PvN3wR7tJ4hB6nC8dF1gH"
         - "password=7Hk2Lm9Qw3Er5Ty8Ui0Op1As"
+        # The spelling in ~/.aws/credentials, which the old pattern walked past.
+        - "aws_secret_access_key = hT3kQm9ZxPvN3wR7tJ4hB6nC8dF1gKs2LpQr5Yz0"
+        - "AWS_SECRET_ACCESS_KEY=hT3kQm9ZxPvN3wR7tJ4hB6nC8dF1gKs2LpQr5Yz0"
+        # Base64 punctuation in the value, which the old class excluded.
+        - "secret=hT3k/Qm9Zx+PvN3wR7tJ4hB6nC8dF1gKs2LpQ/r5Yz0"
       should_not_match:
         - 'api_key = "REPLACE_ME_WITH_YOUR_KEY"'
         - 'token: "<your-token-here>"'
         - "api_key = xxxxxxxxxxxxxxxxxxxx"
         - "token_count = 4096"
         - "api_key = os.environ['API_KEY']"
+        # A path is not a credential, and the entropy gate is what says so.
+        - "secret_key_file = /etc/ssl/private/server.key"
+
+  - id: global.vendor_token
+    severity: BLOCKER
+    scope: output
+    description: "A credential with a known vendor prefix appeared in a tool output."
+    match:
+      # No entropy gate here, deliberately, and for the reason the generic rule
+      # states in reverse: a distinctive prefix is a stronger signal than
+      # randomness, and scoring it would only let real tokens through. These
+      # also need no assignment around them -- `ghp_...` on its own line in a
+      # log or a git remote is a live credential, and the generic rule above
+      # only ever sees a secret that someone wrote `key =` in front of.
+      pattern: '\b(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,255}|xox[baprse]-[A-Za-z0-9-]{12,200}|sk-(?:proj-)?[A-Za-z0-9_\-]{32,200}|sk_live_[A-Za-z0-9]{16,100}|AIza[0-9A-Za-z_\-]{35})\b'
+    action:
+      type: redact
+      replacement: "<TOKEN REDACTED>"
+    examples:
+      should_match:
+        - "ghp_hT3kQm9ZxPvN3wR7tJ4hB6nC8dF1gKs2LpQr"
+        - "remote: https://ghp_hT3kQm9ZxPvN3wR7tJ4hB6nC8dF1gKs2LpQr@github.com/o/r"
+        - "xoxb-NOT-A-REAL-SLACK-TOKEN-FOR-TESTS-ONLY"
+        - "AIzaSyB1cD3fG5hJ7kL9mN1pQ3rS5tU7vW9xY1z"
+      should_not_match:
+        - "the ghp_ prefix marks a GitHub personal access token"
+        - "sk-123"
+        - "xoxb-short"
+        - "AIza"
 
   - id: global.private_key
     severity: BLOCKER

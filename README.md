@@ -368,8 +368,8 @@ So a rule carries its own examples, and they run in CI.
 
 ```text
 $ ai-bunker rules --check
-  rules loaded                          16
-  assertions passed                     95
+  rules loaded                          17
+  assertions passed                    107
   assertions failed                      0
   rules carrying evidence            100%
 ```
@@ -511,8 +511,8 @@ planned against.
 ```bash
 $ ai-bunker doctor
   [ok  ] charter carries operating rules
-  [ok  ] 16 rules loaded
-  [ok  ] 95 rule assertions pass
+  [ok  ] 17 rules loaded
+  [ok  ] 107 rule assertions pass
   [ok  ] 100% of rules carry evidence
   [WARN] upstream local answers at http://127.0.0.1:8001/v1   not reachable
   [WARN] an API key is configured   no key: this gateway is open to anyone who

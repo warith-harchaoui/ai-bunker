@@ -36,6 +36,42 @@ def all_text() -> str:
     return "\n".join(p.read_text(encoding="utf-8") for p in PAGES)
 
 
+#: The prose that quotes the same figures as the site and was not guarded by
+#: anything. The site's numbers were corrected when a rule was added; these
+#: four files kept the old ones, which is the failure this fixture exists to
+#: make impossible.
+PROSE = [
+    ROOT / "README.md",
+    ROOT / "LISEZMOI.md",
+    ROOT / "EXAMPLES.md",
+    ROOT / "EXEMPLES.md",
+    WEB / "DEPLOY.md",
+]
+
+
+@pytest.fixture(scope="module")
+def all_prose() -> str:
+    return "\n".join(p.read_text(encoding="utf-8") for p in PROSE if p.exists())
+
+
+def test_the_documentation_quotes_the_real_rule_counts(all_prose):
+    """The site is guarded; the prose was not, and drifted the moment a rule
+    was added. Same assertion, applied to the files people actually read
+    first."""
+    rules = load_rules(ROOT / "charter" / "rules")
+    report = check_rules(rules)
+
+    for pattern, actual, label in (
+        (r"rules loaded\s+(\d+)", len(rules), "rules"),
+        (r"\[ok\s*\]\s*(\d+) rules loaded", len(rules), "rules"),
+        (r"assertions passed\s+(\d+)", report.passed, "assertions"),
+        (r"\[ok\s*\]\s*(\d+) rule assertions pass", report.passed, "assertions"),
+        (r"(\d+) rules, (?:\d+) assertions", len(rules), "rules"),
+    ):
+        for n in {int(x) for x in re.findall(pattern, all_prose)}:
+            assert n == actual, f"the documentation says {n} {label}; there are {actual}"
+
+
 def test_the_site_has_both_languages():
     assert len(list(WEB.glob("*.html"))) == 4
     assert len(list((WEB / "fr").glob("*.html"))) == 4

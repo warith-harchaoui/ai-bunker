@@ -107,6 +107,21 @@ client kits and a dashboard.
 - Every number the site quotes is tested against the repository that produced
   it, so hand-written pages cannot drift from the code.
 
+### Security fixes found by running the real thing
+
+- `global.generic_secret` anchored the keyword directly against the separator,
+  so **`aws_secret_access_key = ...` — the literal spelling in
+  `~/.aws/credentials` — did not match**, and its value class excluded `/` and
+  `+`, so a base64 credential escaped on the first slash. Both fixed, with the
+  failing cases added as rule examples.
+- `global.vendor_token` is new: a bare `ghp_…`, `xoxb-…`, `sk-…`, `sk_live_…`
+  or `AIza…` with no assignment around it is a live credential, and the generic
+  rule only ever saw secrets with `key =` written in front of them. No entropy
+  gate, for the reason the file already gives in reverse — a distinctive prefix
+  is a stronger signal than randomness.
+- Both were found by sending a real tool result through a real gateway to a
+  real engine, not by reading the patterns. 17 rules, 107 assertions.
+
 ### Known limitations
 
 - Command screening does not apply to streamed completions: a tool call arrives
