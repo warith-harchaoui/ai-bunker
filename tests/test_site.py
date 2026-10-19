@@ -16,6 +16,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import functools
 import re
 import subprocess
 import sys
@@ -72,6 +73,17 @@ def test_the_documentation_quotes_the_real_rule_counts(all_prose):
             assert n == actual, f"the documentation says {n} {label}; there are {actual}"
 
 
+def test_the_documentation_quotes_the_real_test_count(all_prose):
+    """Only claims about the present. A sentence like "the 327 tests of the
+    time did not catch it" is a fact about a past moment and must keep its
+    number -- updating it would turn a true statement into a false one -- so
+    the pattern is anchored on the checklist row, which is a claim about now.
+    """
+    actual = _collected_tests()
+    for n in {int(x) for x in re.findall(r"\|\s*(\d+) tests, `ruff`", all_prose)}:
+        assert n == actual, f"the documentation says {n} tests; pytest collects {actual}"
+
+
 def test_the_site_has_both_languages():
     assert len(list(WEB.glob("*.html"))) == 4
     assert len(list((WEB / "fr").glob("*.html"))) == 4
@@ -82,41 +94,44 @@ def test_the_site_has_both_languages():
 # ---------------------------------------------------------------------------
 
 
+@functools.lru_cache(maxsize=1)
 def _collected_tests() -> int:
-    """Count tests by reading the files, not by running pytest inside pytest.
+    """Count what pytest actually collects, by asking pytest.
 
-    A `--collect-only` subprocess re-imports the whole suite from within a test
-    that is itself part of it; it was slow enough to blow a two-minute timeout.
-    Parsing the AST is instant, has no recursion risk, and expands the
-    parametrize cases the same way the collector does.
+    This used to parse the AST instead, because a `--collect-only` subprocess
+    re-imports the whole suite from inside a test that is part of it, and the
+    suite was slow enough to blow a two-minute timeout. That is no longer true:
+    collection takes about five seconds now.
+
+    The AST approximation had a quiet cost. It expanded `parametrize` by
+    reading the decorator, counted anything it could not resolve as a single
+    case, and said so in its own docstring -- so it under-counted. The site
+    advertised 383 while `pytest` printed 394, and the guard happily agreed
+    with the site because it was comparing the site to its own estimate rather
+    than to the suite. On a project whose claim is that every published number
+    is measured, that is the one place an estimate must not be.
     """
-    import ast
-    import contextlib
-
-    total = 0
-    for path in sorted((ROOT / "tests").glob("test_*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test_"):
-                continue
-            cases = 1
-            for decorator in node.decorator_list:
-                if not isinstance(decorator, ast.Call):
-                    continue
-                target = ast.unparse(decorator.func)
-                if "parametrize" not in target or len(decorator.args) < 2:
-                    continue
-                values = decorator.args[1]
-                if isinstance(values, (ast.List, ast.Tuple)):
-                    cases *= len(values.elts)
-                elif isinstance(values, ast.ListComp):
-                    # A comprehension over a module-level constant: evaluate
-                    # it. One it cannot resolve counts as a single case, which
-                    # under-counts rather than guessing.
-                    with contextlib.suppress(Exception):
-                        cases *= len(eval(ast.unparse(values), {"PAGES": PAGES, "WEB": WEB}))
-            total += cases
-    return total
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            "--no-header",
+            "-p",
+            "no:cacheprovider",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        timeout=300,
+        check=False,
+    )
+    # `-q --collect-only` prints one "path: n" line per test file.
+    counts = [int(n) for n in re.findall(r"^\S+\.py: (\d+)$", result.stdout, re.M)]
+    assert counts, f"could not read collected counts from pytest:\n{result.stdout[-2000:]}"
+    return sum(counts)
 
 
 def test_the_quoted_test_count_is_real(all_text):

@@ -274,6 +274,22 @@ fichiers en entier plutôt que par tranches, et ne compacte jamais, divise la
 machine par deux pour une production identique. C'est l'argument mesurable
 derrière tout le reste de ce dépôt.
 
+Et il est désormais **mesuré**, plus seulement calculé. Sur un Apple M2 Max
+servant un modèle 4B via Ollama, le débit de décodage tombe d'un **facteur
+deux environ** entre un prompt de 216 tokens et un prompt de 32k — 1,67×,
+1,93× et 2,20× sur trois exécutions, la pente ajustée tenant entre 0,99 et
+1,35 ms par millier de tokens de contexte. Le contexte n'est pas qu'un coût
+mémoire qui décide si un modèle tient : c'est une lecture payée sur chaque
+token, indéfiniment.
+
+La même mesure dit quelque chose de moins confortable : le débit absolu a bougé
+de **1,6× entre exécutions** sur un portable par ailleurs au repos, alors que
+l'écart *à l'intérieur* d'une exécution restait sous 1,6 tok/s. Un chiffre
+unique et assuré, tiré d'une machine qui fait aussi tourner un éditeur, ne vaut
+pas grand-chose : `scripts/bench_context.py` signale donc les écarts larges et
+les points non monotones au lieu d'imprimer un tableau propre. Chiffres,
+méthode et limites dans [`docs/SIZING.md`](docs/SIZING.md).
+
 ### Une note sur les prix
 
 Ils ont bougé violemment et ils n'ont pas fini. La RTX PRO 6000 est sortie à
@@ -670,7 +686,7 @@ l'illusion que quelque chose a été vérifié.
 **Vérifié visuellement.** Trois tours de rendu-regard-correction avec Chrome
 headless, dans les deux schémas. Le compte rendu est dans
 `.private/ralph-loop/`. Six problèmes trouvés, dont **deux vrais bugs que
-327 tests n'attrapaient pas** : deux statistiques jamais remplies, et un budget
+327 tests d'alors n'attrapaient pas** : deux statistiques jamais remplies, et un budget
 annonçant `ratio (estimate)` alors que le moteur pouvait donner un compte
 exact — le tableau de bord du module budget reproduisant exactement la
 défaillance que ce module existe pour empêcher.
@@ -795,7 +811,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 327 tests, `ruff` propre | ✅ |
+| 395 tests, `ruff` propre | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
 | `ai_bunker/rules.py` — deux portées, entropie, exceptions, règles auto-testées | ✅ |

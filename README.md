@@ -258,6 +258,20 @@ An agent that pastes the whole standards document into every prompt, reads
 files whole instead of in slices, and never compacts halves the machine for
 identical output. That is the measurable argument for everything else here.
 
+And it has now been measured rather than only computed. On an Apple M2 Max
+serving a 4B model through Ollama, decode throughput falls **about twofold**
+between a 216-token prompt and a 32k one — 1.67x, 1.93x and 2.20x across three
+runs, with the fitted slope between 0.99 and 1.35 ms per thousand context
+tokens. Context is not only a memory cost that decides whether a model fits; it
+is a read paid on every token forever.
+
+The same measurement says something less comfortable: the absolute rate moved
+**1.6x between runs** on an otherwise idle laptop, while the spread inside each
+run stayed under 1.6 tok/s. A single confident number from a machine that is
+also running an editor is worth very little, so `scripts/bench_context.py`
+reports wide spreads and non-monotone points instead of printing a tidy table.
+Full numbers, method and limits in [`docs/SIZING.md`](docs/SIZING.md).
+
 ### A note on prices
 
 They moved violently and they are not done. The RTX PRO 6000 launched at $8,565
@@ -640,7 +654,7 @@ that something was checked.
 
 **Verified visually.** Three rounds of render-look-fix with headless Chrome,
 both colour schemes. The record is in `.private/ralph-loop/`. It found six
-problems, of which **two were real bugs that 327 tests did not catch**: two
+problems, of which **two were real bugs that the 327 tests of the time did not catch**: two
 statistics that never filled in, and a budget reporting `ratio (estimate)`
 while the engine could have given an exact count — the dashboard of the budget
 module reproducing the exact failure that module exists to prevent.
@@ -756,7 +770,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 327 tests, `ruff` clean | ✅ |
+| 395 tests, `ruff` clean | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
 | `ai_bunker/rules.py` — two scopes, entropy, allowlists, self-testing rules | ✅ |
