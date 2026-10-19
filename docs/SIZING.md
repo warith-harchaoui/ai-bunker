@@ -134,6 +134,62 @@ unified memory (raise it with `iogpu.wired_limit_mb`); a laptop sleeps, travels,
 and is also running the editor; and MoE throughput on Metal is less predictable
 than the roofline suggests.
 
+#### One thing here is measured rather than projected
+
+Everything above is arithmetic. This is not. On an **Apple M2 Max, 96 GiB,
+400 GB/s nominal**, serving **qwen3-vl:4b (Q4_K_M) through Ollama 0.40.6**,
+decoding 128 tokens, median of three per point, three independent runs:
+
+| Prompt tokens | Run 1 | Run 2 | Run 3 |
+|---:|---:|---:|---:|
+| 216 | 36.0 | 22.3 | 20.8 |
+| 3,016 | 36.1 | 22.1 | 27.4 |
+| 12,016 | 31.2 | 16.5 | 20.4 |
+| 22,016 | 25.3 | 13.9 | 15.1 |
+| 32,016 | **16.4** | **11.5** | **12.4** |
+| *fall, short to 32k* | *2.20x* | *1.93x* | *1.67x* |
+
+Two things are in that table, and only one of them is a number worth quoting.
+
+**The robust finding: a 32k prompt decodes at roughly half the rate of a short
+one.** Every run agrees on the direction and lands between 1.7x and 2.2x; the
+fitted slope sits between 0.99 and 1.35 ms per 1,000 context tokens. Context is
+not only a memory cost that decides whether a model fits. It is a read that
+happens on every decoded token forever, and it is the single largest thing a
+harness controls.
+
+That is the measured version of the argument §4 makes from arithmetic, and it
+is why this project puts the budget in the server. A session that lets its
+context drift to 32k is not using a slightly fuller machine; it is using a
+machine that answers at half the speed.
+
+**The fragile finding: the absolute rate moved by 1.6x between runs** — 36 tok/s
+and 20.8 tok/s for the same 216-token prompt — while the spread *within* each
+run stayed under 1.6 tok/s. A laptop that is also running an editor, a browser
+and a build is the normal case, so a single confident number from one is worth
+very little. `scripts/bench_context.py` flags wide spreads and non-monotone
+points rather than printing a clean-looking table over a busy machine.
+
+What this does **not** establish, said plainly:
+
+- It is a 4B dense VLM, not the 80B MoE coder the recommendation rests on.
+  The shape of the curve should carry over; the absolute numbers will not.
+- It does **not** validate the 70% bandwidth-efficiency assumption. Decode
+  time per token is `fixed overhead + bytes / bandwidth`, and one model size
+  cannot separate the two terms. Charging the whole intercept to the weight
+  read gives 141 GB/s, 35% of nominal — a **lower bound** on efficiency, not a
+  measurement of it, because any real fixed overhead has been billed to
+  bandwidth. A second model of a different size would settle it, and the 35%
+  should not be quoted as though it already had.
+- One engine on one platform. llama.cpp on Metal and vLLM on CUDA do not carry
+  the same overheads.
+
+One pleasant check does fall out: the slope implies roughly 160 KiB of KV read
+per context token at nominal bandwidth, which is within noise of the geometry
+`kv_gib()` computes for models of this shape.
+
+Reproduce it with `python scripts/bench_context.py` (see §5).
+
 ### If it is not enough: Mac Studio M3 Ultra 96 GB — ~$5,600
 
 - 819 GB/s, **twice** the M2 Max, serving the best open coder at **~55 tok/s**.
@@ -227,6 +283,22 @@ ai-bunker compare                                     # every machine, one line
 ai-bunker catalog                                     # the facts, with provenance
 ai-bunker detect                                      # this machine
 ```
+
+The one figure here that is measured rather than projected, against any
+engine with an Ollama-compatible API:
+
+```bash
+ollama serve &
+ollama pull qwen3-vl:4b                     # or whatever is already local
+python scripts/bench_context.py             # ~4 minutes, prints the table in §2
+```
+
+It sweeps the prompt length, fits `ms/token = a + b x context`, and reports the
+slope — the part of decode time that context is responsible for. It refuses to
+present the intercept as a bandwidth measurement, because with one model size
+it is not one, and it flags wide spreads and non-monotone points rather than
+printing a tidy table over a machine that was busy. Run it more than once: the
+slope repeats, the absolute rate does not.
 
 The assumptions that move the answer most:
 
