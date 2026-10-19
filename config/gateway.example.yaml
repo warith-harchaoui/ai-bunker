@@ -114,3 +114,15 @@ enforcement:
 # Where to append the decision log, one JSON object per line. Empty disables
 # it, which a governance deployment should not do.
 audit_log: logs/decisions.jsonl
+
+# OpenTelemetry. The decision log is already a trajectory record -- an ordered
+# account of what an agent's turn did and what the gateway did about it -- and
+# this ships it where trajectory-evaluation tooling can read it. OTLP over
+# HTTP with a JSON body, so no SDK is pulled into the gateway.
+#
+# A collector that is down NEVER affects serving: every export runs on a
+# daemon thread, failures are swallowed after one warning, and the queue drops
+# rather than grows. Leave `endpoint` empty to export nothing.
+telemetry:
+  endpoint: ""              # e.g. http://127.0.0.1:4318
+  service_name: ai-bunker

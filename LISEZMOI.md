@@ -577,6 +577,38 @@ Cette limite est plus étroite qu'il n'y paraît : forger un mandat demande une
 clé, alors que la défaillance courante est l'absence totale de mandat, parce
 que l'agent a simplement appelé l'API.
 
+### Les trajectoires, pour l'outillage qui existe déjà
+
+Le journal de décision est un compte rendu ordonné de ce qu'a fait le tour
+d'un agent et de ce que la passerelle en a fait. C'est une trajectoire, et
+évaluer des trajectoires est précisément l'objet de l'outillage
+OpenTelemetry — il ne manquait qu'un format de transport.
+
+```yaml
+telemetry:
+  endpoint: http://127.0.0.1:4318
+```
+
+Un span par tour, avec un événement par décision : quatre décisions dans une
+requête, c'est **une** chose qui s'est produite, et quatre spans sans lien
+perdraient l'ordre que lit un évaluateur. Un refus porte `status: OK`, pas
+`ERROR` — un refus, c'est la passerelle qui fonctionne, et le marquer comme
+erreur allumerait tous les tableaux de bord pour un garde-fou qui fait son
+travail.
+
+Deux propriétés méritent d'être nommées. L'export porte **les enregistrements
+d'audit**, pas une re-dérivation : la garantie du journal — des règles et des
+issues, jamais le texte correspondant — tient donc des deux côtés par
+construction, et non par une seconde promesse. Et **un collecteur en panne
+n'affecte jamais le service** : chaque export tourne sur un fil démon, les
+échecs sont avalés après un unique avertissement, et la file abandonne au lieu
+de croître. Mesuré : mille exports vers un collecteur mort coûtent 1,6 ms côté
+appelant et ne lèvent rien.
+
+Pas de SDK. OTLP sur HTTP avec un corps JSON est assez petit pour être écrit,
+et l'alternative tire un gros arbre de dépendances dans une passerelle dont
+l'argument est d'être une chose mince et lisible.
+
 ### Journal de décision
 
 Chaque règle qui se déclenche produit un enregistrement d'audit : quelle règle,
@@ -1016,7 +1048,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 523 tests, `ruff` propre | ✅ |
+| 539 tests, `ruff` propre | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
 | `ai_bunker/rules.py` — deux portées, entropie, exceptions, règles auto-testées | ✅ |

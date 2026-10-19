@@ -103,6 +103,12 @@ class Settings:
     #: protocol exists to prevent, and the check costs nothing on calls that
     #: do not move money.
     check_payments: bool = True
+    #: OTLP/HTTP collector base URL. The decision log is already a trajectory
+    #: record; this ships it where trajectory-evaluation tooling can read it.
+    #: Empty disables export entirely -- and a collector that is down never
+    #: affects serving either way.
+    telemetry_endpoint: str = ""
+    telemetry_service: str = "ai-bunker"
     audit_log: str = ""
 
     @property
@@ -188,6 +194,7 @@ TOP_LEVEL_KEYS = frozenset(
         "enforcement",
         "budget",
         "audit_log",
+        "telemetry",
     }
 )
 
@@ -284,6 +291,8 @@ def load_settings(path: str | Path | None = None) -> Settings:
     else:
         osh.debug(f"[gateway] no config at {p}; using defaults and the environment.")
 
+    telemetry = raw.get("telemetry") or {}
+
     _warn_about_strays(raw, p)
 
     gateway = raw.get("gateway") or {}
@@ -338,6 +347,8 @@ def load_settings(path: str | Path | None = None) -> Settings:
         enable_mcp=_as_bool(enforcement.get("mcp"), True),
         project_root=str(enforcement.get("project_root") or ""),
         check_payments=_as_bool(enforcement.get("payments"), True),
+        telemetry_endpoint=str(telemetry.get("endpoint") or ""),
+        telemetry_service=str(telemetry.get("service_name") or "ai-bunker"),
         enforce_budget=_as_bool(enforcement.get("budget"), True),
         enforce_commands=_as_bool(enforcement.get("commands"), True),
         audit_log=str(raw.get("audit_log") or ""),

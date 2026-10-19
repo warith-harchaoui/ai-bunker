@@ -549,6 +549,36 @@ valid*, and the refusal message says so to whoever reads it.
 That limit is narrower than it sounds. Forging a mandate requires a key; the
 common failure is no mandate at all, because the agent just called the API.
 
+### Trajectories, for tooling that already exists
+
+The decision log is an ordered account of what an agent's turn did and what
+the gateway did about it. That is a trajectory, and evaluating trajectories is
+what OpenTelemetry tooling is for — the only thing between the two was a wire
+format.
+
+```yaml
+telemetry:
+  endpoint: http://127.0.0.1:4318
+```
+
+One span per turn, with an event per decision, because four decisions in one
+request is *one* thing that happened and four unrelated spans would lose the
+ordering an evaluator reads. A refusal carries `status: OK`, not `ERROR` — a
+refusal is the gateway working, and marking it as an error lights up every
+dashboard for a guardrail doing its job.
+
+Two properties worth naming. It exports **the audit records**, not a
+re-derivation of them, so the audit log's guarantee — rules and outcomes,
+never the text that matched — holds in both places by construction rather than
+by a second promise. And **a collector that is down never affects serving**:
+every export runs on a daemon thread, failures are swallowed after a single
+warning, and the queue drops rather than grows. Measured: a thousand exports
+to a dead collector cost 1.6 ms on the calling side and raise nothing.
+
+No SDK. OTLP over HTTP with a JSON body is small enough to write, and the
+alternative pulls a large dependency tree into a gateway whose argument is
+that it is a thin thing you can read.
+
 ### Decision log
 
 Every rule that fires produces an audit record: which rule, which scope, what
@@ -963,7 +993,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 523 tests, `ruff` clean | ✅ |
+| 539 tests, `ruff` clean | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
 | `ai_bunker/rules.py` — two scopes, entropy, allowlists, self-testing rules | ✅ |

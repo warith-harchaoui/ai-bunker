@@ -70,6 +70,7 @@ from ai_bunker.pipeline import (
     refusal_as_tool_result,
 )
 from ai_bunker.rules import decisions_for, load_rules
+from ai_bunker.telemetry import Exporter, span_from_decisions
 
 #: How long to wait on an upstream. Generous: a 256k prompt on a busy GPU is
 #: slow to first token, and a gateway that times out before the model answers
@@ -127,6 +128,17 @@ class State:
             self.counters[key] = counter
         return self.counters[key]
 
+    def exporter(self) -> Exporter | None:
+        """The OTLP exporter, built once, or None when none is configured."""
+        if not self.settings.telemetry_endpoint:
+            return None
+        if getattr(self, "_exporter", None) is None:
+            self._exporter = Exporter(
+                self.settings.telemetry_endpoint,
+                service_name=self.settings.telemetry_service,
+            )
+        return self._exporter
+
     def audit(self, records: list[dict[str, Any]]) -> None:
         """Append decisions to the audit log, one JSON object per line.
 
@@ -134,6 +146,11 @@ class State:
         Losing an audit line is bad; refusing to serve because a disk is full
         is worse, and the warning is what gets someone to fix it.
         """
+        # Telemetry first, and independent of the audit log: a deployment
+        # that ships spans and keeps no file on disk is a reasonable one.
+        if (exporter := self.exporter()) is not None:
+            exporter.export(span_from_decisions(records))
+
         if not records or not self.settings.audit_log:
             return
         path = Path(self.settings.audit_log)
