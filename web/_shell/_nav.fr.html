@@ -1,0 +1,38 @@
+  <header
+    class="sticky top-0 z-40 border-b border-neutral-200/70 bg-white/80 backdrop-blur dark:border-neutral-800 dark:bg-[#0B0B0C]/80">
+    <nav class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3" aria-label="Principale">
+      <a href="#main"
+        class="flex items-center gap-2 rounded min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">
+        <img src="img/logo-96.png" alt="" width="28" height="28" class="rounded dark:hidden"><img src="img/logo-96-dark.png" alt="" width="28" height="28" class="hidden rounded dark:block">
+        <span class="font-semibold tracking-tight">ai-bunker</span>
+      </a>
+      <div class="flex items-center gap-4 text-sm">
+        <a href="#budget" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Budget</a>
+        <a href="sizing.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Dimensionnement</a>
+        <a href="landscape.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Paysage</a>
+        <a href="start.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Démarrer</a>
+        <menu class="m-0 hidden list-none items-center gap-2 p-0 sm:flex" aria-label="Projet">
+          <li class="flex"><a href="https://github.com/warith-harchaoui/ai-bunker"
+            class="rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">⭐️ sur GitHub</a></li>
+        </menu>
+        <menu class="m-0 flex list-none items-center gap-3 p-0 sm:gap-4" aria-label="Réglages de la page">
+          <li class="flex"><a href="../index.html" aria-label="English version" title="English version"
+            class="rounded-full px-2 py-1 text-lg leading-none hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800">🇬🇧</a></li>
+          <li class="flex"><button id="theme-toggle" type="button" aria-label="Changer de thème"
+            class="rounded-full px-2 py-1 text-lg leading-none hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800 min-h-11">🌞</button></li>
+        </menu>
+        <button id="nav-toggle" type="button" aria-controls="nav-mobile" aria-expanded="false"
+          class="flex items-center justify-center rounded-full px-2 py-1 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800 min-h-11 sm:hidden"><span class="sr-only">Menu</span><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3 6h16M3 11h16M3 16h16"></path></svg></button>
+      </div>
+    </nav>
+    <div id="nav-mobile" hidden class="border-t border-neutral-200/70 bg-white/95 dark:border-neutral-800 dark:bg-[#0B0B0C]/95 sm:hidden">
+      <ul class="mx-auto flex max-w-6xl flex-col gap-1 px-5 py-3 text-sm">
+        <li><a href="#budget" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Budget</a></li>
+        <li><a href="sizing.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Dimensionnement</a></li>
+        <li><a href="landscape.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Paysage</a></li>
+        <li><a href="start.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Démarrer</a></li>
+        <li><a href="https://github.com/warith-harchaoui/ai-bunker" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">⭐️ sur GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+

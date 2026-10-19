@@ -22,8 +22,16 @@ BASE = "https://deraison.ai/ai-bunker"
 HERE = pathlib.Path(__file__).parent
 PAGES = HERE / "pages"
 
-NAV_EN = (HERE / "_nav.html").read_text(encoding="utf-8")
-FOOT_EN = (HERE / "_foot.html").read_text(encoding="utf-8")
+# The shared header and footer live outside the document root so they are not
+# mistaken for pages and not uploaded with the site: `../index.html` resolves
+# correctly from fr/ and would 404 from the root.
+_SHELL_DIR = HERE / "_shell"
+SHELL = {
+    "en": ((_SHELL_DIR / "_nav.html").read_text(encoding="utf-8"),
+           (_SHELL_DIR / "_foot.html").read_text(encoding="utf-8")),
+    "fr": ((_SHELL_DIR / "_nav.fr.html").read_text(encoding="utf-8"),
+           (_SHELL_DIR / "_foot.fr.html").read_text(encoding="utf-8")),
+}
 
 
 def load(path: pathlib.Path):
@@ -42,8 +50,7 @@ def shell(page, *, slug: str, lang: str) -> str:
     en = f"{BASE}/" if slug == "index" else f"{BASE}/{slug}.html"
     fr = f"{BASE}/fr/" if slug == "index" else f"{BASE}/fr/{slug}.html"
 
-    nav = getattr(page, "NAV", NAV_EN)
-    foot = getattr(page, "FOOT", FOOT_EN)
+    nav, foot = SHELL[lang]
     for asset in ("fonts/", "css/", "js/", "img/", "favicon", "site.webmanifest"):
         nav = nav.replace(f'"{asset}', f'"{prefix}{asset}')
         foot = foot.replace(f'"{asset}', f'"{prefix}{asset}')

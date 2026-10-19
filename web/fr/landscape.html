@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="fr" data-color-scheme="light">
+
+<head>
+  <script>(function () {
+      var s; try { s = localStorage.getItem('ai-bunker-theme'); } catch (e) { }
+      if (!s) s = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-color-scheme', s);
+    })();</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <title>Paysage — où se situe ai-bunker</title>
+  <meta name="description" content="Les passerelles routent, les garde-fous inspectent, aucun ne compte. Un relevé de LiteLLM, Portkey, Kong, NeMo Guardrails, Guardrails AI, LLM Guard et OPA, y compris là où ce projet est en retard.">
+  <link rel="canonical" href="https://deraison.ai/ai-bunker/fr/landscape.html">
+  <link rel="alternate" hreflang="en" href="https://deraison.ai/ai-bunker/landscape.html">
+  <link rel="alternate" hreflang="fr" href="https://deraison.ai/ai-bunker/fr/landscape.html">
+  <link rel="alternate" hreflang="x-default" href="https://deraison.ai/ai-bunker/landscape.html">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B0B0C" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ai-bunker">
+  <meta property="og:title" content="Paysage — où se situe ai-bunker">
+  <meta property="og:description" content="Les passerelles routent, les garde-fous inspectent, aucun ne compte. Un relevé de LiteLLM, Portkey, Kong, NeMo Guardrails, Guardrails AI, LLM Guard et OPA, y compris là où ce projet est en retard.">
+  <meta property="og:url" content="https://deraison.ai/ai-bunker/fr/landscape.html">
+  <meta property="og:image" content="https://deraison.ai/ai-bunker/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="ai-bunker — one GPU, one charter, every coding agent">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Paysage — où se situe ai-bunker">
+  <meta name="twitter:description" content="Les passerelles routent, les garde-fous inspectent, aucun ne compte. Un relevé de LiteLLM, Portkey, Kong, NeMo Guardrails, Guardrails AI, LLM Guard et OPA, y compris là où ce projet est en retard.">
+  <meta name="twitter:image" content="https://deraison.ai/ai-bunker/img/og.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Où se situe ai-bunker parmi les passerelles LLM et les moteurs de garde-fous",
+    "description": "Un relevé comparatif des passerelles LLM, bibliothèques de garde-fous et moteurs de politiques, avec une carte de positionnement par ACP et un compte rendu explicite de là où ai-bunker est en retard.",
+    "inLanguage": "fr",
+    "author": {"@type": "Person", "name": "Warith Harchaoui"}
+  }
+  </script>
+  <link rel="icon" href="../favicon.ico" sizes="any">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png">
+  <link rel="manifest" href="../site.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="ai-bunker">
+  <link rel="stylesheet" href="../fonts/roboto/fonts.css">
+  <link rel="stylesheet" href="../fonts/roboto-serif/fonts.css">
+  <link rel="stylesheet" href="../fonts/roboto-mono/fonts.css">
+  <link rel="stylesheet" href="../css/app.css">
+</head>
+
+<body class="bg-white text-neutral-900 dark:bg-[#0B0B0C] dark:text-neutral-100 font-sans antialiased">
+  <a href="#main"
+    class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-3 focus:left-3 focus:rounded-lg focus:bg-brand-blue focus:px-4 focus:py-2 focus:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">Aller au contenu</a>
+
+  <header
+    class="sticky top-0 z-40 border-b border-neutral-200/70 bg-white/80 backdrop-blur dark:border-neutral-800 dark:bg-[#0B0B0C]/80">
+    <nav class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3" aria-label="Principale">
+      <a href="#main"
+        class="flex items-center gap-2 rounded min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">
+        <img src="../img/logo-96.png" alt="" width="28" height="28" class="rounded dark:hidden"><img src="../img/logo-96-dark.png" alt="" width="28" height="28" class="hidden rounded dark:block">
+        <span class="font-semibold tracking-tight">ai-bunker</span>
+      </a>
+      <div class="flex items-center gap-4 text-sm">
+        <a href="#budget" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Budget</a>
+        <a href="sizing.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Dimensionnement</a>
+        <a href="landscape.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Paysage</a>
+        <a href="start.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Démarrer</a>
+        <menu class="m-0 hidden list-none items-center gap-2 p-0 sm:flex" aria-label="Projet">
+          <li class="flex"><a href="https://github.com/warith-harchaoui/ai-bunker"
+            class="rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">⭐️ sur GitHub</a></li>
+        </menu>
+        <menu class="m-0 flex list-none items-center gap-3 p-0 sm:gap-4" aria-label="Réglages de la page">
+          <li class="flex"><a href="../index.html" aria-label="English version" title="English version"
+            class="rounded-full px-2 py-1 text-lg leading-none hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800">🇬🇧</a></li>
+          <li class="flex"><button id="theme-toggle" type="button" aria-label="Changer de thème"
+            class="rounded-full px-2 py-1 text-lg leading-none hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800 min-h-11">🌞</button></li>
+        </menu>
+        <button id="nav-toggle" type="button" aria-controls="nav-mobile" aria-expanded="false"
+          class="flex items-center justify-center rounded-full px-2 py-1 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800 min-h-11 sm:hidden"><span class="sr-only">Menu</span><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3 6h16M3 11h16M3 16h16"></path></svg></button>
+      </div>
+    </nav>
+    <div id="nav-mobile" hidden class="border-t border-neutral-200/70 bg-white/95 dark:border-neutral-800 dark:bg-[#0B0B0C]/95 sm:hidden">
+      <ul class="mx-auto flex max-w-6xl flex-col gap-1 px-5 py-3 text-sm">
+        <li><a href="#budget" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Budget</a></li>
+        <li><a href="sizing.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Dimensionnement</a></li>
+        <li><a href="landscape.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Paysage</a></li>
+        <li><a href="start.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Démarrer</a></li>
+        <li><a href="https://github.com/warith-harchaoui/ai-bunker" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">⭐️ sur GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+
+  <main id="main">
+
+    <section class="mx-auto max-w-6xl px-5 pt-14 pb-10 sm:pt-20">
+      <p class="mb-4 text-sm font-medium uppercase tracking-widest text-brand-linktext">Paysage</p>
+      <h1 class="font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+        Les passerelles routent.<br>Les garde-fous inspectent.<br>Aucun ne compte.
+      </h1>
+      <p class="mt-6 max-w-2xl text-lg leading-relaxed text-neutral-700 dark:text-neutral-300">
+        Les outils qui se placent entre un agent de code et un modèle, relevés le 19/10/2026. Un
+        outil conçu pour un autre travail n'est pas critiqué — et trois d'entre eux battent ce
+        projet sur un point nommé ci-dessous.
+      </p>
+    </section>
+
+    <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
+      <div class="mx-auto max-w-6xl px-5 py-14">
+        <h2 class="font-serif text-3xl font-semibold tracking-tight">Trois grappes, et un coin vide</h2>
+        <figure class="mt-8">
+          <img src="../img/landscape.png" width="1800" height="1391" loading="lazy"
+            alt="Une carte de positionnement produite par analyse en composantes principales. L'axe horizontal va de Ressource à gauche à Discipline à droite ; l'axe vertical de Protégé en bas à Piloté en haut. LiteLLM, Kong AI Gateway et Portkey forment une grappe à gauche. NeMo Guardrails, Guardrails AI et LLM Guard occupent le centre et le bas à droite, avec Open Policy Agent et la configuration de harnais client en dessous. ai-bunker est seul en haut à droite."
+            class="w-full rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800">
+          <figcaption class="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
+            À lire comme une forme, pas comme un classement. Produite par
+            <a href="https://github.com/warith-harchaoui/standpoint" class="text-brand-linktext hover:underline">standpoint</a>
+            à partir du tableau de notes, par ACP.
+          </figcaption>
+        </figure>
+        <div class="mt-10 grid gap-5 md:grid-cols-3">
+          <div class="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#141416]">
+            <h3 class="font-semibold">À gauche — les passerelles</h3>
+            <p class="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+              LiteLLM, Kong, Portkey. Une seule surface compatible OpenAI sur une centaine de
+              fournisseurs, avec clés, budgets, reprises et observabilité — et très bien faite.
+              Ce qu'elles ne font pas : regarder ce que l'agent lit ou s'apprête à exécuter. Une
+              sortie d'outil pleine de secrets et un <span class="font-mono text-xs">rm -rf ~</span>
+              les traversent comme des octets ordinaires.
+            </p>
+          </div>
+          <div class="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#141416]">
+            <h3 class="font-semibold">À droite et en dessous — les moteurs de règles</h3>
+            <p class="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+              NeMo Guardrails, Guardrails AI, LLM Guard. Ils inspectent le contenu correctement,
+              et plusieurs le font mieux que ce projet. Ce qu'ils ne sont pas : des passerelles.
+              Ce sont des bibliothèques que vous appelez, donc un agent qui ne les appelle pas
+              n'est pas protégé, et changer de harnais les perd entièrement.
+            </p>
+          </div>
+          <div class="rounded-2xl border border-brand-blue/40 bg-brand-blue/5 p-6">
+            <h3 class="font-semibold">En haut à droite — vide, sauf celui-ci</h3>
+            <p class="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+              Personne d'autre ne combine la position de la passerelle — chaque requête, chaque
+              client, sans échappatoire — avec l'inspection du moteur de règles et un budget que
+              le serveur compte. C'est une affirmation sur la <em>couverture</em>, pas sur la
+              qualité.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-6xl px-5 py-14">
+      <h2 class="font-serif text-3xl font-semibold tracking-tight">Là où ce projet est en retard</h2>
+      <p class="mt-5 max-w-3xl leading-relaxed text-neutral-700 dark:text-neutral-300">
+        À dire, parce qu'un paysage où un seul outil gagne toutes les colonnes n'est pas
+        crédible.
+      </p>
+      <dl class="mt-8 space-y-6">
+        <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <dt class="font-semibold">Largeur de fournisseurs — LiteLLM, et de loin</dt>
+          <dd class="mt-2 leading-relaxed text-neutral-700 dark:text-neutral-300">Une centaine de
+            fournisseurs contre ce que vous configurez ici. Si la question est « appeler beaucoup
+            de fournisseurs depuis un seul client », LiteLLM est simplement la réponse — et
+            ai-bunker peut se placer devant lui plutôt que le concurrencer.</dd>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <dt class="font-semibold">Classificateurs de contenu — LLM Guard et Guardrails AI</dt>
+          <dd class="mt-2 leading-relaxed text-neutral-700 dark:text-neutral-300">Leurs scanners
+            sont des modèles entraînés et des catalogues de validateurs curatés ; ici ce sont des
+            expressions régulières versionnées avec un seuil d'entropie. Relisibles, diffables et
+            gratuites à l'exécution — un arbitrage assumé, et sur la qualité brute de détection
+            c'est un arbitrage, pas une victoire.</dd>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <dt class="font-semibold">Expressivité et test des politiques — OPA</dt>
+          <dd class="mt-2 leading-relaxed text-neutral-700 dark:text-neutral-300">Rego exprime des
+            conditions qu'une regex ne peut pas, et son outillage de test avec couverture est
+            meilleur que <span class="font-mono text-sm">rules --check</span>. L'idée qu'une
+            politique porte ses propres tests vient de là.</dd>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <dt class="font-semibold">Maturité</dt>
+          <dd class="mt-2 leading-relaxed text-neutral-700 dark:text-neutral-300">C'est un
+            <span class="font-mono text-sm">0.1.0-alpha</span> à côté de projets qui ont des
+            années de production.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
+      <div class="mx-auto max-w-6xl px-5 py-14">
+        <h2 class="font-serif text-3xl font-semibold tracking-tight">Idées reprises au terrain</h2>
+        <p class="mt-5 max-w-3xl leading-relaxed text-neutral-700 dark:text-neutral-300">
+          Rien de tout cela n'a été inventé ici, et le dire ne coûte rien.
+        </p>
+        <ul class="mt-8 grid gap-5 sm:grid-cols-2">
+          <li class="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#141416]">
+            <p class="font-semibold">Open Policy Agent</p>
+            <p class="mt-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">La
+              politique porte ses propres tests, et les décisions sont journalisées dès le premier
+              jour. Les deux sont désormais porteurs ici — et le premier a attrapé trois motifs
+              faux avant tout déploiement.</p>
+          </li>
+          <li class="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#141416]">
+            <p class="font-semibold">gitleaks</p>
+            <p class="mt-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">Regex
+              <em>et</em> seuil d'entropie, plus des listes d'exception par règle. Un scanner qui
+              crie au loup apprend à ses lecteurs à l'ignorer.</p>
+          </li>
+          <li class="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#141416]">
+            <p class="font-semibold">Le <em>spotlighting</em> de Microsoft</p>
+            <p class="mt-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">Marquer
+              le contenu récupéré comme de la donnée. La reconnaissance de motifs attrape les
+              tentatives maladroites ; le marquage structurel est ce qui tient quand les motifs
+              ratent.</p>
+          </li>
+          <li class="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#141416]">
+            <p class="font-semibold">La recherche sur les harnais d'agents</p>
+            <p class="mt-2 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">La
+              distinction « prévention / remède » : borner structurellement le contexte, ou le
+              laisser croître et compresser. Ce projet est de la prévention, déplacée côté
+              serveur — une case que la taxonomie n'a pas.</p>
+          </li>
+        </ul>
+        <p class="mt-10">
+          <a href="https://github.com/warith-harchaoui/ai-bunker/blob/main/PAYSAGE.md"
+            class="font-medium text-brand-linktext hover:underline">Le tableau complet, avec une fiche par outil →</a>
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-neutral-200/70 dark:border-neutral-800">
+    <div class="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-10 text-sm text-neutral-600 dark:text-neutral-400 sm:flex-row sm:items-center sm:justify-between">
+      <p>
+        <span class="font-semibold text-neutral-900 dark:text-neutral-100">ai-bunker</span>
+        — fait partie des <a href="https://deraison.ai/ai-helpers" class="text-brand-linktext hover:underline">AI&nbsp;Helpers</a>.
+        BSD-3-Clause.
+      </p>
+      <nav aria-label="Pied de page" class="flex flex-wrap gap-4">
+        <a href="sizing.html" class="hover:text-brand-linktext">Dimensionnement</a>
+        <a href="landscape.html" class="hover:text-brand-linktext">Paysage</a>
+        <a href="start.html" class="hover:text-brand-linktext">Démarrer</a>
+        <a href="../index.html" class="hover:text-brand-linktext">English</a>
+        <a href="https://github.com/warith-harchaoui/ai-bunker" class="hover:text-brand-linktext">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="../js/theme.js" defer></script>
+  <script src="../js/nav.js" defer></script>
+</body>
+
+</html>
+
+  <script src="../js/theme.js" defer></script>
+  <script src="../js/nav.js" defer></script>
+</body>
+
+</html>

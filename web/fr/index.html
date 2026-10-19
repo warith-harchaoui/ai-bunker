@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="fr" data-color-scheme="light">
+
+<head>
+  <script>(function () {
+      var s; try { s = localStorage.getItem('ai-bunker-theme'); } catch (e) { }
+      if (!s) s = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-color-scheme', s);
+    })();</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <title>ai-bunker — un GPU, une charte, tous les agents de code</title>
+  <meta name="description" content="Une passerelle souveraine compatible OpenAI devant votre propre GPU : une charte versionnée, des règles appliquées, et un budget de contexte que le serveur compte avec son propre tokenizer au lieu de croire l'estimation du client.">
+  <link rel="canonical" href="https://deraison.ai/ai-bunker/fr/">
+  <link rel="alternate" hreflang="en" href="https://deraison.ai/ai-bunker/">
+  <link rel="alternate" hreflang="fr" href="https://deraison.ai/ai-bunker/fr/">
+  <link rel="alternate" hreflang="x-default" href="https://deraison.ai/ai-bunker/">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B0B0C" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ai-bunker">
+  <meta property="og:title" content="ai-bunker — un GPU, une charte, tous les agents de code">
+  <meta property="og:description" content="Une passerelle souveraine compatible OpenAI devant votre propre GPU : une charte versionnée, des règles appliquées, et un budget de contexte que le serveur compte avec son propre tokenizer au lieu de croire l'estimation du client.">
+  <meta property="og:url" content="https://deraison.ai/ai-bunker/fr/">
+  <meta property="og:image" content="https://deraison.ai/ai-bunker/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="ai-bunker — one GPU, one charter, every coding agent">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ai-bunker — un GPU, une charte, tous les agents de code">
+  <meta name="twitter:description" content="Une passerelle souveraine compatible OpenAI devant votre propre GPU : une charte versionnée, des règles appliquées, et un budget de contexte que le serveur compte avec son propre tokenizer au lieu de croire l'estimation du client.">
+  <meta name="twitter:image" content="https://deraison.ai/ai-bunker/img/og.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {"@type": "WebSite", "name": "ai-bunker", "url": "https://deraison.ai/ai-bunker/fr/",
+       "description": "Passerelle souveraine compatible OpenAI devant votre propre GPU.",
+       "inLanguage": "fr",
+       "author": {"@type": "Person", "name": "Warith Harchaoui"}},
+      {"@type": "FAQPage", "mainEntity": [
+        {"@type": "Question", "name": "Pourquoi le serveur doit-il compter les tokens plutôt que le client ?",
+         "acceptedAnswer": {"@type": "Answer", "text": "Parce que seul le serveur tient le tokenizer. Un client estime avec sa propre règle et sous-compte : une session mesurée s'est crue sous 32 768 tokens et en a envoyé 40 433, et le serveur a refusé la requête entière. Claude Code compacte à « contexte effectif moins 13 000 tokens », soit une estimation sur une estimation."}},
+        {"@type": "Question", "name": "Qu'est-ce que le plancher d'une session ?",
+         "acceptedAnswer": {"@type": "Answer", "text": "La part de la fenêtre de contexte payée à chaque requête et hors d'atteinte de la compaction : prompt système, schémas d'outils, charte, index. Ce qui reste est la seule place dont dispose la conversation. Un poste mesuré injectait 59 descriptions de skills dans chaque prompt : 17 754 tokens, 68 % d'un plancher de 26 226 pour un contexte déclaré à 26 000, et la session bouclait sans jamais répondre."}},
+        {"@type": "Question", "name": "Quelle différence avec LiteLLM ou une bibliothèque de garde-fous ?",
+         "acceptedAnswer": {"@type": "Answer", "text": "Les passerelles routent mais n'inspectent pas : une sortie d'outil pleine de secrets et un rm -rf les traversent comme des octets ordinaires. Les bibliothèques de garde-fous inspectent mais restent des bibliothèques, donc un agent qui ne les appelle pas n'est pas protégé. Aucune ne compte le budget. ai-bunker est l'intersection."}}
+      ]}
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.ico" sizes="any">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png">
+  <link rel="manifest" href="../site.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="ai-bunker">
+  <link rel="stylesheet" href="../fonts/roboto/fonts.css">
+  <link rel="stylesheet" href="../fonts/roboto-serif/fonts.css">
+  <link rel="stylesheet" href="../fonts/roboto-mono/fonts.css">
+  <link rel="stylesheet" href="../css/app.css">
+</head>
+
+<body class="bg-white text-neutral-900 dark:bg-[#0B0B0C] dark:text-neutral-100 font-sans antialiased">
+  <a href="#main"
+    class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-3 focus:left-3 focus:rounded-lg focus:bg-brand-blue focus:px-4 focus:py-2 focus:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">Aller au contenu</a>
+
+  <header
+    class="sticky top-0 z-40 border-b border-neutral-200/70 bg-white/80 backdrop-blur dark:border-neutral-800 dark:bg-[#0B0B0C]/80">
+    <nav class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3" aria-label="Principale">
+      <a href="#main"
+        class="flex items-center gap-2 rounded min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">
+        <img src="../img/logo-96.png" alt="" width="28" height="28" class="rounded dark:hidden"><img src="../img/logo-96-dark.png" alt="" width="28" height="28" class="hidden rounded dark:block">
+        <span class="font-semibold tracking-tight">ai-bunker</span>
+      </a>
+      <div class="flex items-center gap-4 text-sm">
+        <a href="#budget" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Budget</a>
+        <a href="sizing.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Dimensionnement</a>
+        <a href="landscape.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Paysage</a>
+        <a href="start.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Démarrer</a>
+        <menu class="m-0 hidden list-none items-center gap-2 p-0 sm:flex" aria-label="Projet">
+          <li class="flex"><a href="https://github.com/warith-harchaoui/ai-bunker"
+            class="rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">⭐️ sur GitHub</a></li>
+        </menu>
+        <menu class="m-0 flex list-none items-center gap-3 p-0 sm:gap-4" aria-label="Réglages de la page">
+          <li class="flex"><a href="../index.html" aria-label="English version" title="English version"
+            class="rounded-full px-2 py-1 text-lg leading-none hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800">🇬🇧</a></li>
+          <li class="flex"><button id="theme-toggle" type="button" aria-label="Changer de thème"
+            class="rounded-full px-2 py-1 text-lg leading-none hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800 min-h-11">🌞</button></li>
+        </menu>
+        <button id="nav-toggle" type="button" aria-controls="nav-mobile" aria-expanded="false"
+          class="flex items-center justify-center rounded-full px-2 py-1 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:hover:bg-neutral-800 min-h-11 sm:hidden"><span class="sr-only">Menu</span><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3 6h16M3 11h16M3 16h16"></path></svg></button>
+      </div>
+    </nav>
+    <div id="nav-mobile" hidden class="border-t border-neutral-200/70 bg-white/95 dark:border-neutral-800 dark:bg-[#0B0B0C]/95 sm:hidden">
+      <ul class="mx-auto flex max-w-6xl flex-col gap-1 px-5 py-3 text-sm">
+        <li><a href="#budget" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Budget</a></li>
+        <li><a href="sizing.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Dimensionnement</a></li>
+        <li><a href="landscape.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Paysage</a></li>
+        <li><a href="start.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Démarrer</a></li>
+        <li><a href="https://github.com/warith-harchaoui/ai-bunker" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">⭐️ sur GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+
+  <main id="main">
+
+    <section class="mx-auto max-w-6xl px-5 pt-16 pb-12 sm:pt-24">
+      <p class="mb-4 text-sm font-medium uppercase tracking-widest text-brand-linktext">AI Helpers</p>
+      <h1 class="font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
+        Un GPU, une charte,<br>tous les agents de code.
+      </h1>
+      <p class="mt-6 max-w-2xl text-lg leading-relaxed text-neutral-700 dark:text-neutral-300">
+        Une passerelle souveraine compatible OpenAI, posée devant votre propre GPU. Elle porte
+        les standards de l'équipe, applique des règles qu'on ne peut pas contourner, et compte
+        le budget de contexte <em class="font-serif">avec le tokenizer du serveur</em> au lieu
+        de croire l'estimation du client.
+      </p>
+      <div class="mt-8 flex flex-wrap items-center gap-3">
+        <a href="start.html"
+          class="inline-flex min-h-11 items-center rounded-full bg-brand-blue px-6 py-3 font-medium text-white hover:bg-brand-bluedark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:ring-offset-2">Démarrer</a>
+        <a href="https://github.com/warith-harchaoui/ai-bunker"
+          class="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-6 py-3 font-medium hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:border-neutral-700 dark:hover:border-neutral-600">Lire
+          le code</a>
+        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 362 tests · 0.1.0-alpha</span>
+      </div>
+    </section>
+
+    <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
+      <div class="mx-auto max-w-6xl px-5 py-16">
+        <div class="grid gap-10 md:grid-cols-[1.1fr_1fr] md:items-center">
+          <div>
+            <h2 class="font-serif text-3xl font-semibold tracking-tight">Pourquoi c'est au serveur de compter</h2>
+            <p class="mt-5 leading-relaxed text-neutral-700 dark:text-neutral-300">
+              Le 25/09/2026, une session s'est crue sous sa limite et a envoyé
+              <strong class="font-semibold text-brand-linktext">40 433 tokens</strong> à un
+              serveur configuré pour 32 768. Le serveur a compté pour de vrai, a refusé la
+              requête entière, et la session est morte.
+            </p>
+            <p class="mt-4 leading-relaxed text-neutral-700 dark:text-neutral-300">
+              Le client ne mentait pas. Il estimait, avec sa propre règle de tokenisation, plus
+              optimiste que celle du modèle sur le français et sur le code. L'écart était de
+              55 %. Tous les harnais font cela : Claude Code compacte à
+              <span class="font-mono text-sm">contexte effectif − 13 000</span>, soit une
+              estimation sur une estimation.
+            </p>
+            <p class="mt-4 leading-relaxed text-neutral-700 dark:text-neutral-300">
+              Le seul qui puisse compter juste est celui qui tient le tokenizer, et c'est le
+              serveur.
+            </p>
+          </div>
+          <figure class="rounded-2xl border border-neutral-200 bg-white p-6 font-mono text-[13px] leading-relaxed shadow-sm dark:border-neutral-800 dark:bg-[#141416]">
+            <figcaption class="mb-4 font-sans text-xs font-medium uppercase tracking-widest text-neutral-500 dark:text-neutral-400">Un
+              plancher de session, détaillé par propriétaire</figcaption>
+            <table class="w-full">
+              <tbody class="[&amp;_td]:py-1">
+                <tr><td>schémas d'outils (7)</td><td class="text-right tabular-nums">2 875</td><td class="pl-4 text-brand-orange">client</td></tr>
+                <tr><td>prompt système du client</td><td class="text-right tabular-nums">960</td><td class="pl-4 text-brand-orange">client</td></tr>
+                <tr><td>charte</td><td class="text-right tabular-nums">465</td><td class="pl-4 text-brand-linktext">ai-bunker</td></tr>
+                <tr><td>index des savoirs</td><td class="text-right tabular-nums">142</td><td class="pl-4 text-brand-linktext">ai-bunker</td></tr>
+                <tr class="border-t border-neutral-200 font-semibold dark:border-neutral-700"><td class="pt-2">PLANCHER</td><td class="pt-2 text-right tabular-nums">4 442</td><td></td></tr>
+              </tbody>
+            </table>
+            <p class="mt-4 font-sans text-xs text-neutral-500 dark:text-neutral-400">
+              <span class="font-mono">backend=server exact=True</span> — compté par le moteur,
+              pas estimé. Un plancher qu'on ne peut pas décomposer est un plancher qu'on ne peut
+              pas réduire.
+            </p>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="budget" class="mx-auto max-w-6xl px-5 py-16">
+      <h2 class="font-serif text-3xl font-semibold tracking-tight">Quatre étapes, et l'ordre compte</h2>
+      <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
+        Tout client qui parle OpenAI parle ai-bunker, et reçoit les quatre sans avoir été
+        configuré pour. C'est l'argument qui justifie de mettre cela au point d'entrée plutôt
+        que dans le harnais de chaque développeur : un plugin se désactive en éditant un
+        fichier, et un autre harnais ne l'a simplement jamais eu.
+      </p>
+      
+<figure class="mt-10">
+  <svg viewBox="0 0 880 420" class="w-full max-w-4xl" role="img"
+       aria-labelledby="flow-t flow-d" style="color: rgb(var(--brand-blue-rgb))">
+    <title id="flow-t">Une requête traversant la passerelle ai-bunker</title>
+    <desc id="flow-d">Un client à gauche envoie une requête à la passerelle au centre, qui la transmet au moteur d'inférence à droite. Dans la passerelle, l'étape 1 filtre les sorties d'outils entrantes, l'étape 2 injecte la charte, l'étape 3 mesure le budget et peut refuser la requête, l'étape 4 filtre les appels d'outils sortants et peut refuser une commande. Un trait pointillé relie les étapes 1 et 4, qui sont les deux portées d'un même moteur de règles.</desc>
+
+    <defs>
+      <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+      </marker>
+      <marker id="arw-dim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" fill="#9A9AA2"/>
+      </marker>
+    </defs>
+
+    <!-- The band, with a gutter on its left reserved for the bracket. Two
+         earlier layouts put that bracket outside the band and then across
+         stage 3; both collisions were only visible once rendered. -->
+    <rect x="228" y="30" width="430" height="360" rx="16"
+          fill="currentColor" fill-opacity=".05" stroke="currentColor" stroke-opacity=".3"/>
+    <text x="443" y="56" text-anchor="middle" font-size="13" font-weight="600"
+          fill="currentColor" letter-spacing=".08em">ai-bunker</text>
+
+    <rect x="14" y="150" width="170" height="120" rx="14" fill="none"
+          stroke="#9A9AA2" stroke-width="1.5"/>
+    <text x="99" y="200" text-anchor="middle" font-size="15" font-weight="600" fill="currentColor">Tout client OpenAI</text>
+    <text x="99" y="222" text-anchor="middle" font-size="11" fill="#8A8A92">Claude Code · OpenCode · curl</text>
+
+    <rect x="700" y="150" width="150" height="120" rx="14" fill="none"
+          stroke="#9A9AA2" stroke-width="1.5"/>
+    <text x="775" y="200" text-anchor="middle" font-size="15" font-weight="600" fill="currentColor">Votre GPU</text>
+    <text x="775" y="222" text-anchor="middle" font-size="11" fill="#8A8A92">vLLM, Ollama</text>
+
+    <path d="M184 184 H228" stroke="currentColor" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+    <path d="M658 184 H700" stroke="currentColor" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+    <path d="M700 240 H658" stroke="#9A9AA2" stroke-width="2" fill="none" marker-end="url(#arw-dim)"/>
+    <path d="M228 240 H184" stroke="#9A9AA2" stroke-width="2" fill="none" marker-end="url(#arw-dim)"/>
+
+    <g>
+      <rect x="284" y="80" width="172" height="86" rx="12" fill="rgb(var(--brand-orange-rgb))" fill-opacity=".10"
+            stroke="rgb(var(--brand-orange-rgb))" stroke-opacity=".5"/>
+      <text x="298" y="102" font-size="11" font-weight="700" fill="rgb(var(--brand-orange-rgb))" letter-spacing=".1em">01</text>
+      <text x="298" y="124" font-size="13" font-weight="600" fill="currentColor">Filtrer ce qu'il lit</text>
+      <text x="298" y="144" font-size="11.5" fill="#8A8A92">secrets qui sortent, injection qui entre</text>
+      <text x="298" y="159" font-size="11.5" fill="#8A8A92">le reste marqué comme donnée</text>
+    </g>
+    <g>
+      <rect x="472" y="80" width="172" height="86" rx="12" fill="currentColor" fill-opacity=".10"
+            stroke="currentColor" stroke-opacity=".45"/>
+      <text x="486" y="102" font-size="11" font-weight="700" fill="currentColor" letter-spacing=".1em">02</text>
+      <text x="486" y="124" font-size="13" font-weight="600" fill="currentColor">Servir la charte</text>
+      <text x="486" y="144" font-size="11.5" fill="#8A8A92">l'index, pas les fiches</text>
+      <text x="486" y="159" font-size="11.5" fill="#8A8A92">position stable, donc cachable</text>
+    </g>
+    <g>
+      <rect x="284" y="196" width="360" height="76" rx="12" fill="currentColor" fill-opacity=".10"
+            stroke="currentColor" stroke-opacity=".45"/>
+      <text x="298" y="218" font-size="11" font-weight="700" fill="currentColor" letter-spacing=".1em">03</text>
+      <text x="298" y="240" font-size="13" font-weight="600" fill="currentColor">Mesurer le budget</text>
+      <text x="298" y="259" font-size="11.5" fill="#8A8A92">avec le tokenizer du moteur, pas une estimation</text>
+      <text x="630" y="240" text-anchor="end" font-size="12" font-weight="600"
+            fill="rgb(var(--brand-red-rgb))">413 — nomme le coupable</text>
+    </g>
+    <g>
+      <rect x="284" y="300" width="360" height="76" rx="12" fill="rgb(var(--brand-red-rgb))" fill-opacity=".08"
+            stroke="rgb(var(--brand-red-rgb))" stroke-opacity=".45"/>
+      <text x="298" y="322" font-size="11" font-weight="700" fill="rgb(var(--brand-red-rgb))" letter-spacing=".1em">04</text>
+      <text x="298" y="344" font-size="13" font-weight="600" fill="currentColor">Filtrer ce qu'il exécute</text>
+      <text x="298" y="363" font-size="11.5" fill="#8A8A92">la commande n'a pas encore tourné</text>
+      <text x="630" y="344" text-anchor="end" font-size="12" font-weight="600"
+            fill="rgb(var(--brand-red-rgb))">refus en résultat d'outil</text>
+    </g>
+
+    <!-- The claim the diagram exists to make, in its own gutter. -->
+    <path d="M276 123 Q258 123 258 228 Q258 338 276 338" fill="none"
+          stroke="rgb(var(--brand-orange-rgb))" stroke-width="1.5" stroke-dasharray="4 4" stroke-opacity=".8"/>
+    <text x="248" y="230" font-size="10.5" font-weight="600" text-anchor="middle"
+          fill="rgb(var(--brand-orange-rgb))" transform="rotate(-90 248 230)">un seul moteur de règles, aux deux bouts d'un tour</text>
+  </svg>
+  <figcaption class="mt-4 max-w-3xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">L'ordre porte le sens. Les étapes 1 et 4 sont le même moteur de règles aux deux bouts du tour d'un agent, et une passerelle est la première position d'où les deux sont visibles — une bibliothèque appelée depuis une application ne voit ni l'une ni l'autre de façon fiable.</figcaption>
+</figure>
+
+    </section>
+
+    <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
+      <div class="mx-auto max-w-6xl px-5 py-16">
+        <h2 class="font-serif text-3xl font-semibold tracking-tight">Des règles livrées avec leurs preuves</h2>
+        <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
+          Une expression régulière est la chose la plus facile à se tromper ici, et une regex
+          fausse échoue en silence : elle cesse d'apparier, personne ne le voit, le garde-fou a
+          disparu. Chaque règle porte donc ses propres exemples, et ils tournent en CI.
+        </p>
+        <pre class="mt-8 overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-6 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>$ ai-bunker rules --check
+  rules loaded                          16
+  assertions passed                     95
+  assertions failed                      0
+  rules carrying evidence            100%</code></pre>
+        <p class="mt-6 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
+          Trois motifs livrés étaient faux au premier jet — dont un dont la borne ne pouvait pas
+          franchir le point de <span class="font-mono text-sm">~/.aws/credentials</span>. Les
+          exemples ont attrapé les trois avant tout déploiement.
+        </p>
+        <div class="mt-10 grid gap-5 sm:grid-cols-3">
+          <div class="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-[#141416]">
+            <p class="font-mono text-2xl font-semibold text-brand-linktext">2</p>
+            <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">portées : le texte qui <em>entre</em>, les commandes qui <em>sortent</em></p>
+          </div>
+          <div class="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-[#141416]">
+            <p class="font-mono text-2xl font-semibold text-brand-linktext">3,85</p>
+            <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">bits/car. — le seuil d'entropie mesuré qui distingue un identifiant d'un espace réservé</p>
+          </div>
+          <div class="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-[#141416]">
+            <p class="font-mono text-2xl font-semibold text-brand-linktext">0</p>
+            <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">motif catastrophique autorisé à charger — le garde-fou en a attrapé deux dans un jeu de règles en production</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-6xl px-5 py-16">
+      <div class="grid gap-10 md:grid-cols-2">
+        <div>
+          <h2 class="font-serif text-3xl font-semibold tracking-tight">Ce que ce n'est pas</h2>
+          <ul class="mt-6 space-y-4 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            <li><strong class="font-semibold">Pas un routeur à cent fournisseurs.</strong>
+              LiteLLM est simplement meilleur là-dessus, et ai-bunker se place devant lui plutôt
+              que de le concurrencer.</li>
+            <li><strong class="font-semibold">Pas un classificateur de contenu.</strong> LLM
+              Guard et Guardrails AI livrent des modèles entraînés ; ici ce sont des expressions
+              régulières versionnées. Relisibles et gratuites à l'exécution — un arbitrage, pas
+              une victoire.</li>
+            <li><strong class="font-semibold">Pas mature.</strong> C'est un
+              <span class="font-mono text-sm">0.1.0-alpha</span> à côté de projets qui ont des
+              années de production.</li>
+          </ul>
+          <p class="mt-6">
+            <a href="landscape.html" class="font-medium text-brand-linktext hover:underline">Voir le paysage complet →</a>
+          </p>
+        </div>
+        <div>
+          <h2 class="font-serif text-3xl font-semibold tracking-tight">Ce que c'est</h2>
+          <p class="mt-6 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            Les passerelles routent. Les garde-fous inspectent. Aucun ne compte.
+          </p>
+          <p class="mt-4 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            ai-bunker est l'intersection — et le coin de la carte où les trois se rejoignent
+            était vide au moment du relevé.
+          </p>
+          <p class="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
+            Chaque chiffre de ce site a été mesuré. Là où une valeur est une estimation, elle le
+            dit.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-neutral-200/70 dark:border-neutral-800">
+    <div class="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-10 text-sm text-neutral-600 dark:text-neutral-400 sm:flex-row sm:items-center sm:justify-between">
+      <p>
+        <span class="font-semibold text-neutral-900 dark:text-neutral-100">ai-bunker</span>
+        — fait partie des <a href="https://deraison.ai/ai-helpers" class="text-brand-linktext hover:underline">AI&nbsp;Helpers</a>.
+        BSD-3-Clause.
+      </p>
+      <nav aria-label="Pied de page" class="flex flex-wrap gap-4">
+        <a href="sizing.html" class="hover:text-brand-linktext">Dimensionnement</a>
+        <a href="landscape.html" class="hover:text-brand-linktext">Paysage</a>
+        <a href="start.html" class="hover:text-brand-linktext">Démarrer</a>
+        <a href="../index.html" class="hover:text-brand-linktext">English</a>
+        <a href="https://github.com/warith-harchaoui/ai-bunker" class="hover:text-brand-linktext">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="../js/theme.js" defer></script>
+  <script src="../js/nav.js" defer></script>
+</body>
+
+</html>
+
+  <script src="../js/theme.js" defer></script>
+  <script src="../js/nav.js" defer></script>
+</body>
+
+</html>

@@ -145,7 +145,7 @@ def roofline(t: dict[str, str]) -> str:
     )
     return f"""
 <figure class="mt-10">
-  <svg viewBox="0 0 820 400" class="w-full max-w-3xl" role="img"
+  <svg viewBox="-6 0 826 400" class="w-full max-w-3xl" role="img"
        aria-labelledby="roof-t roof-d" style="color: rgb(var(--brand-blue-rgb))">
     <title id="roof-t">{t["title"]}</title>
     <desc id="roof-d">{t["desc"]}</desc>
@@ -154,12 +154,16 @@ def roofline(t: dict[str, str]) -> str:
     <line x1="92" y1="330" x2="792" y2="330" stroke="#9A9AA2" stroke-opacity=".45"/>
     {xticks}
     <text x="442" y="378" text-anchor="middle" font-size="12" fill="#8A8A92">{t["x"]}</text>
-    <text x="22" y="190" font-size="12" fill="#8A8A92" transform="rotate(-90 22 190)" text-anchor="middle">{t["y"]} {t["polarity"]}</text>
+    <text x="30" y="190" font-size="12" fill="#8A8A92" transform="rotate(-90 30 190)" text-anchor="middle">{t["y"]}</text>
+    <text x="46" y="190" font-size="10.5" fill="#8A8A92" transform="rotate(-90 46 190)" text-anchor="middle">{t["polarity"]}</text>
 
     <!-- the comfort floor -->
     <line x1="92" y1="{330 - 20 / 120 * 280:.0f}" x2="792" y2="{330 - 20 / 120 * 280:.0f}"
           stroke="rgb(var(--brand-red-rgb))" stroke-width="1.5" stroke-dasharray="6 4"/>
-    <text x="786" y="{330 - 20 / 120 * 280 - 8:.0f}" text-anchor="end" font-size="11.5"
+    <!-- Anchored at the left end: both lines are still under the floor there,
+         so the label sits in open space. At the right end it landed on the
+         dense line, which the render showed as text struck through. -->
+    <text x="100" y="{330 - 20 / 120 * 280 - 9:.0f}" font-size="11.5"
           font-weight="600" fill="rgb(var(--brand-red-rgb))">{t["floor"]}</text>
 
     <polyline points="{pts(9)}" fill="none" stroke="currentColor" stroke-width="2.5"/>
@@ -167,12 +171,16 @@ def roofline(t: dict[str, str]) -> str:
 
     <circle cx="{m3_x:.0f}" cy="{m3_y:.0f}" r="5" fill="currentColor"/>
     <text x="{m3_x - 10:.0f}" y="{m3_y - 12:.0f}" text-anchor="end" font-size="12" font-weight="600" fill="currentColor">{t["p_m3"]}</text>
+    <!-- Both dense-model points sit within a few pixels of the comfort-floor
+         line, so a label placed below either of them lands on it. Rendered,
+         that read as text struck through by a dashed rule. Both now sit above
+         their point, where the gap to the MoE line is wide. -->
     <circle cx="{studio_dense_x:.0f}" cy="{studio_dense_y:.0f}" r="5" fill="#8A8A92"/>
-    <text x="{studio_dense_x - 10:.0f}" y="{studio_dense_y + 18:.0f}" text-anchor="end" font-size="12" fill="#8A8A92">{t["p_dense"]}</text>
+    <text x="{studio_dense_x - 12:.0f}" y="{studio_dense_y - 12:.0f}" text-anchor="end" font-size="12" fill="#8A8A92">{t["p_dense"]}</text>
     <circle cx="{spark_x:.0f}" cy="{spark_y:.0f}" r="5" fill="rgb(var(--brand-red-rgb))"/>
-    <text x="{spark_x + 12:.0f}" y="{spark_y + 5:.0f}" font-size="12" font-weight="600" fill="rgb(var(--brand-red-rgb))">{t["p_spark"]}</text>
+    <text x="{spark_x - 12:.0f}" y="{spark_y - 10:.0f}" text-anchor="end" font-size="12" font-weight="600" fill="rgb(var(--brand-red-rgb))">{t["p_spark"]}</text>
 
-    <g transform="translate(112,62)">
+    <g transform="translate(330,62)">
       <line x1="0" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="2.5"/>
       <text x="34" y="4" font-size="12" fill="currentColor">{t["l_moe"]}</text>
       <line x1="0" y1="20" x2="26" y2="20" stroke="#8A8A92" stroke-width="2.5" stroke-dasharray="7 4"/>

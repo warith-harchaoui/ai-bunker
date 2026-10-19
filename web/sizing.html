@@ -67,7 +67,7 @@
     <nav class="mx-auto flex max-w-6xl items-center justify-between px-5 py-3" aria-label="Primary">
       <a href="#main"
         class="flex items-center gap-2 rounded min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">
-        <img src="img/logo-96.png" alt="" width="28" height="28" class="rounded">
+        <img src="img/logo-96.png" alt="" width="28" height="28" class="rounded dark:hidden"><img src="img/logo-96-dark.png" alt="" width="28" height="28" class="hidden rounded dark:block">
         <span class="font-semibold tracking-tight">ai-bunker</span>
       </a>
       <div class="flex items-center gap-4 text-sm">
@@ -146,7 +146,7 @@
         </div>
         
 <figure class="mt-10">
-  <svg viewBox="0 0 820 400" class="w-full max-w-3xl" role="img"
+  <svg viewBox="-6 0 826 400" class="w-full max-w-3xl" role="img"
        aria-labelledby="roof-t roof-d" style="color: rgb(var(--brand-blue-rgb))">
     <title id="roof-t">Decode speed against memory bandwidth, for a dense and a mixture-of-experts model</title>
     <desc id="roof-d">Two lines rising from the origin. The mixture-of-experts model, reading about 9 GiB per token, rises steeply and clears 60 tokens per second at 819 GB/s. The dense 24B model, reading 25 GiB, rises about three times more slowly. A dashed red line marks the 20 tokens-per-second comfort floor. The DGX Spark, at 273 GB/s on the dense model, sits below that floor.</desc>
@@ -155,12 +155,16 @@
     <line x1="92" y1="330" x2="792" y2="330" stroke="#9A9AA2" stroke-opacity=".45"/>
     <text x="92" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">0</text><text x="300" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">273</text><text x="507" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">546</text><text x="715" y="352" text-anchor="middle" font-size="11" font-family="Roboto Mono, ui-monospace, monospace" style="font-variant-numeric:tabular-nums" fill="#8A8A92">819</text>
     <text x="442" y="378" text-anchor="middle" font-size="12" fill="#8A8A92">memory bandwidth, GB/s</text>
-    <text x="22" y="190" font-size="12" fill="#8A8A92" transform="rotate(-90 22 190)" text-anchor="middle">tokens/second (higher is better)</text>
+    <text x="30" y="190" font-size="12" fill="#8A8A92" transform="rotate(-90 30 190)" text-anchor="middle">tokens/second</text>
+    <text x="46" y="190" font-size="10.5" fill="#8A8A92" transform="rotate(-90 46 190)" text-anchor="middle">(higher is better)</text>
 
     <!-- the comfort floor -->
     <line x1="92" y1="283" x2="792" y2="283"
           stroke="rgb(var(--brand-red-rgb))" stroke-width="1.5" stroke-dasharray="6 4"/>
-    <text x="786" y="275" text-anchor="end" font-size="11.5"
+    <!-- Anchored at the left end: both lines are still under the floor there,
+         so the label sits in open space. At the right end it landed on the
+         dense line, which the render showed as text struck through. -->
+    <text x="100" y="274" font-size="11.5"
           font-weight="600" fill="rgb(var(--brand-red-rgb))">20 tok/s — the comfort floor</text>
 
     <polyline points="92,330 127,322 162,313 197,305 232,297 267,288 302,280 337,272 372,263 407,255 442,247 477,238 512,230 547,221 582,213 617,205 652,196 687,188 722,180 757,171 792,163" fill="none" stroke="currentColor" stroke-width="2.5"/>
@@ -168,12 +172,16 @@
 
     <circle cx="715" cy="181" r="5" fill="currentColor"/>
     <text x="705" y="169" text-anchor="end" font-size="12" font-weight="600" fill="currentColor">Mac Studio M3 Ultra</text>
+    <!-- Both dense-model points sit within a few pixels of the comfort-floor
+         line, so a label placed below either of them lands on it. Rendered,
+         that read as text struck through by a dashed rule. Both now sit above
+         their point, where the gap to the MoE line is wide. -->
     <circle cx="715" cy="276" r="5" fill="#8A8A92"/>
-    <text x="705" y="294" text-anchor="end" font-size="12" fill="#8A8A92">same machine, dense model</text>
+    <text x="703" y="264" text-anchor="end" font-size="12" fill="#8A8A92">same machine, dense model</text>
     <circle cx="300" cy="312" r="5" fill="rgb(var(--brand-red-rgb))"/>
-    <text x="312" y="317" font-size="12" font-weight="600" fill="rgb(var(--brand-red-rgb))">DGX Spark — below the floor</text>
+    <text x="288" y="302" text-anchor="end" font-size="12" font-weight="600" fill="rgb(var(--brand-red-rgb))">DGX Spark — below the floor</text>
 
-    <g transform="translate(112,62)">
+    <g transform="translate(330,62)">
       <line x1="0" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="2.5"/>
       <text x="34" y="4" font-size="12" fill="currentColor">Qwen3-Coder-Next 80B/3B, AWQ4 — ~9 GiB active</text>
       <line x1="0" y1="20" x2="26" y2="20" stroke="#8A8A92" stroke-width="2.5" stroke-dasharray="7 4"/>
