@@ -1,44 +1,48 @@
 """Home page — English."""
 
-import sys, pathlib as _p
+import pathlib as _p
+import sys
+
 sys.path.insert(0, str(_p.Path(__file__).parent))
 import _figures as F
 
-FLOW = F.flow({
-    "title": "A request crossing the ai-bunker gateway",
-    "desc": (
-        "A client on the left sends a request to the gateway in the middle, which "
-        "forwards it to the serving engine on the right. Inside the gateway, stage 1 "
-        "screens inbound tool results, stage 2 injects the charter, stage 3 measures "
-        "the budget and can refuse the request, and stage 4 screens the outbound tool "
-        "calls and can refuse a command. A dashed line links stages 1 and 4, which are "
-        "the two scopes of one rule engine."
-    ),
-    "gateway": "ai-bunker",
-    "client": "Any OpenAI client",
-    "client_sub": "Claude Code · OpenCode · curl",
-    "engine": "Your GPU",
-    "engine_sub": "vLLM, Ollama",
-    "s1": "Screen what it reads",
-    "s1a": "secrets out, injection in",
-    "s1b": "mark the rest as data",
-    "s2": "Serve the charter",
-    "s2a": "index, not the pages",
-    "s2b": "stable position, cacheable",
-    "s3": "Measure the budget",
-    "s3a": "with the engine's own tokenizer, not an estimate",
-    "s3_refuse": "413 — names the culprit",
-    "s4": "Screen what it runs",
-    "s4a": "the command has not run yet",
-    "s4_refuse": "refused as a tool result",
-    "same1": "one rule engine,",
-    "same2": "both ends of a turn",
-    "caption": (
-        "The order is load-bearing. Stages 1 and 4 are the same rule engine at the two "
-        "ends of an agent's turn, and a gateway is the first position from which both "
-        "are visible — a library called from an application sees neither reliably."
-    ),
-})
+FLOW = F.flow(
+    {
+        "title": "A request crossing the ai-bunker gateway",
+        "desc": (
+            "A client on the left sends a request to the gateway in the middle, which "
+            "forwards it to the serving engine on the right. Inside the gateway, stage 1 "
+            "screens inbound tool results, stage 2 injects the charter, stage 3 measures "
+            "the budget and can refuse the request, and stage 4 screens the outbound tool "
+            "calls and can refuse a command. A dashed line links stages 1 and 4, which are "
+            "the two scopes of one rule engine."
+        ),
+        "gateway": "ai-bunker",
+        "client": "Any OpenAI client",
+        "client_sub": "Claude Code · OpenCode · curl",
+        "engine": "Your GPU",
+        "engine_sub": "vLLM, Ollama",
+        "s1": "Screen what it reads",
+        "s1a": "secrets out, injection in",
+        "s1b": "mark the rest as data",
+        "s2": "Serve the charter",
+        "s2a": "index, not the pages",
+        "s2b": "stable position, cacheable",
+        "s3": "Measure the budget",
+        "s3a": "with the engine's own tokenizer, not an estimate",
+        "s3_refuse": "413 — names the culprit",
+        "s4": "Screen what it runs",
+        "s4a": "the command has not run yet",
+        "s4_refuse": "refused as a tool result",
+        "same1": "one rule engine,",
+        "same2": "both ends of a turn",
+        "caption": (
+            "The order is load-bearing. Stages 1 and 4 are the same rule engine at the two "
+            "ends of an agent's turn, and a gateway is the first position from which both "
+            "are visible — a library called from an application sees neither reliably."
+        ),
+    }
+)
 
 TITLE = "ai-bunker — one GPU, one charter, every coding agent"
 DESCRIPTION = (
@@ -122,7 +126,7 @@ EXTRA_HEAD = r"""
           "name": "Is ai-bunker production ready?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "No. It is 0.1.0-alpha, with 362 tests and a green CI gate, next to projects with years of production use. The design is grounded in measurements from a GPU that served 6,565 messages under these constraints, but the code is new and the public interface can still move."
+            "text": "No. It is 0.1.0-alpha, with 364 tests and a green CI gate, next to projects with years of production use. The design is grounded in measurements from a GPU that served 6,565 messages under these constraints, but the code is new and the public interface can still move."
           }
         }
       ]
@@ -132,7 +136,8 @@ EXTRA_HEAD = r"""
   </script>
 """
 
-BODY = r"""
+BODY = (
+    r"""
 
     <!-- Hero -->
     <section class="mx-auto max-w-6xl px-5 pt-16 pb-12 sm:pt-24">
@@ -153,7 +158,7 @@ BODY = r"""
         <a href="https://github.com/warith-harchaoui/ai-bunker"
           class="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-6 py-3 font-medium hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:border-neutral-700 dark:hover:border-neutral-600">Read
           the source</a>
-        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 362 tests · 0.1.0-alpha</span>
+        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 364 tests · 0.1.0-alpha</span>
       </div>
     </section>
 
@@ -246,7 +251,9 @@ BODY = r"""
             bypass.</p>
         </li>
       </ol>
-      """ + FLOW + r"""
+      """
+    + FLOW
+    + r"""
     </section>
 
     <!-- Rules -->
@@ -323,3 +330,4 @@ BODY = r"""
     </section>
 
 """
+)

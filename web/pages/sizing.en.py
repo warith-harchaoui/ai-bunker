@@ -1,34 +1,38 @@
 """Sizing page — English."""
 
-import sys, pathlib as _p
+import pathlib as _p
+import sys
+
 sys.path.insert(0, str(_p.Path(__file__).parent))
 import _figures as F
 
-ROOFLINE = F.roofline({
-    "title": "Decode speed against memory bandwidth, for a dense and a mixture-of-experts model",
-    "desc": (
-        "Two lines rising from the origin. The mixture-of-experts model, reading about "
-        "9 GiB per token, rises steeply and clears 60 tokens per second at 819 GB/s. The "
-        "dense 24B model, reading 25 GiB, rises about three times more slowly. A dashed "
-        "red line marks the 20 tokens-per-second comfort floor. The DGX Spark, at "
-        "273 GB/s on the dense model, sits below that floor."
-    ),
-    "x": "memory bandwidth, GB/s",
-    "y": "tokens/second",
-    "polarity": "(higher is better)",
-    "floor": "20 tok/s — the comfort floor",
-    "l_moe": "Qwen3-Coder-Next 80B/3B, AWQ4 — ~9 GiB active",
-    "l_dense": "Devstral Small 2 24B, dense FP8 — 25 GiB active",
-    "p_m3": "Mac Studio M3 Ultra",
-    "p_dense": "same machine, dense model",
-    "p_spark": "DGX Spark — below the floor",
-    "caption": (
-        "Two conclusions the prose can only assert. The mixture-of-experts line sits far "
-        "above the dense one, so the best open coding model is also the fastest to serve. "
-        "And the Spark's bandwidth puts it under the floor whatever it loads — capacity "
-        "cannot buy its way out of a bandwidth wall."
-    ),
-})
+ROOFLINE = F.roofline(
+    {
+        "title": "Decode speed against memory bandwidth, for a dense and a mixture-of-experts model",
+        "desc": (
+            "Two lines rising from the origin. The mixture-of-experts model, reading about "
+            "9 GiB per token, rises steeply and clears 60 tokens per second at 819 GB/s. The "
+            "dense 24B model, reading 25 GiB, rises about three times more slowly. A dashed "
+            "red line marks the 20 tokens-per-second comfort floor. The DGX Spark, at "
+            "273 GB/s on the dense model, sits below that floor."
+        ),
+        "x": "memory bandwidth, GB/s",
+        "y": "tokens/second",
+        "polarity": "(higher is better)",
+        "floor": "20 tok/s — the comfort floor",
+        "l_moe": "Qwen3-Coder-Next 80B/3B, AWQ4 — ~9 GiB active",
+        "l_dense": "Devstral Small 2 24B, dense FP8 — 25 GiB active",
+        "p_m3": "Mac Studio M3 Ultra",
+        "p_dense": "same machine, dense model",
+        "p_spark": "DGX Spark — below the floor",
+        "caption": (
+            "Two conclusions the prose can only assert. The mixture-of-experts line sits far "
+            "above the dense one, so the best open coding model is also the fastest to serve. "
+            "And the Spark's bandwidth puts it under the floor whatever it loads — capacity "
+            "cannot buy its way out of a bandwidth wall."
+        ),
+    }
+)
 
 TITLE = "Which machine do you need? — ai-bunker"
 DESCRIPTION = (
@@ -50,7 +54,8 @@ EXTRA_HEAD = """
   }
   </script>"""
 
-BODY = r"""
+BODY = (
+    r"""
     <section class="mx-auto max-w-6xl px-5 pt-14 pb-10 sm:pt-20">
       <p class="mb-4 text-sm font-medium uppercase tracking-widest text-brand-linktext">Sizing</p>
       <h1 class="font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
@@ -92,7 +97,9 @@ BODY = r"""
             </tbody>
           </table>
         </div>
-        """ + ROOFLINE + r"""
+        """
+    + ROOFLINE
+    + r"""
         <p class="mt-6 max-w-3xl leading-relaxed text-neutral-700 dark:text-neutral-300">
           <strong class="font-semibold">The best open coding model available is also the fastest
           to serve.</strong> Choosing a smaller model to go faster is, here, exactly backwards —
@@ -212,3 +219,4 @@ BODY = r"""
       </p>
     </section>
 """
+)

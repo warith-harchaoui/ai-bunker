@@ -62,6 +62,19 @@ target-version = "py310"
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# The page modules hold HTML prose, not code. RUF001 exists to catch look-alike
+# characters in identifiers; in a paragraph about numbers, a true minus sign
+# (U+2212) in a formula and an en dash in "3.10-3.13" are the correct glyphs,
+# and replacing them with a hyphen would make the typography worse to satisfy a
+# rule aimed at a different problem.
+"web/pages/*.py" = ["RUF001"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# Third-party pytest plugins installed in the ambient environment are loaded
+# into every run whether or not a project uses them. Four of them cost this
+# suite roughly eight seconds per invocation and contribute nothing here, so
+# they are switched off: a slow test suite is a test suite people stop running.
+# anyio stays: starlette's TestClient needs it.
+addopts = "-q -p no:deepeval -p no:langsmith_plugin -p no:hydra_pytest -p no:faker"

@@ -34,44 +34,47 @@ EXTRA_HEAD = """
   }
   </script>"""
 
-FLOW = F.flow({
-    "title": "Une requête traversant la passerelle ai-bunker",
-    "desc": (
-        "Un client à gauche envoie une requête à la passerelle au centre, qui la "
-        "transmet au moteur d'inférence à droite. Dans la passerelle, l'étape 1 filtre "
-        "les sorties d'outils entrantes, l'étape 2 injecte la charte, l'étape 3 mesure "
-        "le budget et peut refuser la requête, l'étape 4 filtre les appels d'outils "
-        "sortants et peut refuser une commande. Un trait pointillé relie les étapes 1 "
-        "et 4, qui sont les deux portées d'un même moteur de règles."
-    ),
-    "gateway": "ai-bunker",
-    "client": "Tout client OpenAI",
-    "client_sub": "Claude Code · OpenCode · curl",
-    "engine": "Votre GPU",
-    "engine_sub": "vLLM, Ollama",
-    "s1": "Filtrer ce qu'il lit",
-    "s1a": "secrets qui sortent, injection qui entre",
-    "s1b": "le reste marqué comme donnée",
-    "s2": "Servir la charte",
-    "s2a": "l'index, pas les fiches",
-    "s2b": "position stable, donc cachable",
-    "s3": "Mesurer le budget",
-    "s3a": "avec le tokenizer du moteur, pas une estimation",
-    "s3_refuse": "413 — nomme le coupable",
-    "s4": "Filtrer ce qu'il exécute",
-    "s4a": "la commande n'a pas encore tourné",
-    "s4_refuse": "refus en résultat d'outil",
-    "same1": "un seul moteur de règles,",
-    "same2": "aux deux bouts d'un tour",
-    "caption": (
-        "L'ordre porte le sens. Les étapes 1 et 4 sont le même moteur de règles aux deux "
-        "bouts du tour d'un agent, et une passerelle est la première position d'où les "
-        "deux sont visibles — une bibliothèque appelée depuis une application ne voit ni "
-        "l'une ni l'autre de façon fiable."
-    ),
-})
+FLOW = F.flow(
+    {
+        "title": "Une requête traversant la passerelle ai-bunker",
+        "desc": (
+            "Un client à gauche envoie une requête à la passerelle au centre, qui la "
+            "transmet au moteur d'inférence à droite. Dans la passerelle, l'étape 1 filtre "
+            "les sorties d'outils entrantes, l'étape 2 injecte la charte, l'étape 3 mesure "
+            "le budget et peut refuser la requête, l'étape 4 filtre les appels d'outils "
+            "sortants et peut refuser une commande. Un trait pointillé relie les étapes 1 "
+            "et 4, qui sont les deux portées d'un même moteur de règles."
+        ),
+        "gateway": "ai-bunker",
+        "client": "Tout client OpenAI",
+        "client_sub": "Claude Code · OpenCode · curl",
+        "engine": "Votre GPU",
+        "engine_sub": "vLLM, Ollama",
+        "s1": "Filtrer ce qu'il lit",
+        "s1a": "secrets qui sortent, injection qui entre",
+        "s1b": "le reste marqué comme donnée",
+        "s2": "Servir la charte",
+        "s2a": "l'index, pas les fiches",
+        "s2b": "position stable, donc cachable",
+        "s3": "Mesurer le budget",
+        "s3a": "avec le tokenizer du moteur, pas une estimation",
+        "s3_refuse": "413 — nomme le coupable",
+        "s4": "Filtrer ce qu'il exécute",
+        "s4a": "la commande n'a pas encore tourné",
+        "s4_refuse": "refus en résultat d'outil",
+        "same1": "un seul moteur de règles,",
+        "same2": "aux deux bouts d'un tour",
+        "caption": (
+            "L'ordre porte le sens. Les étapes 1 et 4 sont le même moteur de règles aux deux "
+            "bouts du tour d'un agent, et une passerelle est la première position d'où les "
+            "deux sont visibles — une bibliothèque appelée depuis une application ne voit ni "
+            "l'une ni l'autre de façon fiable."
+        ),
+    }
+)
 
-BODY = r"""
+BODY = (
+    r"""
     <section class="mx-auto max-w-6xl px-5 pt-16 pb-12 sm:pt-24">
       <p class="mb-4 text-sm font-medium uppercase tracking-widest text-brand-linktext">AI Helpers</p>
       <h1 class="font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
@@ -89,7 +92,7 @@ BODY = r"""
         <a href="https://github.com/warith-harchaoui/ai-bunker"
           class="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-6 py-3 font-medium hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:border-neutral-700 dark:hover:border-neutral-600">Lire
           le code</a>
-        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 362 tests · 0.1.0-alpha</span>
+        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 364 tests · 0.1.0-alpha</span>
       </div>
     </section>
 
@@ -146,7 +149,9 @@ BODY = r"""
         que dans le harnais de chaque développeur : un plugin se désactive en éditant un
         fichier, et un autre harnais ne l'a simplement jamais eu.
       </p>
-      """ + FLOW + r"""
+      """
+    + FLOW
+    + r"""
     </section>
 
     <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
@@ -221,3 +226,4 @@ BODY = r"""
       </div>
     </section>
 """
+)

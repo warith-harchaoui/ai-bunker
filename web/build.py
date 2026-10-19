@@ -27,10 +27,14 @@ PAGES = HERE / "pages"
 # correctly from fr/ and would 404 from the root.
 _SHELL_DIR = HERE / "_shell"
 SHELL = {
-    "en": ((_SHELL_DIR / "_nav.html").read_text(encoding="utf-8"),
-           (_SHELL_DIR / "_foot.html").read_text(encoding="utf-8")),
-    "fr": ((_SHELL_DIR / "_nav.fr.html").read_text(encoding="utf-8"),
-           (_SHELL_DIR / "_foot.fr.html").read_text(encoding="utf-8")),
+    "en": (
+        (_SHELL_DIR / "_nav.html").read_text(encoding="utf-8"),
+        (_SHELL_DIR / "_foot.html").read_text(encoding="utf-8"),
+    ),
+    "fr": (
+        (_SHELL_DIR / "_nav.fr.html").read_text(encoding="utf-8"),
+        (_SHELL_DIR / "_foot.fr.html").read_text(encoding="utf-8"),
+    ),
 }
 
 
@@ -86,8 +90,8 @@ def shell(page, *, slug: str, lang: str) -> str:
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="ai-bunker — one GPU, one charter, every coding agent">
-  <meta property="og:locale" content="{'fr_FR' if lang == 'fr' else 'en_US'}">
-  <meta property="og:locale:alternate" content="{'en_US' if lang == 'fr' else 'fr_FR'}">
+  <meta property="og:locale" content="{"fr_FR" if lang == "fr" else "en_US"}">
+  <meta property="og:locale:alternate" content="{"en_US" if lang == "fr" else "fr_FR"}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{page.TITLE}">
   <meta name="twitter:description" content="{page.DESCRIPTION}">
@@ -106,7 +110,7 @@ def shell(page, *, slug: str, lang: str) -> str:
 
 <body class="bg-white text-neutral-900 dark:bg-[#0B0B0C] dark:text-neutral-100 font-sans antialiased">
   <a href="#main"
-    class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-3 focus:left-3 focus:rounded-lg focus:bg-brand-blue focus:px-4 focus:py-2 focus:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">{'Aller au contenu' if lang == 'fr' else 'Skip to content'}</a>
+    class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-3 focus:left-3 focus:rounded-lg focus:bg-brand-blue focus:px-4 focus:py-2 focus:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">{"Aller au contenu" if lang == "fr" else "Skip to content"}</a>
 
 {nav}
   <main id="main">

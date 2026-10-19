@@ -110,6 +110,7 @@ def roofline(t: dict[str, str]) -> str:
     rather than asserted: the mixture-of-experts line sits far above the dense
     one, and the Spark's bandwidth puts it under the floor whatever it loads.
     """
+
     # y = 0.70 * bw / active_gib, plotted on a 0..900 GB/s, 0..120 tok/s frame.
     def pts(active_gib: float) -> str:
         out = []

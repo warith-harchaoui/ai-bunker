@@ -68,7 +68,11 @@ client kits and a dashboard.
   unconfigured need warns rather than falling back silently.
 - `/mcp` exposes the charter as tools when `fastapi-mcp` is installed. Only the
   charter: `/v1/chat/completions` would be a model-calling tool inside a
-  model's own turn, and `/v1/budget` is an operator's instrument.
+  model's own turn, and `/v1/budget` is an operator's instrument. Importing
+  `fastapi-mcp` costs ~24 seconds of startup on a cold interpreter, so
+  `enforcement.mcp: false` turns the surface off, and the mount reports what it
+  cost whenever it exceeds five seconds — a gateway that takes half a minute to
+  answer should say which optional surface bought that.
 - `ai-bunker doctor` checks that everything the deployment claims is true,
   including that an unauthenticated gateway is open on purpose.
 

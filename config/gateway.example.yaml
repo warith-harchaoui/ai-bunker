@@ -81,6 +81,11 @@ enforcement:
   commands: true
   mark_provenance: true
 
+  # Expose the charter over MCP at /mcp. On by default. Importing fastapi-mcp
+  # costs roughly 24 seconds of startup on a cold interpreter (measured), so a
+  # deployment whose clients all speak plain HTTP can reasonably turn it off.
+  mcp: true
+
 # Where to append the decision log, one JSON object per line. Empty disables
 # it, which a governance deployment should not do.
 audit_log: logs/decisions.jsonl

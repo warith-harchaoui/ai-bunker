@@ -625,6 +625,49 @@ def test_a_missing_mcp_dependency_does_not_stop_the_gateway(client, monkeypatch)
     assert "/v1/charter" in {r.path for r in app.routes if hasattr(r, "path")}
 
 
+def test_mcp_can_be_switched_off_in_config():
+    """Importing fastapi-mcp costs about 24 seconds of startup on a cold
+    interpreter. A deployment whose clients all speak HTTP should not pay it,
+    so the surface has a lever -- and the lever has to actually work."""
+    from ai_bunker.gateway import create_app
+
+    app = create_app(_settings(enable_mcp=False))
+    paths = {r.path for r in app.routes if hasattr(r, "path")}
+    assert "/mcp" not in paths
+    # Everything else is untouched: the charter is still served over HTTP.
+    assert "/v1/charter" in paths
+    assert "/v1/chat/completions" in paths
+
+
+def test_the_mcp_lever_reads_from_the_enforcement_block(tmp_path):
+    """`enforcement.mcp: false` in YAML reaches `Settings.enable_mcp`."""
+    from ai_bunker.config import load_settings
+
+    path = tmp_path / "gw.yaml"
+    path.write_text(
+        "api_key: k\n"
+        "default_upstream: local\n"
+        "upstreams:\n"
+        "  local:\n"
+        "    base_url: http://up.test/v1\n"
+        "enforcement:\n"
+        "  mcp: false\n",
+        encoding="utf-8",
+    )
+    assert load_settings(path).enable_mcp is False
+
+    path.write_text(
+        "api_key: k\n"
+        "default_upstream: local\n"
+        "upstreams:\n"
+        "  local:\n"
+        "    base_url: http://up.test/v1\n",
+        encoding="utf-8",
+    )
+    # Absent means on: the charter is served over MCP unless told otherwise.
+    assert load_settings(path).enable_mcp is True
+
+
 # ---------------------------------------------------------------------------
 # Need-based routing: the 80/20 split, made configurational.
 # ---------------------------------------------------------------------------

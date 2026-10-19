@@ -22,8 +22,16 @@ HERE = pathlib.Path(__file__).parent
 BASE = "https://deraison.ai/ai-bunker"
 
 #: Build-time only. Everything else in web/ is served.
-EXCLUDE = {"_shell", "pages", "build.py", "publish.py", "DEPLOY.md",
-           "tailwind.config.js", "__pycache__", ".DS_Store"}
+EXCLUDE = {
+    "_shell",
+    "pages",
+    "build.py",
+    "publish.py",
+    "DEPLOY.md",
+    "tailwind.config.js",
+    "__pycache__",
+    ".DS_Store",
+}
 
 
 def pages() -> list[pathlib.Path]:
@@ -41,8 +49,13 @@ def check() -> list[str]:
 
         if f'<html lang="{lang}"' not in text:
             problems.append(f"{where}: <html lang> is not {lang!r}")
-        for tag in ('hreflang="en"', 'hreflang="fr"', 'property="og:image"',
-                    'name="description"', 'rel="canonical"'):
+        for tag in (
+            'hreflang="en"',
+            'hreflang="fr"',
+            'property="og:image"',
+            'name="description"',
+            'rel="canonical"',
+        ):
             if tag not in text:
                 problems.append(f"{where}: missing {tag}")
 
@@ -58,15 +71,15 @@ def check() -> list[str]:
         if not title or not title.group(1).strip():
             problems.append(f"{where}: empty <title>")
 
-        for href in re.findall(
-            r'(?:href|src)="(?!https?:|#|mailto:|data:)([^"#?]+)', text
-        ):
+        for href in re.findall(r'(?:href|src)="(?!https?:|#|mailto:|data:)([^"#?]+)', text):
             if not (page.parent / href).resolve().exists():
                 problems.append(f"{where}: dead link {href}")
 
     listed = {
         u.split("/")[-1] or "index.html"
-        for u in re.findall(r"<loc>([^<]+)</loc>", (HERE / "sitemap.xml").read_text(encoding="utf-8"))
+        for u in re.findall(
+            r"<loc>([^<]+)</loc>", (HERE / "sitemap.xml").read_text(encoding="utf-8")
+        )
     }
     actual = {p.name for p in pages()}
     for name in sorted(actual - listed):
@@ -99,7 +112,8 @@ def main(argv: list[str] | None = None) -> int:
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(
-        HERE, out,
+        HERE,
+        out,
         ignore=lambda _d, names: [n for n in names if n in EXCLUDE],
     )
     total = sum(f.stat().st_size for f in out.rglob("*") if f.is_file())

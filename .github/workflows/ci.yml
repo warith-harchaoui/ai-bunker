@@ -30,11 +30,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[api,mcp,dev]"
 
+      # The whole tree, `web/` included: the page modules are Python that
+      # assembles the site, and a carve-out is a rule nobody remembers.
       - name: Lint
-        run: ruff check ai_bunker tests scripts
+        run: ruff check .
 
       - name: Format
-        run: ruff format --check ai_bunker tests scripts
+        run: ruff format --check .
 
       - name: Tests
         run: pytest -q

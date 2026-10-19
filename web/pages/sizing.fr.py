@@ -25,34 +25,37 @@ EXTRA_HEAD = """
   }
   </script>"""
 
-ROOFLINE = F.roofline({
-    "title": "Vitesse de décodage selon la bande passante mémoire, pour un modèle dense et un mélange d'experts",
-    "desc": (
-        "Deux droites partant de l'origine. Le mélange d'experts, qui lit environ 9 Gio "
-        "par token, monte fortement et dépasse 60 tokens par seconde à 819 Go/s. Le "
-        "modèle dense de 24 milliards de paramètres, qui lit 25 Gio, monte environ trois "
-        "fois moins vite. Une ligne rouge en pointillés marque le plancher de confort de "
-        "20 tokens par seconde. Le DGX Spark, à 273 Go/s sur le modèle dense, est sous ce "
-        "plancher."
-    ),
-    "x": "bande passante mémoire, Go/s",
-    "y": "tokens/seconde",
-    "polarity": "(plus haut est meilleur)",
-    "floor": "20 tok/s — le plancher de confort",
-    "l_moe": "Qwen3-Coder-Next 80B/3B, AWQ4 — ~9 Gio actifs",
-    "l_dense": "Devstral Small 2 24B, dense FP8 — 25 Gio actifs",
-    "p_m3": "Mac Studio M3 Ultra",
-    "p_dense": "même machine, modèle dense",
-    "p_spark": "DGX Spark — sous le plancher",
-    "caption": (
-        "Deux conclusions que la prose ne peut qu'affirmer. La droite du mélange d'experts "
-        "est très au-dessus de celle du modèle dense : le meilleur modèle de code ouvert "
-        "est aussi le plus rapide à servir. Et la bande passante du Spark le place sous le "
-        "plancher quoi qu'il charge — la capacité ne rachète pas un mur de bande passante."
-    ),
-})
+ROOFLINE = F.roofline(
+    {
+        "title": "Vitesse de décodage selon la bande passante mémoire, pour un modèle dense et un mélange d'experts",
+        "desc": (
+            "Deux droites partant de l'origine. Le mélange d'experts, qui lit environ 9 Gio "
+            "par token, monte fortement et dépasse 60 tokens par seconde à 819 Go/s. Le "
+            "modèle dense de 24 milliards de paramètres, qui lit 25 Gio, monte environ trois "
+            "fois moins vite. Une ligne rouge en pointillés marque le plancher de confort de "
+            "20 tokens par seconde. Le DGX Spark, à 273 Go/s sur le modèle dense, est sous ce "
+            "plancher."
+        ),
+        "x": "bande passante mémoire, Go/s",
+        "y": "tokens/seconde",
+        "polarity": "(plus haut est meilleur)",
+        "floor": "20 tok/s — le plancher de confort",
+        "l_moe": "Qwen3-Coder-Next 80B/3B, AWQ4 — ~9 Gio actifs",
+        "l_dense": "Devstral Small 2 24B, dense FP8 — 25 Gio actifs",
+        "p_m3": "Mac Studio M3 Ultra",
+        "p_dense": "même machine, modèle dense",
+        "p_spark": "DGX Spark — sous le plancher",
+        "caption": (
+            "Deux conclusions que la prose ne peut qu'affirmer. La droite du mélange d'experts "
+            "est très au-dessus de celle du modèle dense : le meilleur modèle de code ouvert "
+            "est aussi le plus rapide à servir. Et la bande passante du Spark le place sous le "
+            "plancher quoi qu'il charge — la capacité ne rachète pas un mur de bande passante."
+        ),
+    }
+)
 
-BODY = r"""
+BODY = (
+    r"""
     <section class="mx-auto max-w-6xl px-5 pt-14 pb-10 sm:pt-20">
       <p class="mb-4 text-sm font-medium uppercase tracking-widest text-brand-linktext">Dimensionnement</p>
       <h1 class="font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
@@ -82,7 +85,9 @@ BODY = r"""
           Llama&nbsp;3.1&nbsp;70B en Q4 (~40&nbsp;Go) à <strong>4,4&nbsp;tok/s</strong> contre
           6,8. Ce projet suppose 70 % de rendement, ce qui est conservateur face aux deux.
         </p>
-        """ + ROOFLINE + r"""
+        """
+    + ROOFLINE
+    + r"""
         <p class="mt-6 max-w-3xl leading-relaxed text-neutral-700 dark:text-neutral-300">
           <strong class="font-semibold">Le meilleur modèle de code ouvert disponible est aussi le
           plus rapide à servir.</strong> Choisir un modèle plus petit pour aller plus vite est
@@ -207,3 +212,4 @@ BODY = r"""
       </p>
     </section>
 """
+)

@@ -472,7 +472,17 @@ def _mount_mcp(app: FastAPI) -> None:
 
     Absent dependency is not an error: the HTTP surface is complete on its
     own, and MCP is an extra way in for hosts that prefer it.
+
+    The import is timed and reported because it is slow: ~24 seconds on a cold
+    interpreter, measured here. An operator watching a gateway take half a
+    minute to answer deserves to know which optional surface bought that,
+    rather than concluding the server is broken.
     """
+    if not app.state.bunker.settings.enable_mcp:
+        osh.debug("[gateway] MCP disabled in config; no /mcp surface.")
+        return
+
+    started = time.time()
     try:
         from fastapi_mcp import FastApiMCP  # optional: the [mcp] extra
     except ImportError:
@@ -490,7 +500,15 @@ def _mount_mcp(app: FastAPI) -> None:
             include_operations=["charter", "charter_page"],
         )
         mcp.mount_http()
-        osh.info("[gateway] MCP surface mounted at /mcp (charter only).")
+        elapsed = time.time() - started
+        message = f"[gateway] MCP surface mounted at /mcp (charter only) in {elapsed:.1f}s."
+        if elapsed > 5:
+            osh.info(
+                message + " Most of that is importing fastapi-mcp. Set "
+                "enforcement.mcp: false if no client here speaks MCP."
+            )
+        else:
+            osh.info(message)
     except Exception as exc:  # a broken optional surface must not stop the gateway
         osh.warning(f"[gateway] could not mount the MCP surface ({exc}).")
 
