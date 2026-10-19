@@ -127,6 +127,11 @@
       <div class="mx-auto max-w-6xl px-5 py-14">
         <h2 class="font-serif text-3xl font-semibold tracking-tight">Three clusters, and an empty corner</h2>
         <figure class="mt-8">
+        <!-- `bg-white` is kept in dark mode on purpose. The map is a 96%
+             transparent PNG with dark ink, produced by `standpoint`, which has
+             no dark theme; dropping the white plate would not darken the chart,
+             it would make it invisible. A bright card on a dark page is the
+             lesser defect, and it is a choice rather than an oversight. -->
           <img src="img/landscape.png" width="1800" height="1391"
             alt="A positioning map produced by principal component analysis. The horizontal axis runs from Resourceful on the left to Disciplined on the right; the vertical from Protected at the bottom to Managed at the top. LiteLLM, Kong AI Gateway and Portkey cluster on the left. NeMo Guardrails, Guardrails AI and LLM Guard sit centre and lower right, with Open Policy Agent and client-side harness config below them. ai-bunker sits alone in the top right."
             class="w-full rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800">

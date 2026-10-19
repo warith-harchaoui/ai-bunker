@@ -36,6 +36,11 @@ BODY = r"""
       <div class="mx-auto max-w-6xl px-5 py-14">
         <h2 class="font-serif text-3xl font-semibold tracking-tight">Trois grappes, et un coin vide</h2>
         <figure class="mt-8">
+        <!-- `bg-white` is kept in dark mode on purpose. The map is a 96%
+             transparent PNG with dark ink, produced by `standpoint`, which has
+             no dark theme; dropping the white plate would not darken the chart,
+             it would make it invisible. A bright card on a dark page is the
+             lesser defect, and it is a choice rather than an oversight. -->
           <img src="../img/landscape.png" width="1800" height="1391" loading="lazy"
             alt="Une carte de positionnement produite par analyse en composantes principales. L'axe horizontal va de Ressource à gauche à Discipline à droite ; l'axe vertical de Protégé en bas à Piloté en haut. LiteLLM, Kong AI Gateway et Portkey forment une grappe à gauche. NeMo Guardrails, Guardrails AI et LLM Guard occupent le centre et le bas à droite, avec Open Policy Agent et la configuration de harnais client en dessous. ai-bunker est seul en haut à droite."
             class="w-full rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800">
