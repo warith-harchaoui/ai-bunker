@@ -77,6 +77,11 @@ rules:
       should_match:
         - "ghp_hT3kQm9ZxPvN3wR7tJ4hB6nC8dF1gKs2LpQr"
         - "remote: https://ghp_hT3kQm9ZxPvN3wR7tJ4hB6nC8dF1gKs2LpQr@github.com/o/r"
+        # Spelled so it cannot be mistaken for a credential by a human or by
+        # a vendor scanner. This rule has no entropy gate -- the prefix is
+        # the whole signal -- so a self-describing example tests it exactly
+        # as well as a realistic one, and does not block every contributor's
+        # push the way a realistic one did.
         - "xoxb-NOT-A-REAL-SLACK-TOKEN-FOR-TESTS-ONLY"
         - "AIzaSyB1cD3fG5hJ7kL9mN1pQ3rS5tU7vW9xY1z"
       should_not_match:

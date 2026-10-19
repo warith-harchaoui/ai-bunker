@@ -465,7 +465,7 @@ def test_placeholders_score_below_the_threshold(placeholder):
     [
         "sk_live_8Kq2mZx9PvN3wR7t",
         "ghp_A7kQm2Zx9PvN3wR7tJ4hB6nC8dF1gH",
-        "hT3kQm9ZxPvN3wR7tJ4hB6nC8dF1gKs2",
+        "hT3kQm9ZxPvN3wR7tJ4hB6nC8dF1gKs2",  # no vendor prefix: this asserts entropy
         "npm_7Hk2Lm9Qw3Er5Ty8Ui0Op1As4Df6Gh",
         "3f8a9c2e7b1d4056a8e3f9c7b2d1e5a4",
     ],
