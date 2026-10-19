@@ -248,3 +248,27 @@ def test_the_figures_carry_no_hard_coded_colour():
     source = (WEB / "pages" / "_figures.py").read_text(encoding="utf-8")
     literals = re.findall(r'(?:fill|stroke)="(#[0-9A-Fa-f]{3,8})"', source)
     assert not literals, f"figures carry hard-coded colours: {sorted(set(literals))}"
+
+
+def test_nothing_unreferenced_would_be_uploaded():
+    """The dead-link check runs one way: every reference resolves to a file.
+    This runs the other way, and only one of the two shows a symptom. An
+    orphan costs an SFTP upload and nothing else, so it accumulates quietly --
+    three superseded logo exports and a replaced chart, 765 KB, were sitting in
+    ``img/`` when this was written."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("publish", WEB / "publish.py")
+    publish = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(publish)
+
+    assert publish.orphans() == []
+
+    # And it has to be able to see one, or it is not checking anything.
+    stray = WEB / "img" / "_orphan_probe.png"
+    stray.write_bytes(b"\x89PNG\r\n\x1a\n")
+    try:
+        found = publish.orphans()
+        assert any("_orphan_probe.png" in p for p in found), found
+    finally:
+        stray.unlink()
