@@ -50,6 +50,14 @@ from ai_bunker.sizing import (
     recommend_for_team,
     size_machine,
 )
+from ai_bunker.skill import (
+    CLIENT_PATHS,
+    build_skill,
+    read_skill,
+    validate,
+    warnings,
+    write_skill,
+)
 
 # Indicative EUR for a complete, rack-ready node — not quotes. Orders of
 # magnitude exist here so "cost per person carried" can be computed at all;
@@ -415,6 +423,61 @@ def cmd_doctor(args) -> int:
     return 1 if not report.ok else 0
 
 
+def cmd_skill(args: argparse.Namespace) -> int:
+    """Publish the charter in the Agent Skills format.
+
+    The gateway serves the charter to anything that speaks OpenAI. This serves
+    it to everything else: the format is read natively by Claude Code,
+    OpenCode, Cursor, Goose, Amp, Roo, Codex, Copilot and Gemini CLI, so a team
+    gets its standards into a client this project has no kit for without
+    waiting for one.
+    """
+    if args.check:
+        skill = read_skill(args.check)
+        problems = validate(skill)
+        for problem in problems:
+            print(f"  [fail] {problem}")
+        for warning in warnings(skill):
+            print(f"  [warn] {warning}")
+        if not problems:
+            print(f"{args.check}: valid Agent Skill ({len(skill.references)} reference file(s))")
+        return 1 if problems else 0
+
+    charter = load_charter(args.directory)
+    skill = build_skill(
+        charter,
+        name=args.name,
+        description=args.description,
+        license_=args.license_,
+    )
+
+    if args.print_:
+        print(skill.skill_md())
+        return 0
+
+    out = args.out or CLIENT_PATHS[args.client]
+    written = write_skill(skill, out, force=args.force)
+    for path in written:
+        print(f"  {path}")
+    for warning in warnings(skill):
+        print(f"  [warn] {warning}")
+
+    print(f"\n{len(written)} file(s) under {out}/{skill.name}/")
+    print(f"fingerprint {charter.fingerprint} -- the charter this copy was made from.")
+    # Only when the path came from --client. An explicit --out means the
+    # caller already knows where their client looks, and telling them about
+    # ours would be noise dressed as help.
+    if args.out is None:
+        others = ", ".join(
+            f"{name} ({path})" for name, path in sorted(CLIENT_PATHS.items()) if path != out
+        )
+        if args.client == "claude":
+            print("Read by Claude Code and by OpenCode, which documents this path as")
+            print("Claude-compatible.")
+        print(f"Other locations: {others}.")
+    return 0
+
+
 def cmd_adopt(args) -> int:
     settings = load_settings(args.config)
     upstream = (
@@ -600,6 +663,35 @@ def build_parser() -> argparse.ArgumentParser:
     ad.add_argument("--list", action="store_true", help="Show what would be written.")
     ad.add_argument("--config", default=None)
     ad.set_defaults(func=cmd_adopt)
+
+    sk = sub.add_parser(
+        "skill",
+        help="Publish the charter as an Agent Skill, for clients with no kit.",
+    )
+    sk.add_argument("--directory", default="charter", help="Charter to publish.")
+    sk.add_argument(
+        "--out",
+        default=None,
+        help="Where to write it. Default: the path for --client.",
+    )
+    sk.add_argument(
+        "--client",
+        default="claude",
+        choices=sorted(CLIENT_PATHS),
+        help=(
+            "Which client's skills directory to target. 'claude' by default "
+            "because OpenCode reads that path too, so one copy serves both."
+        ),
+    )
+    sk.add_argument("--name", default="team-charter", help="Skill name and directory name.")
+    sk.add_argument("--description", default="", help="Override the generated description.")
+    sk.add_argument("--license", dest="license_", default="", help="License field.")
+    sk.add_argument("--force", action="store_true", help="Replace files that already exist.")
+    sk.add_argument("--check", metavar="DIR", help="Validate an existing skill instead.")
+    sk.add_argument(
+        "--print", dest="print_", action="store_true", help="Print SKILL.md, write nothing."
+    )
+    sk.set_defaults(func=cmd_skill)
 
     sv = sub.add_parser("serve", help="Run the gateway.")
     sv.add_argument("--config", default=None, help="Gateway config (default: config/gateway.yaml).")

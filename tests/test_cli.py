@@ -31,6 +31,7 @@ SUBCOMMANDS = (
     "budget",
     "rules",
     "charter",
+    "skill",
     "adopt",
     "serve",
     "doctor",

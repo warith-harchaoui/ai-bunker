@@ -122,6 +122,25 @@ client kits and a dashboard.
 - Both were found by sending a real tool result through a real gateway to a
   real engine, not by reading the patterns. 17 rules, 107 assertions.
 
+### Interoperability: the charter as an Agent Skill
+
+- `ai-bunker skill` publishes the charter in the [Agent Skills](https://agentskills.io)
+  format, an open specification read natively by Claude Code, OpenCode, Cursor,
+  Goose, Amp, Roo, Codex, Copilot and Gemini CLI. A client kit has to be
+  written per client; this reaches the ones nobody will write a kit for.
+- The export is close to a rename, because the two designs agree. The format's
+  progressive disclosure loads `name` and `description` at startup, the
+  `SKILL.md` body on activation, and bundled files on demand — which are this
+  project's index, operating rules and pages, arrived at independently.
+- Default output is `.claude/skills/`, because OpenCode documents that path as
+  Claude-compatible: one copy, both clients, no duplicated files.
+- The charter fingerprint travels in the skill's `metadata`, so a copy on disk
+  can be checked against the charter the gateway is actually enforcing. The
+  export is not a second source of truth.
+- `ai-bunker skill --check` validates a skill directory against the
+  specification's rules on `name`, `description`, `compatibility` and
+  reference depth, and exits non-zero. Tested for its ability to fail.
+
 ### Known limitations
 
 - Command screening does not apply to streamed completions: a tool call arrives

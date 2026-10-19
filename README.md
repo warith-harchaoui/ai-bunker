@@ -693,6 +693,43 @@ identical output.
 So the OpenCode kit is a config plus **one** plugin, `bounded-reads.js`. If it
 ever grows, something has been put in the wrong place.
 
+### Clients with no kit: publish the charter as an Agent Skill
+
+A kit has to be written per client, which means a client this project has
+never heard of gets nothing. [Agent Skills](https://agentskills.io) is an open
+format for exactly this problem, read natively by Claude Code, OpenCode,
+Cursor, Goose, Amp, Roo, Codex, Copilot and Gemini CLI.
+
+```bash
+ai-bunker skill                      # writes .claude/skills/team-charter/
+ai-bunker skill --client opencode    # or .opencode/skills/
+ai-bunker skill --check .claude/skills/team-charter
+```
+
+The default is `.claude/skills/` because OpenCode documents that path as
+Claude-compatible, so one copy serves both without writing the files twice.
+
+The export is close to a rename, because the two designs agree. The format's
+progressive disclosure loads a skill's `name` and `description` at startup,
+its `SKILL.md` body on activation, and bundled files only when a task calls
+for one. Those are this project's index, operating rules and pages, in order —
+arrived at independently, for the same reason.
+
+```
+.claude/skills/team-charter/
+├── SKILL.md                     # operating rules + the index (~700 tokens)
+└── references/
+    ├── default-00_principles.md # a page, loaded only when opened
+    └── python-10_style.md
+```
+
+Two things this deliberately is **not**. It is an export, not a second source
+of truth: the gateway stays the enforcing copy, and the charter fingerprint
+travels in the skill's `metadata` so anyone can see whether a copy on disk has
+drifted from the one being enforced. And it is not a replacement for a kit —
+a skill carries standards, not bounded reads or compaction thresholds, which
+are the three things in the table above that only a client can do.
+
 ### Verifying a client, from the server
 
 A client kit is a claim; `POST /v1/budget` is how you check it. The response
@@ -770,7 +807,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 395 tests, `ruff` clean | ✅ |
+| 422 tests, `ruff` clean | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
 | `ai_bunker/rules.py` — two scopes, entropy, allowlists, self-testing rules | ✅ |

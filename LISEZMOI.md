@@ -728,6 +728,46 @@ Le kit OpenCode est donc une configuration plus **un seul** plugin,
 `bounded-reads.js`. S'il grossit un jour, c'est que quelque chose a été mis au
 mauvais endroit.
 
+### Les clients sans kit : publier la charte en Agent Skill
+
+Un kit s'écrit par client, donc un client dont ce projet n'a jamais entendu
+parler n'obtient rien. [Agent Skills](https://agentskills.io) est un format
+ouvert fait exactement pour ce problème, lu nativement par Claude Code,
+OpenCode, Cursor, Goose, Amp, Roo, Codex, Copilot et Gemini CLI.
+
+```bash
+ai-bunker skill                      # écrit .claude/skills/team-charter/
+ai-bunker skill --client opencode    # ou .opencode/skills/
+ai-bunker skill --check .claude/skills/team-charter
+```
+
+Le défaut est `.claude/skills/` parce qu'OpenCode documente ce chemin comme
+compatible Claude : une seule copie sert les deux, sans écrire les fichiers
+deux fois.
+
+L'export tient presque du renommage, car les deux conceptions se rejoignent.
+La divulgation progressive du format charge le `name` et la `description` au
+démarrage, le corps du `SKILL.md` à l'activation, et les fichiers joints
+seulement quand une tâche en a besoin. Ce sont, dans l'ordre, l'index, les
+règles d'opération et les pages de ce projet — trouvés séparément, pour la
+même raison.
+
+```
+.claude/skills/team-charter/
+├── SKILL.md                     # règles d'opération + index (~700 tokens)
+└── references/
+    ├── default-00_principles.md # une page, chargée seulement si ouverte
+    └── python-10_style.md
+```
+
+Deux choses que ce n'est **pas**, délibérément. Ce n'est pas une seconde
+source de vérité : la passerelle reste la copie qui fait foi, et l'empreinte
+de la charte voyage dans les `metadata` de la skill, de sorte que n'importe
+qui peut voir si une copie sur disque a dérivé de celle qui est appliquée. Et
+ce n'est pas un remplacement de kit : une skill porte des standards, pas les
+lectures bornées ni les seuils de compaction — les trois lignes du tableau
+ci-dessus que seul un client peut tenir.
+
 ### Vérifier un client, depuis le serveur
 
 Un kit client est une affirmation ; `POST /v1/budget` est la façon de la
@@ -811,7 +851,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 395 tests, `ruff` propre | ✅ |
+| 422 tests, `ruff` propre | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
 | `ai_bunker/rules.py` — deux portées, entropie, exceptions, règles auto-testées | ✅ |
