@@ -48,6 +48,8 @@ from ai_bunker.budget import Budget, Counter, measure_request
 from ai_bunker.charter import Charter, system_blocks
 from ai_bunker.dependencies import as_rule as dependency_rule
 from ai_bunker.dependencies import check as dependency_check
+from ai_bunker.payments import as_rule as payment_rule
+from ai_bunker.payments import inspect as payment_inspect
 from ai_bunker.rules import (
     Decision,
     Rule,
@@ -232,6 +234,7 @@ def screen_outbound(
     *,
     shell_tools: tuple[str, ...] = SHELL_TOOLS,
     project_root: str | None = None,
+    check_payments: bool = True,
 ) -> tuple[Rule | None, str | None, list[Violation]]:
     """Screen the shell commands a model is asking to run.
 
@@ -264,6 +267,23 @@ def screen_outbound(
             if not result.ok:
                 refusal, refused = dependency_rule(result), command
                 notes.append(Violation(rule=refusal, count=len(result.undeclared)))
+
+    # Payments are screened over EVERY tool call, not only the shell ones. A
+    # payment does not arrive as a command -- it arrives as `create_payment`,
+    # or as an HTTP tool pointed at a card processor -- so restricting this to
+    # SHELL_TOOLS would check the one place it never happens.
+    if check_payments:
+        for call in tool_calls:
+            function = call.get("function") or {}
+            finding = payment_inspect(
+                str(function.get("name") or ""), function.get("arguments") or {}
+            )
+            if finding.ok:
+                continue
+            rule = payment_rule(finding)
+            notes.append(Violation(rule=rule, count=1))
+            if refusal is None:
+                refusal, refused = rule, str(function.get("name") or "")
 
     return refusal, refused, notes
 
@@ -347,6 +367,7 @@ def apply_outbound(
     charter_fingerprint: str = "",
     shell_tools: tuple[str, ...] = SHELL_TOOLS,
     project_root: str | None = None,
+    check_payments: bool = True,
 ) -> Applied:
     """Run stage 4 over a model response.
 
@@ -361,7 +382,11 @@ def apply_outbound(
         calls.extend(message.get("tool_calls") or [])
 
     refusal, command, notes = screen_outbound(
-        calls, rules, shell_tools=shell_tools, project_root=project_root
+        calls,
+        rules,
+        shell_tools=shell_tools,
+        project_root=project_root,
+        check_payments=check_payments,
     )
     if refusal is not None:
         osh.warning(f"[gateway] {refusal.id} refused a tool call: {refusal.description}")

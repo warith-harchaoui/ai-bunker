@@ -95,6 +95,17 @@ enforcement:
   # Empty disables the check.
   project_root: ""
 
+  # Refuse a tool call that moves money and carries no AP2 mandate. Under AP2
+  # the user authorises on a Trusted Surface the agent does not control, and
+  # the agent presents the result; a payment the agent authorised itself is
+  # what the protocol exists to prevent.
+  #
+  # The gateway checks a mandate is PRESENT and SHAPED like one. It does not
+  # verify the signature -- that needs the issuer's keys, a trust list and a
+  # revocation check, which a serving gateway does not have. A pass means "a
+  # mandate was attached", never "the mandate is valid".
+  payments: true
+
   # Expose the charter over MCP at /mcp. On by default. Importing fastapi-mcp
   # costs roughly 24 seconds of startup on a cold interpreter (measured), so a
   # deployment whose clients all speak plain HTTP can reasonably turn it off.

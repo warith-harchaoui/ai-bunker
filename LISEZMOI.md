@@ -540,6 +540,43 @@ place. Et le contrôle est inactif tant que `project_root` n'est pas défini :
 une passerelle qui sert plusieurs dépôts ne peut pas savoir quel manifeste
 s'applique, et deviner serait pire que s'abstenir.
 
+### Les paiements qu'un agent s'autorise lui-même
+
+Un agent capable d'appeler une API de paiement peut dépenser, et la
+défaillance est un débit sur la carte de quelqu'un, décidé par un logiciel qui
+a mal lu une page.
+
+AP2 répond par des mandats : l'utilisateur autorise sur une **Trusted
+Surface**, que le protocole définit comme une interface sûre et explicitement
+**non-agentique**, et l'agent porte le résultat signé. La propriété de
+sécurité tient dans ce mot — l'agent ne produit pas l'autorisation, il
+présente une autorisation fabriquée là où il n'a pas accès. Un agent qui
+déclenche un paiement sans mandat ne fait pas mal de l'AP2 : il fait ce que
+l'AP2 existe pour empêcher.
+
+```
+create_payment {"amount": 4200}                      → refusé : aucun mandat
+create_payment {"amount": 4200, "payment_mandate": …} → transmis
+http_post {"url": "https://api.stripe.com/v1/charges"} → refusé : c'est un paiement
+```
+
+Les paiements sont filtrés sur **tous** les appels d'outils, pas seulement les
+shells : un paiement n'arrive jamais sous forme de commande, donc ne vérifier
+que `bash` inspecterait le seul endroit où cela ne se produit pas.
+
+**Ce que cela ne fait pas, dit explicitement parce qu'on le supposerait
+sinon.** Le contrôle vérifie qu'un mandat est présent et qu'il en a la forme —
+un JWS compact dont la charge utile s'analyse et n'est pas expirée, ou un objet
+de créance portant une preuve. Il **ne vérifie pas la signature**. Cela
+demande les clés publiques de l'émetteur, une liste de confiance et un
+contrôle de révocation, dont une passerelle de service ne dispose pas et ne
+doit pas disposer. Un succès ici signifie *un mandat était joint*, jamais *le
+mandat est valide*, et le message de refus le dit à qui le lit.
+
+Cette limite est plus étroite qu'il n'y paraît : forger un mandat demande une
+clé, alors que la défaillance courante est l'absence totale de mandat, parce
+que l'agent a simplement appelé l'API.
+
 ### Journal de décision
 
 Chaque règle qui se déclenche produit un enregistrement d'audit : quelle règle,
@@ -979,7 +1016,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 489 tests, `ruff` propre | ✅ |
+| 523 tests, `ruff` propre | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
 | `ai_bunker/rules.py` — deux portées, entropie, exceptions, règles auto-testées | ✅ |

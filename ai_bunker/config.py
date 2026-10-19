@@ -98,6 +98,11 @@ class Settings:
     #: because the malicious package is registered precisely so the lookup
     #: passes. Empty disables the check.
     project_root: str = ""
+    #: Refuse a tool call that moves money and carries no AP2 mandate. On by
+    #: default: a payment the agent authorised itself is the thing the
+    #: protocol exists to prevent, and the check costs nothing on calls that
+    #: do not move money.
+    check_payments: bool = True
     audit_log: str = ""
 
     @property
@@ -332,6 +337,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
         mark_provenance=_as_bool(enforcement.get("mark_provenance"), True),
         enable_mcp=_as_bool(enforcement.get("mcp"), True),
         project_root=str(enforcement.get("project_root") or ""),
+        check_payments=_as_bool(enforcement.get("payments"), True),
         enforce_budget=_as_bool(enforcement.get("budget"), True),
         enforce_commands=_as_bool(enforcement.get("commands"), True),
         audit_log=str(raw.get("audit_log") or ""),

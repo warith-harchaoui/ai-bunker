@@ -516,6 +516,39 @@ the check is off unless `project_root` is set, because a gateway serving
 several repositories cannot know which manifest applies, and guessing would be
 worse than abstaining.
 
+### Payments an agent authorised itself
+
+An agent that can call a payment API can spend money, and the failure is a
+charge on someone's card made by software that misread a page.
+
+AP2 answers this with mandates: the user authorises on a **Trusted Surface**,
+which the protocol defines as a secure, explicitly **non-agentic** interface,
+and the agent carries the signed result. The security property is in that word
+— the agent does not produce the authorisation, it presents one made somewhere
+it cannot reach. An agent initiating a payment with no mandate is not doing
+AP2 badly; it is doing what AP2 exists to prevent.
+
+```
+create_payment {"amount": 4200}                      → refused: no mandate attached
+create_payment {"amount": 4200, "payment_mandate": …} → forwarded
+http_post {"url": "https://api.stripe.com/v1/charges"} → refused: still a payment
+```
+
+Payments are screened across **every** tool call, not only the shell ones: a
+payment never arrives as a command, so checking only `bash` would inspect the
+one place it does not happen.
+
+**What this does not do, stated because it would otherwise be assumed.** It
+checks a mandate is present and shaped like one — a compact JWS whose payload
+parses and has not expired, or a credential object carrying a proof. It does
+**not verify the signature**. That needs the issuer's public keys, a trust
+list and a revocation check, none of which a serving gateway has or should
+have. A pass here means *a mandate was attached*, never *the mandate is
+valid*, and the refusal message says so to whoever reads it.
+
+That limit is narrower than it sounds. Forging a mandate requires a key; the
+common failure is no mandate at all, because the agent just called the API.
+
 ### Decision log
 
 Every rule that fires produces an audit record: which rule, which scope, what
@@ -930,7 +963,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 489 tests, `ruff` clean | ✅ |
+| 523 tests, `ruff` clean | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
 | `ai_bunker/rules.py` — two scopes, entropy, allowlists, self-testing rules | ✅ |
