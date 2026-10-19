@@ -1,0 +1,33 @@
+{
+  "// ai-bunker": [
+    "Points Claude Code at the gateway. The charter, the rules and the budget",
+    "arrive with every request because the gateway puts them there; nothing",
+    "here configures them.",
+    "",
+    "Merge into .claude/settings.json rather than replacing it: that file",
+    "carries personal preferences this kit has no business overwriting."
+  ],
+
+  "env": {
+    "ANTHROPIC_BASE_URL": "{{AI_BUNKER_URL_ROOT}}",
+    "OPENAI_BASE_URL": "{{AI_BUNKER_URL}}",
+    "OPENAI_API_KEY": "{{AI_BUNKER_API_KEY}}"
+  },
+
+  "permissions": {
+    "// why": [
+      "The gateway refuses these and that refusal cannot be bypassed. This is",
+      "a second, independent barrier for the moments the gateway is not in the",
+      "path -- a direct API call, an offline session. Two mechanisms beat one."
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(rm -rf /:*)",
+      "Bash(rm -rf ~:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)"
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+# ai-bunker gateway.
+#
+# Copy to config/gateway.yaml (gitignored) and edit. Everything here is a
+# deployment fact; nothing here is a secret unless you put one in it, and the
+# loader will tell you off if you do.
+
+charter_dir: charter
+rules_dir: charter/rules
+
+gateway:
+  # Prefer the environment or a .env file. A key written here is the spelling
+  # most likely to reach a git history.
+  api_key: ${AI_BUNKER_API_KEY}
+
+upstreams:
+  local:
+    base_url: http://127.0.0.1:8001/v1
+    # What vLLM actually serves (--max-model-len). The budget is measured
+    # against this figure, so it has to be true rather than aspirational.
+    served_context: 262144
+    remote: false
+
+  # Uncomment to enable a premium route. Doing so is the ONLY way a request
+  # can leave this network, it has to be written by a human, and `ai-bunker
+  # doctor` will say out loud that the deployment is no longer sovereign.
+  #
+  # premium:
+  #   base_url: https://api.example.com/v1
+  #   api_key: ${PREMIUM_API_KEY}
+  #   served_context: 200000
+  #   remote: true
+
+default_upstream: local
+
+# Model name -> upstream. An unknown model falls back to default_upstream,
+# which is what lets a client hardcoded to `gpt-5.2` work unchanged.
+routes:
+  devstral: local
+  qwen3-coder-next: local
+  # claude-3-5-sonnet: premium
+
+# Need -> upstream. The other way to route, and the one the 80/20 strategy
+# actually describes: routine work on the local model, heavy reasoning on a
+# premium route, with no client having to learn a model name.
+#
+# A client declares a need with the `X-AI-Bunker-Need` header, or by asking
+# for the need as its model name (they are listed in /v1/models for exactly
+# that reason). Needs are matched BEFORE model names: a need is a statement
+# about the work, a model name is an implementation detail.
+#
+# Asking for a need rather than a model is what makes swapping the model a
+# configuration change here instead of an edit in every client.
+needs:
+  # Shorthand: the need names an upstream.
+  code: local
+  prose: local
+  # Long form: the need also pins the model to request there.
+  structured:
+    upstream: local
+    model: devstral
+  # The 20%. Uncomment with a premium upstream, and `doctor` will say out
+  # loud that the deployment is no longer sovereign.
+  # reasoning:
+  #   upstream: premium
+  #   model: claude-sonnet-5
+
+budget:
+  # Tokens the client keeps free for compaction.
+  compaction_reserve: 16000
+  # What fraction of the served context to declare to clients. A client that
+  # estimates its own tokens under-counts; this margin absorbs the gap.
+  declared_fraction: 0.80
+  # Conversation space below which a session is refused outright.
+  min_working_tokens: 5000
+
+enforcement:
+  # Screen inbound tool results, refuse dangerous outbound tool calls, and
+  # refuse a session with no room to work. All three default to on; turning
+  # one off is a decision a deployment records here.
+  budget: true
+  commands: true
+  mark_provenance: true
+
+# Where to append the decision log, one JSON object per line. Empty disables
+# it, which a governance deployment should not do.
+audit_log: logs/decisions.jsonl

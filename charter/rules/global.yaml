@@ -1,0 +1,114 @@
+# Secrets must never enter the context window.
+#
+# A secret that reaches the model has leaked: into the transcript, into the
+# compaction summary, and into whatever the model says next. These rules run on
+# every piece of text on its way in, before it is seen.
+
+rules:
+  - id: global.generic_secret
+    severity: BLOCKER
+    scope: output
+    description: "An API key, token or password must never enter the model's context."
+    match:
+      # The value is CAPTURED so the entropy gate scores the credential rather
+      # than the "api_key = " prefix, which would drag a real secret under the
+      # threshold.
+      pattern: '(?:api[_-]?key|secret|token|password|passwd)\s*[:=]\s*["'']?([A-Za-z0-9_\-\.]{16,64})["'']?'
+      flags: i
+      # Measured, not guessed: across ten common placeholders and six
+      # real-shaped credentials, placeholders top out at 3.75 bits/char and
+      # credentials bottom out at 3.95. Only this rule needs the gate -- the
+      # rules below have a distinctive prefix, which is a stronger signal than
+      # randomness and would be weakened by it (the canonical AWS example key
+      # scores 3.68).
+      entropy: 3.85
+    allow:
+      # Without these, documentation and fixtures produce findings, and a
+      # scanner that cries wolf teaches its readers to ignore it.
+      - '(?i)(example|sample|dummy|placeholder|changeme|replace[_-]?me|your[_-]|xxx+|<[^>]+>)'
+    action:
+      type: redact
+      replacement: "<SECRET REDACTED>"
+    examples:
+      should_match:
+        - 'api_key = "sk_live_8Kq2mZx9PvN3wR7t"'
+        - "API_KEY: ghp_A7kQm2Zx9PvN3wR7tJ4hB6nC8dF1gH"
+        - "password=7Hk2Lm9Qw3Er5Ty8Ui0Op1As"
+      should_not_match:
+        - 'api_key = "REPLACE_ME_WITH_YOUR_KEY"'
+        - 'token: "<your-token-here>"'
+        - "api_key = xxxxxxxxxxxxxxxxxxxx"
+        - "token_count = 4096"
+        - "api_key = os.environ['API_KEY']"
+
+  - id: global.private_key
+    severity: BLOCKER
+    scope: output
+    description: "A private key block appeared in a tool output."
+    match:
+      # Bounded repetition on purpose: an unbounded [\s\S]* inside a block this
+      # large is how a rule engine stalls a server.
+      pattern: '-----BEGIN [A-Z ]{0,32}PRIVATE KEY-----[\s\S]{0,8192}?-----END [A-Z ]{0,32}PRIVATE KEY-----'
+    action:
+      type: redact
+      replacement: "<PRIVATE KEY REDACTED>"
+    examples:
+      should_match:
+        - "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCA\n-----END RSA PRIVATE KEY-----"
+        - "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"
+      should_not_match:
+        - "the private key lives in the vault"
+        - "-----BEGIN CERTIFICATE-----"
+
+  - id: global.bearer_token
+    severity: BLOCKER
+    scope: output
+    description: "An Authorization header carried a token in clear text."
+    match:
+      pattern: 'authorization\s*:\s*(bearer|basic)\s+[A-Za-z0-9_\-\.=]{12,512}'
+      flags: i
+    action:
+      type: redact
+      replacement: "Authorization: <REDACTED>"
+    examples:
+      should_match:
+        - "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9abcdef"
+        - "authorization: basic dXNlcjpwYXNzd29yZA=="
+      should_not_match:
+        - "Authorization header is required"
+        - "authorization: Bearer"
+
+  - id: global.aws_access_key
+    severity: BLOCKER
+    scope: output
+    description: "An AWS access key id appeared in a tool output."
+    match:
+      pattern: '\b(AKIA|ASIA)[0-9A-Z]{16}\b'
+    action:
+      type: redact
+      replacement: "<AWS KEY REDACTED>"
+    examples:
+      should_match:
+        - "aws_access_key_id = AKIAIOSFODNN7EXAMPLE"
+        - "ASIAY34FZKBOKMUTVV7A"
+      should_not_match:
+        - "AKIA is the prefix for a long-lived key"
+        - "akiaiosfodnn7example"
+
+  - id: global.private_ssh_url
+    severity: WARNING
+    scope: output
+    description: "A URL carrying inline credentials; rotate it rather than reuse it."
+    match:
+      pattern: '(https?|ssh)://[^/\s:@]{1,64}:[^/\s@]{1,64}@'
+      flags: i
+    action:
+      type: redact
+      replacement: '\1://<CREDENTIALS REDACTED>@'
+    examples:
+      should_match:
+        - "git clone https://user:hunter2password@github.com/x/y"
+        - "ssh://deploy:s3cr3tpass@host/repo"
+      should_not_match:
+        - "https://github.com/x/y"
+        - "mailto:someone@example.com"

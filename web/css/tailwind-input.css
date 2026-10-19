@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /*
+   * brand-* as RGB triplets so Tailwind's opacity modifiers keep working
+   * (bg-brand-blue/10) while the underlying value changes with the colour
+   * scheme. Same mechanism as sprezzature.ai, same reason.
+   *
+   * The hues are this project's own: the darkened variants that the
+   * dashboard's contrast auditor settled on. The palette's saturated
+   * originals read beautifully on dark and fail WCAG on white -- #007AFF
+   * scores 4.02:1 against white where a button label needs 4.5:1 -- so the
+   * light scheme uses darkened variants and the dark scheme keeps the
+   * originals. Same colour, two weights.
+   */
+  :root {
+    --brand-blue-rgb: 0 98 204;        /* #0062CC — 5.80:1 on white */
+    --brand-bluedark-rgb: 0 86 179;    /* #0056B3 — hover */
+    --brand-bluelight-rgb: 204 228 255;/* #CCE4FF — wash, used at low opacity */
+    --brand-navy-rgb: 0 60 93;         /* #003C5D — deep ink */
+    --brand-linktext-rgb: 0 98 204;    /* body-text accent, light */
+    --brand-green-rgb: 23 145 42;      /* #17912A — 4.10:1 on white */
+    --brand-red-rgb: 211 47 38;        /* #D32F26 */
+    --brand-orange-rgb: 184 103 0;     /* #B86700 — 4.22:1 on white */
+  }
+
+  /*
+   * Dark: the palette originals, which score 8:1 or better against #0B0B0C.
+   * linktext gets its own value because it sits on the page background
+   * rather than inside a button, and has to clear 4.5:1 there on its own.
+   */
+  :root[data-color-scheme="dark"] {
+    --brand-blue-rgb: 60 155 255;      /* #3C9BFF */
+    --brand-bluedark-rgb: 100 177 255;
+    --brand-bluelight-rgb: 0 60 93;
+    --brand-navy-rgb: 204 228 255;
+    --brand-linktext-rgb: 60 155 255;
+    --brand-green-rgb: 53 217 78;      /* #35D94E */
+    --brand-red-rgb: 255 83 73;        /* #FF5349 */
+    --brand-orange-rgb: 255 165 43;    /* #FFA52B */
+  }
+}

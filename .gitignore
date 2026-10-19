@@ -1,0 +1,143 @@
+# ---------------------------------------------------------------------------
+# ai-bunker — .gitignore
+#
+# Two rules decide what lives here:
+#   1. Anything that names a machine, a secret, or a model choice is generated,
+#      never committed. The *brief* is committed; the *engine* is not.
+#   2. Anything measured (token counts, benchmarks, logs) is a run artifact.
+#      The script that measures is committed; its output is not.
+# ---------------------------------------------------------------------------
+
+# Personal scratch notes, working thread, assessments (do not commit)
+.private/
+
+# --- Sovereignty: secrets and machine-specific resolutions -----------------
+# The committed brief says what the workload NEEDS (llm.brief.yaml).
+# The engine file says what THIS machine resolved it to — machine-specific.
+llm.engine*.yaml
+*.engine.yaml
+env.sh
+.env
+.env.*
+!.env.example
+config/config.yaml
+config/gateway.yaml
+config/*.local.yaml
+!config/*.example.yaml
+secrets/
+*.pem
+*.key
+!**/public*.key
+.netrc
+
+# --- Measurement artifacts -------------------------------------------------
+logs/
+reports/
+bench/results/
+*.report.md
+*.report.json
+context_cost*.json
+cout_reel*.json
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.conda/
+
+# Test / coverage / type / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.hypothesis/
+.tox/
+.nox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+nosetests.xml
+.deepeval/
+
+# Notebooks
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# The site's built stylesheet is committed on purpose: deployment is a file
+# upload, and requiring Node on the far end to regenerate it would make the
+# site undeployable by the person who owns it.
+!web/css/app.css
+
+# --- Node (OpenCode / Claude Code client plugins) --------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+
+# --- Models and weights ----------------------------------------------------
+# Never in git. They come from the registry at serve time.
+*.gguf
+*.safetensors
+*.bin
+!**/tiny*.bin
+models/weights/
+.ollama/
+.cache/huggingface/
+
+# --- Editors and OS --------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+
+# --- Agent harness local state ---------------------------------------------
+.opencode/node_modules/
+.opencode/bun.lock*
+opencode.db
+.claude/settings.local.json
+.agents/

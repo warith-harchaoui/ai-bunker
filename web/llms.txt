@@ -1,0 +1,46 @@
+# ai-bunker
+
+> A sovereign OpenAI-compatible gateway standing in front of your own GPU. It
+> serves a versioned charter to every client, enforces rules that no client can
+> bypass, and counts the context budget with the serving engine's own tokenizer
+> instead of trusting the client's estimate.
+
+Written for answer engines. Every figure below was measured; where a number is
+an estimate, the project says so.
+
+## The claim, in one paragraph
+
+Gateways (LiteLLM, Kong, Portkey) route requests but do not inspect them: a tool
+result full of secrets and a `rm -rf ~` pass through as ordinary bytes. Guardrail
+libraries (NeMo Guardrails, Guardrails AI, LLM Guard) inspect content but are
+libraries, so an agent that does not call them is unprotected. Neither counts the
+context budget. ai-bunker occupies the intersection.
+
+## Pages
+
+- [ai-bunker — one GPU, one charter, every coding agent](https://deraison.ai/ai-bunker/): what it is, the four stages of a request, and what it deliberately is not.
+- [Sizing](https://deraison.ai/ai-bunker/sizing.html): which machine to buy, from a memory-roofline model validated against published measurements.
+- [Landscape](https://deraison.ai/ai-bunker/landscape.html): the gateways, the rule engines and the policy engines compared, including where this project is behind.
+- [Get started](https://deraison.ai/ai-bunker/start.html): install, configure, serve, adopt a repository.
+
+## Key facts
+
+- **The session floor** is the part of a context window paid on every request and out of reach of compaction: system prompt, tool schemas, charter, knowledge index. What remains is the only room a conversation has.
+- **Clients under-count their own tokens.** One measured session believed it was under 32,768 and sent 40,433; the server refused the whole request. Claude Code compacts at effective context minus a 13,000-token buffer — an estimate about an estimate.
+- **A bloated floor loops silently.** One workstation had 59 locally-installed agent skills injected into every prompt: 17,754 tokens, 68% of a 26,226-token floor against a declared context of 26,000. Compaction fired on turn one with nothing to compact; the session returned 8 tokens per turn forever and the harness said nothing.
+- **Decode speed is bounded by memory bandwidth divided by active weight bytes**, not by capacity. A DGX Spark has 128 GB and 273 GB/s, and serves a dense 24B coding model at 6.5 tokens/second.
+- **Mixture-of-experts inverts the usual trade.** Qwen3-Coder-Next is 80B total and 3B active: the best open coding model in the catalogue is also the fastest to serve.
+- **Rules ship with their own examples**, checked in CI. Three shipped patterns were wrong on first write; the examples caught all three.
+- **The entropy threshold that tells a credential from a placeholder is 3.85 bits/character**, measured across ten common placeholders and six real-shaped credentials rather than guessed.
+
+## Honest limits
+
+- `0.1.0-alpha`. 354 tests and a green CI gate, but the public interface can still move.
+- Command screening does not apply to streamed completions: a tool call arrives in fragments, and refusing it would mean buffering the whole response.
+- The accessibility lint on the dashboard is static only; a browser audit catches what a rendered page reveals.
+- Provider breadth is far behind LiteLLM. ai-bunker can sit in front of it rather than compete.
+
+## Source
+
+- [GitHub](https://github.com/warith-harchaoui/ai-bunker) — BSD-3-Clause, Python 3.10-3.13.
+- Part of the [AI Helpers](https://deraison.ai/ai-helpers) suite.

@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ai-bunker</title>
+<!--
+  Hand-written CSS, and that is a decision rather than an omission.
+
+  The house style for this kind of surface is Tailwind, which without a build
+  step means the Play CDN. A gateway whose whole claim is that nothing leaves
+  the network cannot serve an operator a page that fetches a stylesheet from a
+  third party on load: the first thing the dashboard would do is contradict
+  what it exists to display. So the tokens below are the same curated palette
+  and the same discipline -- semantic names, a dark peer for every surface,
+  visible focus rings, reduced-motion guards -- written out instead of
+  generated.
+
+  Fonts are the system stacks for the same reason: no network fetch, and an
+  internal operations page does not need half a megabyte of webfonts.
+-->
+<style>
+:root {
+  /* The curated palette's saturated hues read beautifully on dark and fail
+     WCAG on white: #28CD41 scores 2.12:1 against a card and #FF9500 scores
+     2.20:1, both under the 3:1 floor for a non-text UI component. The
+     contrast auditor found all four; none was visible by eye. So the light
+     scheme uses darkened variants of the same hues, and the dark scheme --
+     where the originals score 8:1 -- keeps them. Same colour, two weights. */
+  --blue:   #0062CC;  --green:  #17912A;  --orange: #B86700;
+  --red:    #D32F26;  --purple: #8E3FBE;  --gray:   #6B6B6B;
+
+  /* On a solid accent, white has to clear 4.5:1 for a button label.
+     #007AFF only reaches 4.02:1, which is why the primary button's fill is
+     the darkened blue rather than the palette original. */
+
+  --bg:        #F8F8F8;  --surface:   #FFFFFF;  --raised: #FFFFFF;
+  --label:     #1A1A1A;  --label-2:   #595959;  --label-3: #8A8A8E;
+  --separator: #D9D9DE;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --radius: 12px;  --radius-lg: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) {
+    /* The palette's original hues: against #19191C they score 7-8:1. */
+    --blue: #3C9BFF; --green: #35D94E; --orange: #FFA52B;
+    --red: #FF5349; --purple: #BE6BE6;
+    --bg: #0E0E10; --surface: #19191C; --raised: #212126;
+    --label: #F2F2F7; --label-2: #A8A8AE; --label-3: #6E6E73;
+    --separator: #2E2E33;
+  }
+}
+:root[data-color-scheme="dark"] {
+  --blue: #3C9BFF; --green: #35D94E; --orange: #FFA52B;
+  --red: #FF5349; --purple: #BE6BE6;
+  --bg: #0E0E10; --surface: #19191C; --raised: #212126;
+  --label: #F2F2F7; --label-2: #A8A8AE; --label-3: #6E6E73;
+  --separator: #2E2E33;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--label);
+  font-family: var(--font-sans); font-size: 16px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+code, pre, .mono { font-family: var(--font-mono); }
+
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 24px 20px 64px; }
+header.top {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--separator);
+}
+.top-in { max-width: 1120px; margin: 0 auto; padding: 12px 20px;
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+h1 .dim { color: var(--label-3); font-weight: 400; }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.chip {
+  font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--separator); color: var(--label-2); background: var(--surface);
+  white-space: nowrap;
+}
+.chip.good { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); }
+.chip.warn { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 40%, transparent); }
+.chip.bad  { color: var(--red);   border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+
+.card {
+  background: var(--surface); border: 1px solid var(--separator);
+  border-radius: var(--radius-lg); padding: 20px; margin-top: 20px;
+}
+.card.lead { padding: 24px; }
+h2 { font-size: 19px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+.sub { color: var(--label-2); font-size: 14px; margin: 0 0 16px; }
+.polarity { font-size: 12px; color: var(--label-3); font-weight: 500; }
+
+/* Two bars, because one cannot carry a 300:1 ratio and a composition at the
+   same time. The strip answers "is there room"; the bar answers "who is
+   eating the floor". Drawn at two scales on purpose. */
+.strip { display: flex; height: 10px; border-radius: 5px; overflow: hidden;
+         background: color-mix(in srgb, var(--green) 20%, transparent);
+         border: 1px solid var(--separator); }
+.strip .seg { min-width: 3px; }
+.strip-label { display: flex; justify-content: space-between; font-size: 12px;
+               color: var(--label-3); margin: 6px 0 18px; }
+.bar { display: flex; height: 34px; border-radius: 8px; overflow: hidden;
+       background: var(--raised); border: 1px solid var(--separator); }
+.seg { height: 100%; min-width: 2px; transition: width .25s ease; }
+/* Without this, two components belonging to the same owner render as one
+   indistinguishable block and the bar shows a composition of one. */
+.bar .seg + .seg { border-left: 2px solid var(--surface); }
+.seg[data-owner="client"]    { background: var(--orange); }
+.seg[data-owner="ai-bunker"] { background: var(--blue); }
+.seg[data-owner="free"]      { background: color-mix(in srgb, var(--green) 24%, transparent); }
+
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
+.legend span.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-weight: 500; color: var(--label-3); font-size: 12px;
+     text-transform: uppercase; letter-spacing: .04em; padding: 8px 10px; }
+td { padding: 9px 10px; border-top: 1px solid var(--separator); }
+td.num, th.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+tr.total td { font-weight: 600; border-top: 2px solid var(--separator); }
+
+.grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+@media (min-width: 860px) { .grid.two { grid-template-columns: 1.4fr 1fr; } }
+
+.stat { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
+        border-bottom: 1px solid var(--separator); font-size: 14px; }
+.stat:last-child { border-bottom: 0; }
+.stat b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+button, .btn {
+  font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+  border-radius: 999px; padding: 10px 18px; min-height: 44px;
+  border: 1px solid var(--separator); background: var(--raised); color: var(--label);
+}
+button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+button:hover { border-color: color-mix(in srgb, var(--label) 30%, transparent); }
+button.primary:hover { background: color-mix(in srgb, var(--blue) 88%, #000); }
+
+textarea {
+  width: 100%; font-family: var(--font-mono); font-size: 13px; line-height: 1.5;
+  padding: 12px; border-radius: var(--radius); border: 1px solid var(--separator);
+  background: var(--raised); color: var(--label); resize: vertical; min-height: 110px;
+}
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+
+.packs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.page-btn { font-size: 13px; padding: 7px 12px; min-height: 36px; border-radius: 999px; }
+.card.stretch { display: flex; flex-direction: column; }
+.card.stretch > pre.page { flex: 1; }
+pre.page {
+  margin: 14px 0 0; padding: 16px; border-radius: var(--radius);
+  background: var(--raised); border: 1px solid var(--separator);
+  font-size: 13px; line-height: 1.55; overflow-x: auto; white-space: pre-wrap;
+  max-height: 420px; overflow-y: auto;
+}
+.note { font-size: 13px; color: var(--label-2); margin-top: 12px; }
+.warnbox { border-left: 3px solid var(--orange); padding: 10px 14px; margin-top: 12px;
+           background: color-mix(in srgb, var(--orange) 7%, transparent);
+           border-radius: 0 8px 8px 0; font-size: 14px; }
+.empty { color: var(--label-3); font-size: 14px; padding: 18px 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sk { background: linear-gradient(90deg, var(--raised), var(--separator), var(--raised));
+      border-radius: 6px; height: 1em; animation: sh 1.4s ease-in-out infinite; }
+@keyframes sh { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+.outcome-redacted { color: var(--blue); }
+.outcome-refused  { color: var(--red); font-weight: 600; }
+.outcome-noted    { color: var(--label-2); }
+/* A refused command is a different kind of event from a redaction: something
+   did not run. A tinted row says so before the eye reaches the word. */
+tr.refused-row td { background: color-mix(in srgb, var(--red) 6%, transparent); }
+td.dim { color: var(--label-3); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <h1>ai-bunker <span class="dim" id="version"></span></h1>
+    <div class="chips" id="chips" aria-live="polite">
+      <span class="chip"><span class="sk" style="display:inline-block;width:70px"></span></span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- Tile 1: the question this whole project exists to answer. -->
+  <section class="card lead" aria-labelledby="budget-h">
+    <h2 id="budget-h">How much room does a session actually have?</h2>
+    <p class="sub">
+      The floor is paid on every request and compaction cannot reduce it.
+      What is left is the only space the conversation has.
+      <span class="polarity">↑ more conversation space is better</span>
+    </p>
+
+    <div class="strip" id="strip" role="img" aria-labelledby="strip-desc"></div>
+    <p class="strip-label"><span id="strip-left">—</span><span id="strip-right">—</span></p>
+    <p id="strip-desc" class="sr"></p>
+
+    <p class="sub" style="margin:0 0 6px">
+      What the floor is made of <span id="floor-scope" class="polarity"></span>
+    </p>
+    <div class="bar" id="bar" role="img" aria-labelledby="bar-desc"></div>
+    <p id="bar-desc" class="sr"></p>
+    <div class="legend" id="legend"></div>
+
+    <div class="grid two" style="margin-top:20px">
+      <div>
+        <table>
+          <caption class="sr">Floor components by owner</caption>
+          <thead><tr><th>Component</th><th>Owner</th><th class="num">Tokens</th><th class="num">Share</th></tr></thead>
+          <tbody id="items"><tr><td colspan="4"><span class="sk" style="display:block"></span></td></tr></tbody>
+        </table>
+      </div>
+      <div>
+        <div class="stat"><span>Served by the engine</span><b id="served">—</b></div>
+        <div class="stat"><span>Declared to clients</span><b id="declared">—</b></div>
+        <div class="stat"><span>Compaction margin</span><b id="reserve">—</b></div>
+        <div class="stat"><span>Floor</span><b id="floor">—</b></div>
+        <div class="stat"><span><strong>Conversation space</strong></span><b id="working">—</b></div>
+        <div class="stat"><span>Counted by</span><b id="backend">—</b></div>
+      </div>
+    </div>
+
+    <div id="budget-warnings"></div>
+
+    <details style="margin-top:18px">
+      <summary style="cursor:pointer;font-size:14px;color:var(--label-2)">
+        Measure a captured request from your own client
+      </summary>
+      <p class="note">
+        A client kit is a claim. Paste what your harness actually sends and the
+        floor is itemised by owner, so a misconfigured client shows up as a
+        component rather than as a vague slowness.
+      </p>
+      <label class="sr" for="req">Captured request body, as JSON</label>
+      <textarea id="req" spellcheck="false"
+        placeholder='{"model": "devstral", "messages": [...], "tools": [...]}'></textarea>
+      <div class="row">
+        <button class="primary" id="measure">Measure it</button>
+        <button id="reset-budget">Back to an empty session</button>
+      </div>
+    </details>
+  </section>
+
+  <div class="grid two">
+    <!-- Tile 2 -->
+    <section class="card stretch" aria-labelledby="charter-h">
+      <h2 id="charter-h">What is in the charter, and what does it cost?</h2>
+      <p class="sub">
+        Only the index is in the prompt. A page costs nothing until it is opened.
+        <span class="polarity">↓ a smaller index is better</span>
+      </p>
+      <div class="stat"><span>Fingerprint</span><b class="mono" id="fp">—</b></div>
+      <div class="stat"><span>Packs / pages</span><b id="packs">—</b></div>
+      <div class="stat"><span>Index, paid every request</span><b id="idx-cost">—</b></div>
+      <div class="stat"><span>Pages, read on demand</span><b id="pages-cost">—</b></div>
+
+      <p class="sub" style="margin:16px 0 0">Open one page</p>
+      <div class="packs" id="pages"></div>
+      <pre class="page" id="page" hidden></pre>
+    </section>
+
+    <!-- Tile 3 -->
+    <section class="card stretch" aria-labelledby="index-h">
+      <h2 id="index-h">What does the model actually see?</h2>
+      <p class="sub">The blocks injected into every request, verbatim.</p>
+      <pre class="page" id="blocks"></pre>
+    </section>
+  </div>
+
+  <!-- Tile 4 -->
+  <section class="card" aria-labelledby="log-h">
+    <h2 id="log-h">What has the gateway redacted or refused?</h2>
+    <p class="sub">
+      Every rule that fired, with the charter it ran under — and never the text it matched.
+    </p>
+    <table>
+      <caption class="sr">Decision log</caption>
+      <thead><tr><th>When</th><th>Rule</th><th>Scope</th><th>Outcome</th><th class="num">Hits</th></tr></thead>
+      <tbody id="log"></tbody>
+    </table>
+    <p class="note" id="log-note"></p>
+  </section>
+
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const n = (v) => (typeof v === "number" ? v.toLocaleString("en-US") : "—");
+
+// The key is in the URL when the operator opened this page from a gateway that
+// wants one. Keeping it out of localStorage is deliberate: a dashboard is not
+// a place to persist a credential.
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const headers = KEY ? { Authorization: `Bearer ${KEY}` } : {};
+
+async function get(path) {
+  const r = await fetch(path, { headers });
+  if (!r.ok) throw new Error(`${path} → HTTP ${r.status}`);
+  return r.json();
+}
+async function post(path, body) {
+  const r = await fetch(path, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`${path} → HTTP ${r.status}`);
+  return r.json();
+}
+
+function chip(label, state) {
+  const el = document.createElement("span");
+  el.className = `chip ${state || ""}`.trim();
+  el.textContent = label;
+  return el;
+}
+
+async function loadHealth() {
+  const h = await get("/health");
+  $("version").textContent = `v${h.version}`;
+  const c = $("chips");
+  c.replaceChildren(
+    chip(h.sovereign ? "sovereign" : "a route leaves this network", h.sovereign ? "good" : "warn"),
+    chip(h.authenticated ? "authenticated" : "open to anyone who can reach it",
+         h.authenticated ? "good" : "warn"),
+    chip(`${h.rules.output} output rules`),
+    chip(`${h.rules.command} command rules`),
+  );
+  for (const [name, on] of Object.entries(h.enforcement)) {
+    if (!on) c.append(chip(`${name} enforcement off`, "bad"));
+  }
+  return h;
+}
+
+function renderBudget(b) {
+  // The window strip, at window scale: is there room at all?
+  const window_ = Math.max(b.compaction_starts_at, b.floor_tokens, 1);
+  const strip = $("strip");
+  strip.replaceChildren();
+  const used = document.createElement("div");
+  used.className = "seg";
+  used.dataset.owner = "client";
+  used.style.width = `${Math.max((b.floor_tokens / window_) * 100, 0.6)}%`;
+  used.title = `floor — ${n(b.floor_tokens)} tokens`;
+  strip.append(used);
+  const share = (b.floor_tokens / window_) * 100;
+  $("strip-left").textContent =
+    `floor ${n(b.floor_tokens)} — ${share < 1 ? "under 1" : Math.round(share)}% of the window`;
+  $("strip-right").textContent = `${n(Math.max(b.working_tokens, 0))} left to work with`;
+  $("strip-desc").textContent =
+    `The floor uses ${share.toFixed(1)}% of the declared window; ` +
+    `${n(b.working_tokens)} tokens remain for the conversation.`;
+
+  // The floor bar, at FLOOR scale: who is eating it? Drawn against the floor
+  // rather than the window because at 607 against 193,108 every component
+  // would render as a sliver and the tile would say nothing.
+  const bar = $("bar");
+  const legend = $("legend");
+  bar.replaceChildren();
+  legend.replaceChildren();
+
+  const parts = b.items.map((i) => ({ name: i.name, owner: i.owner, tokens: i.tokens }));
+  const floor = Math.max(b.floor_tokens, 1);
+
+  // Components sharing an owner share a hue, so they are told apart by weight
+  // within it. Opacity rather than a second colour: the owner is the thing the
+  // eye should read first, and a second hue would compete with it.
+  const seen = new Map();
+  const shade = (owner) => {
+    const i = seen.get(owner) ?? 0;
+    seen.set(owner, i + 1);
+    return [1, 0.72, 0.52, 0.4][Math.min(i, 3)];
+  };
+
+  for (const p of parts) {
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    seg.dataset.owner = p.owner;
+    seg.style.width = `${(p.tokens / floor) * 100}%`;
+    seg.style.opacity = String((p.shade = shade(p.owner)));
+    seg.title = `${p.name} — ${n(p.tokens)} tokens (${p.owner})`;
+    bar.append(seg);
+  }
+  $("bar-desc").textContent = parts
+    .map((p) => `${p.name}: ${n(p.tokens)} tokens`).join("; ");
+
+  const owners = new Set(parts.map((p) => p.owner));
+  // With one owner, a per-owner legend says "100% us" and nothing else; the
+  // useful breakdown is then per component.
+  const entries = owners.size > 1
+    ? [["client", "the client"], ["ai-bunker", "ai-bunker"]].flatMap(([owner, label]) => {
+        const sum = parts.filter((p) => p.owner === owner).reduce((a, p) => a + p.tokens, 0);
+        return sum ? [[owner, label, sum]] : [];
+      })
+    : parts.map((p) => [p.owner, p.name, p.tokens, p.shade]);
+
+  for (const [owner, label, sum, opacity] of entries) {
+    const el = document.createElement("span");
+    const sw = document.createElement("span");
+    sw.className = "sw";
+    sw.style.background = owner === "client" ? "var(--orange)" : "var(--blue)";
+    // The swatch carries the same weight as its segment, or the legend names
+    // two blocks a reader cannot tell apart.
+    if (opacity != null) sw.style.opacity = String(opacity);
+    el.append(sw, document.createTextNode(
+      `${label} — ${n(sum)} (${Math.round((sum / floor) * 100)}%)`));
+    legend.append(el);
+  }
+
+  // An empty probe has no tool schemas and no client prompt, so the floor is
+  // entirely ours. That is honest and uninformative: say which measurement is
+  // on screen rather than letting it read as a claim about real sessions.
+  $("floor-scope").textContent = owners.has("client")
+    ? ""
+    : "— an empty session; paste a captured request below to see what your client adds";
+
+  const rows = b.items.map((i) => {
+    const tr = document.createElement("tr");
+    for (const [text, cls] of [[i.name, ""], [i.owner, ""],
+                               [n(i.tokens), "num"],
+                               [`${Math.round((i.tokens / (b.floor_tokens || 1)) * 100)}%`, "num"]]) {
+      const td = document.createElement("td");
+      td.className = cls; td.textContent = text; tr.append(td);
+    }
+    return tr;
+  });
+  const totalRow = document.createElement("tr");
+  totalRow.className = "total";
+  for (const [text, cls] of [["Floor", ""], ["", ""], [n(b.floor_tokens), "num"], ["", "num"]]) {
+    const td = document.createElement("td"); td.className = cls; td.textContent = text;
+    totalRow.append(td);
+  }
+  $("items").replaceChildren(...rows, totalRow);
+
+  $("served").textContent = n(b.served_context);
+  $("declared").textContent = n(b.declared_context);
+  $("reserve").textContent = n(b.compaction_reserve);
+  $("floor").textContent = n(b.floor_tokens);
+  $("working").textContent = n(b.working_tokens);
+  $("backend").textContent = b.exact ? `${b.backend} (exact)` : `${b.backend} (estimate)`;
+
+  const w = $("budget-warnings");
+  w.replaceChildren();
+  for (const text of b.warnings || []) {
+    const d = document.createElement("div");
+    d.className = "warnbox"; d.textContent = text; w.append(d);
+  }
+}
+
+// A model name, not an empty string. The gateway builds its token counter per
+// (upstream, model); with no model, `/tokenize` cannot answer and the budget
+// silently degrades to a ratio estimate -- which is exactly the failure the
+// budget module exists to prevent, and it was happening in its own dashboard.
+let probeModel = "";
+
+async function loadBudget(body) {
+  const EMPTY = { model: probeModel, messages: [{ role: "user", content: "" }] };
+  try {
+    renderBudget(await post("/v1/budget", body || EMPTY));
+  } catch (err) {
+    $("budget-warnings").replaceChildren(
+      Object.assign(document.createElement("div"),
+        { className: "warnbox", textContent: String(err) }));
+  }
+}
+
+// Characters per token on French and English technical prose, measured. Only
+// used to put an order of magnitude next to a character count; the authoritative
+// number is the one the budget tile gets from the server's tokenizer.
+const CHARS_PER_TOKEN = 4;
+
+async function loadCharter() {
+  const c = await get("/v1/charter");
+  $("fp").textContent = c.fingerprint.slice(0, 16);
+  const pageCount = Object.values(c.packs).reduce((a, v) => a + v.length, 0);
+  $("packs").textContent = `${Object.keys(c.packs).length} / ${pageCount}`;
+  $("blocks").textContent = [c.operating_rules, c.index].filter(Boolean).join("\n\n");
+
+  const injected = (c.operating_rules || "").length + (c.index || "").length;
+  $("idx-cost").textContent = `${n(injected)} chars ≈ ${n(Math.round(injected / CHARS_PER_TOKEN))} tokens`;
+  $("pages-cost").textContent = `${pageCount} page(s), 0 chars until one is opened`;
+
+  const holder = $("pages");
+  holder.replaceChildren();
+  for (const [pack, pages] of Object.entries(c.packs)) {
+    for (const page of pages) {
+      const ref = `${pack}/${page}`;
+      const b = document.createElement("button");
+      b.className = "page-btn";
+      b.type = "button";
+      b.textContent = ref;
+      b.addEventListener("click", async () => {
+        const target = $("page");
+        target.hidden = false;
+        target.textContent = "…";
+        try {
+          const p = await get(`/v1/charter/${ref}`);
+          target.textContent = p.content;
+          $("pages-cost").textContent =
+            `${n(p.content.length)} chars — and only because it was asked for`;
+        } catch (err) { target.textContent = String(err); }
+      });
+      holder.append(b);
+    }
+  }
+  return c;
+}
+
+async function loadLog() {
+  const body = $("log");
+  const note = $("log-note");
+  try {
+    const d = await get("/v1/decisions?limit=40");
+    if (!d.decisions.length) {
+      body.replaceChildren(Object.assign(document.createElement("tr"), {
+        innerHTML: '<td colspan="5" class="empty">Nothing has fired yet.</td>' }));
+      note.textContent = d.path ? `Reading ${d.path}.` : "";
+      return;
+    }
+    // The date repeats on every row and the time does not; showing the whole
+    // stamp made the widest, leftmost column the least informative one. Time
+    // only, and dimmed when it is the same request as the row above.
+    let previous = "";
+    body.replaceChildren(...d.decisions.reverse().map((r) => {
+      const tr = document.createElement("tr");
+      const stamp = (r.at || "").split("-").pop() || "";
+      const repeat = stamp === previous;
+      previous = stamp;
+      const cells = [
+        [repeat ? "″" : stamp, repeat ? "mono dim" : "mono"],
+        [r.rule, "mono"],
+        [r.scope, ""],
+        [r.outcome, `outcome-${r.outcome}`],
+        [n(r.count), "num"],
+      ];
+      for (const [text, cls] of cells) {
+        const td = document.createElement("td");
+        td.className = cls; td.textContent = text; tr.append(td);
+      }
+      if (r.outcome === "refused") tr.className = "refused-row";
+      return tr;
+    }));
+    const refused = d.decisions.filter((r) => r.outcome === "refused").length;
+    const date = (d.decisions[0]?.at || "").split("-")[0];
+    note.textContent =
+      `${d.total} decision(s) in ${d.path}${date ? `, latest ${date}` : ""}. ` +
+      `${refused} command(s) refused. The matched text is never written.`;
+  } catch (err) {
+    body.replaceChildren(Object.assign(document.createElement("tr"), {
+      innerHTML: `<td colspan="5" class="empty">${err}</td>` }));
+  }
+}
+
+$("measure").addEventListener("click", async () => {
+  const raw = $("req").value.trim();
+  if (!raw) return loadBudget();
+  try {
+    await loadBudget(JSON.parse(raw));
+  } catch {
+    $("budget-warnings").replaceChildren(Object.assign(document.createElement("div"), {
+      className: "warnbox",
+      textContent: "That is not valid JSON. Paste the request body your client sends, braces included.",
+    }));
+  }
+});
+$("reset-budget").addEventListener("click", () => { $("req").value = ""; loadBudget(); });
+
+async function boot() {
+  const h = await loadHealth().catch(() => null);
+  // Pick a model the gateway actually routes, so its tokenizer can answer and
+  // the budget shown here is the server's real count rather than an estimate.
+  try {
+    const models = await get("/v1/models");
+    probeModel = (models.data.find((m) => m.kind === "model") || models.data[0] || {}).id || "";
+  } catch { /* an unroutable gateway will say so in the budget tile */ }
+  await Promise.all([loadBudget(), loadCharter().catch(() => {}), loadLog()]);
+  if (h) setInterval(loadLog, 10000);
+}
+boot();
+</script>
+</body>
+</html>

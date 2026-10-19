@@ -1,0 +1,398 @@
+# ---------------------------------------------------------------------------
+# ai-bunker serving catalogue
+#
+# Datacenter-class models served by vLLM behind the gateway. This is NOT the
+# workstation catalogue: for "which model fits this laptop", ai-bunker defers to
+# best-engine-ai-helper, which already owns that question and the Ollama tags.
+# What is here is what a *server* needs and that catalogue does not carry:
+# weight footprint per quantization, KV-cache geometry, and the vLLM flags that
+# make the model usable by a tool-calling coding agent.
+#
+# Every number carries its provenance in `source`. Three values only:
+#   measured   counted on our own GPU — trust it
+#   vendor     published by the model's authors
+#   derived    computed here from geometry (see ai_bunker/sizing.py)
+#
+# KV-cache geometry. bytes/token = 2 (K and V) x layers x kv_heads x head_dim
+# x bytes_per_element. Verified against our own 32k/128k measurements for the
+# Mistral geometry: 2 x 40 x 8 x 128 x 2 B = 160 KiB/token -> 5.0 GiB at 32k and
+# 20.0 GiB at 128k in bf16, exactly the figures we measured.
+#
+# When geometry is unpublished, `kv.gib_per_1k` carries a measured rate instead.
+# ---------------------------------------------------------------------------
+
+models:
+
+  # --- Code LLMs ----------------------------------------------------------
+
+  - id: devstral-small-2-24b
+    hf: mistralai/Devstral-Small-2-24B-Instruct-2512
+    role: code
+    license: Apache-2.0
+    params_b: 24
+    dense: true
+    max_context: 262144
+    # Footprint per quantization, in GiB of weights.
+    weights:
+      bf16: 48
+      fp8: 25
+    active_fraction: 1.0          # dense: every parameter is read per token
+    kv: { layers: 40, kv_heads: 8, head_dim: 128 }
+    benchmarks: { swe_bench_verified: 68.0 }
+    recommended_quant: fp8
+    temperature: 0.15             # the authors' figure; this family is sensitive to it
+    vllm_flags:
+      - --enable-auto-tool-choice
+      - --tool-call-parser mistral
+    notes: >-
+      The no-friction choice. Same KV geometry and same tool-call parser as the
+      Mistral-Small generation it replaces, so switching is a one-line change
+      and an existing test suite stays valid. Trained for Claude-Code-style
+      harnesses. Avoid vLLM 0.22.1 (tool-call regression) and keep
+      mistral-common current.
+    source: { weights: measured, kv: measured, benchmarks: vendor }
+
+  - id: qwen3-coder-next
+    hf: Qwen/Qwen3-Coder-Next
+    awq: bullpoint/Qwen3-Coder-Next-AWQ-4bit
+    role: code
+    license: Apache-2.0
+    params_b: 80
+    params_active_b: 3            # MoE: 80B total, 3B active per token
+    dense: false
+    max_context: 262144
+    weights:
+      awq4: 45
+    active_fraction: 0.0375       # 3 / 80
+    # Geometry unpublished at catalogue time; this is the measured rate.
+    kv: { gib_per_1k: 0.0234 }    # -> ~6 GiB at 256k, as measured
+    benchmarks: { swe_bench_verified: 70.6 }
+    recommended_quant: awq4
+    temperature: 1.0              # the authors' figure for this family
+    top_p: 0.95
+    vllm_flags:
+      - --enable-auto-tool-choice
+      - --tool-call-parser qwen3_xml
+    notes: >-
+      The quality-per-gigabyte winner on paper, and the best decode economics in
+      the catalogue: 3B active parameters means a 24B-class latency from an
+      80B-class model, with an unusually small KV cache. Community AWQ
+      checkpoint; residual tool-parser bugs are still being tracked upstream.
+      Bench it against the incumbent before switching — that is what the second
+      vLLM instance is for.
+    source: { weights: measured, kv: measured, benchmarks: measured }
+
+  - id: glm-4.7-flash
+    hf: zai-org/GLM-4.7-Flash
+    role: code
+    license: MIT
+    params_b: 31
+    params_active_b: 3
+    dense: false
+    max_context: 131072
+    weights:
+      bf16: 62
+      fp8: 32
+    active_fraction: 0.097
+    kv: { gib_per_1k: 0.012 }     # MLA attention: unusually compact
+    benchmarks: { swe_bench_verified: 59.2 }
+    recommended_quant: fp8
+    temperature: 0.3
+    vllm_flags:
+      - --enable-auto-tool-choice
+    notes: >-
+      MIT licence and MLA attention make it the cheapest context in the
+      catalogue. Clearly behind the two above on SWE-bench; carried as the
+      permissive-licence fallback, not as a contender.
+    source: { weights: vendor, kv: vendor, benchmarks: vendor }
+
+  # --- Vision-language ----------------------------------------------------
+
+  - id: qwen3-vl-32b
+    hf: Qwen/Qwen3-VL-32B-Instruct
+    role: vision
+    license: Apache-2.0
+    params_b: 32
+    dense: true
+    max_context: 131072
+    weights:
+      bf16: 64
+      fp8: 35
+    active_fraction: 1.0
+    kv: { layers: 64, kv_heads: 8, head_dim: 128 }
+    benchmarks: { openvlm_average: 87 }
+    recommended_quant: fp8
+    temperature: 0.2
+    vllm_flags:
+      - --limit-mm-per-prompt '{"image":4}'
+    notes: >-
+      Serve it through vLLM with guided decoding. Do NOT drive this family
+      through Ollama's `format=` structured output: the reasoning variants
+      return an EMPTY response under it, which looks like a timeout and is not.
+    source: { weights: derived, kv: derived, benchmarks: vendor }
+
+  - id: qwen3-vl-8b
+    hf: Qwen/Qwen3-VL-8B-Instruct
+    role: vision
+    license: Apache-2.0
+    params_b: 8
+    dense: true
+    max_context: 131072
+    weights:
+      bf16: 17
+      fp8: 9
+    active_fraction: 1.0
+    kv: { layers: 36, kv_heads: 8, head_dim: 128 }
+    benchmarks: { openvlm_average: 80 }
+    recommended_quant: fp8
+    temperature: 0.2
+    vllm_flags:
+      - --limit-mm-per-prompt '{"image":4}'
+    notes: The co-resident option when vision has to fit in the gaps.
+    source: { weights: derived, kv: derived, benchmarks: vendor }
+
+  # --- Embeddings ---------------------------------------------------------
+
+  - id: bge-m3
+    hf: BAAI/bge-m3
+    role: embed
+    license: MIT
+    params_b: 0.567
+    dense: true
+    max_context: 8192
+    weights:
+      bf16: 1.2
+    active_fraction: 1.0
+    kv: { gib_per_1k: 0.0 }       # encoder-only: no autoregressive KV cache
+    benchmarks: {}
+    recommended_quant: bf16
+    vllm_flags:
+      - --task embed
+    notes: Multilingual FR/EN, multi-granular. Feeds the retrieval index.
+    source: { weights: vendor, kv: derived, benchmarks: vendor }
+
+# ---------------------------------------------------------------------------
+# Accelerators. Capacity decides whether a model loads; BANDWIDTH decides how
+# fast it answers and how many sessions it carries. Both are listed because
+# sizing by capacity alone is the mistake this catalogue exists to prevent.
+#
+# `price_usd` is the street price of the CARD, surveyed 2026-10-19. It is a
+# moving target and it has moved violently: the RTX PRO 6000 launched at $8,565
+# in March 2025 and sells for ~$16,000 today, +87% in eighteen months, and the
+# DGX Spark went from $3,999 to $6,950 for the 128 GB configuration. A 2026
+# sizing done on 2025 prices is wrong by a factor of two. Re-survey before
+# buying; `price_note` records what was seen and when.
+#
+# `node_extra_usd` is the rest of the machine around the card -- chassis, CPU,
+# system RAM, NVMe, PSU, cooling -- for a rack-ready build.
+#
+# `batching` grades the concurrency the runtime can actually deliver:
+#   vllm    paged attention and continuous batching -- Linux + discrete
+#           NVIDIA/AMD only. Sequences share the GPU properly.
+#   basic   Ollama-class parallel requests (OLLAMA_NUM_PARALLEL). Several
+#           conversations at once, without paged attention, so the KV cache is
+#           allocated per slot rather than per filled block and throughput
+#           degrades faster with the batch. Fine for a handful of people,
+#           wrong for a department.
+# The distinction matters most on Apple Silicon, which has real bandwidth and
+# a huge unified pool but no vLLM runtime.
+# ---------------------------------------------------------------------------
+
+accelerators:
+  - id: rtx-pro-6000-blackwell
+    name: NVIDIA RTX PRO 6000 Blackwell Server Edition
+    vram_gib: 96
+    bandwidth_gbs: 1792
+    fp8: true
+    tdp_w: 600
+    batching: vllm
+    price_usd: 16000
+    node_extra_usd: 4000
+    price_note: "NVIDIA marketplace $16,000; seen $12,999-$16,115 across resellers (2026-10)."
+    class: server
+
+  - id: h100-80
+    name: NVIDIA H100 80GB (SXM)
+    vram_gib: 80
+    bandwidth_gbs: 3350
+    fp8: true
+    tdp_w: 700
+    batching: vllm
+    price_usd: 28000
+    node_extra_usd: 12000
+    price_note: "SXM needs an HGX baseboard, hence the large node cost. PCIe NVL variants differ."
+    class: server
+
+  - id: a100-80
+    name: NVIDIA A100 80GB
+    vram_gib: 80
+    bandwidth_gbs: 2039
+    fp8: false                    # no FP8 compute on Ampere; fp8 KV storage is fine
+    tdp_w: 400
+    batching: vllm
+    price_usd: 15000
+    node_extra_usd: 6000
+    price_note: "Mostly a secondary-market buy in 2026. No FP8 compute: bf16 weights only."
+    class: server
+
+  - id: l40s
+    name: NVIDIA L40S
+    vram_gib: 48
+    bandwidth_gbs: 864
+    fp8: true
+    tdp_w: 350
+    batching: vllm
+    price_usd: 8000
+    node_extra_usd: 4000
+    class: server
+
+  - id: rtx-6000-ada
+    name: NVIDIA RTX 6000 Ada
+    vram_gib: 48
+    bandwidth_gbs: 960
+    fp8: true
+    tdp_w: 300
+    batching: vllm
+    price_usd: 7000
+    node_extra_usd: 3000
+    price_note: "Previous generation; superseded by the RTX PRO 5000 Blackwell at similar money."
+    class: workstation
+
+  - id: a6000
+    name: NVIDIA RTX A6000 / A40
+    vram_gib: 48
+    bandwidth_gbs: 768
+    fp8: false
+    tdp_w: 300
+    batching: vllm
+    price_usd: 5000
+    node_extra_usd: 3000
+    class: workstation
+
+  - id: rtx-4090
+    name: NVIDIA GeForce RTX 4090
+    vram_gib: 24
+    bandwidth_gbs: 1008
+    fp8: true
+    tdp_w: 450
+    batching: vllm
+    price_usd: 2500
+    node_extra_usd: 2000
+    class: workstation
+
+  - id: rtx-5090
+    name: NVIDIA GeForce RTX 5090
+    vram_gib: 32
+    bandwidth_gbs: 1792
+    fp8: true
+    tdp_w: 575
+    batching: vllm
+    price_usd: 5000
+    node_extra_usd: 2500
+    price_note: "Street price crossed $5,000 in late 2026 (MSRP $1,999). Consumer card: no ECC, 32 GB ceiling."
+    class: workstation
+
+  - id: rtx-pro-5000-48
+    name: NVIDIA RTX PRO 5000 Blackwell 48GB
+    vram_gib: 48
+    bandwidth_gbs: 1344
+    fp8: true
+    tdp_w: 300
+    batching: vllm
+    price_usd: 7200
+    node_extra_usd: 3000
+    price_note: "Surveyed $7,050-$7,416 (2026-10). ECC, 300 W, two slots."
+    class: small-team
+
+  - id: rtx-pro-5000-72
+    name: NVIDIA RTX PRO 5000 Blackwell 72GB
+    vram_gib: 72
+    bandwidth_gbs: 1344
+    fp8: true
+    tdp_w: 300
+    batching: vllm
+    price_usd: 9600
+    node_extra_usd: 3000
+    price_note: >-
+      Same die, same 384-bit bus and same 300 W as the 48 GB; clamshell GDDR7
+      buys 24 extra GiB for ~$2,400 and no extra bandwidth. Surveyed $9,599
+      (low) against a $12,500 twelve-month median (2026-10).
+    class: small-team
+
+  - id: mac-studio-m3-ultra-96
+    name: Apple Mac Studio M3 Ultra 96GB
+    vram_gib: 92                  # unified pool minus what macOS keeps
+    bandwidth_gbs: 819
+    fp8: false
+    tdp_w: 270
+    batching: basic
+    price_usd: 5600
+    node_extra_usd: 0
+    price_note: "Complete machine, not a card. 512 GB configuration ~$9,499."
+    caveat: >-
+      Real bandwidth and a huge unified pool, served through Ollama or MLX
+      because vLLM has no macOS runtime. Parallel requests work; paged
+      attention does not, so concurrency degrades faster than the arithmetic
+      here suggests. Credible for two or three people, not for a department.
+      No FP8 compute either: weights come as 4-bit or 8-bit MLX/GGUF quants.
+    class: personal
+
+  - id: mac-studio-m3-ultra-256
+    name: Apple Mac Studio M3 Ultra 256GB
+    vram_gib: 248
+    bandwidth_gbs: 819
+    fp8: false
+    tdp_w: 270
+    batching: basic
+    price_usd: 7400
+    node_extra_usd: 0
+    price_note: "Between the 96 GB (~$5,600) and the 512 GB (~$9,499) configurations."
+    caveat: Same runtime limits as the 96 GB; the capacity buys bigger models, not more speed.
+    class: personal
+
+  - id: mac-studio-m4-max-128
+    name: Apple Mac Studio M4 Max 128GB
+    vram_gib: 122
+    bandwidth_gbs: 546
+    fp8: false
+    tdp_w: 160
+    batching: basic
+    price_usd: 4000
+    node_extra_usd: 0
+    caveat: 546 GB/s — two thirds of an M3 Ultra. Capacity without the bandwidth to use it on dense models.
+    class: personal
+
+  - id: macbook-m2-max-96
+    name: Apple MacBook Pro M2 Max 96GB (existing)
+    vram_gib: 90
+    bandwidth_gbs: 400
+    fp8: false
+    tdp_w: 90
+    batching: basic
+    price_usd: 0
+    node_extra_usd: 0
+    price_note: "Already owned. Listed so 'buy nothing' is a costed option, not a shrug."
+    caveat: >-
+      A laptop is not a server: it sleeps, it travels, and it is the same
+      machine running the editor. Useful to prove the stack and to decide
+      whether a purchase is needed at all.
+    class: personal
+
+  - id: dgx-spark
+    name: NVIDIA DGX Spark (GB10)
+    vram_gib: 128
+    bandwidth_gbs: 273
+    fp8: true
+    tdp_w: 170
+    batching: vllm
+    price_usd: 6950
+    node_extra_usd: 0
+    price_note: >-
+      Complete machine. Raised to $6,950 for 128 GB in October 2026 (+75%);
+      a 64 GB configuration lands at $4,999 through partners.
+    class: developer-box
+    caveat: >-
+      Plenty of capacity, a tenth of the bandwidth of a server GPU. A 24B model
+      loads comfortably and answers slowly, and concurrent sessions make it
+      worse, because decode is bandwidth-bound. Excellent for one developer;
+      the wrong machine for a team.

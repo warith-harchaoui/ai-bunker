@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-bunker"
+version = "0.1.0"
+description = "Sovereign serving layer for coding agents: one GPU, one charter, a context budget the server actually counts."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = { text = "BSD-3-Clause" }
+authors = [{ name = "Warith Harchaoui", email = "warithmetics@deraison.ai" }]
+keywords = ["llm", "vllm", "gateway", "openai-compatible", "sovereignty", "coding-agent", "context-budget"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+# The suite does the heavy lifting: hardware detection, model selection and the
+# Ollama-vs-vLLM rule are not reimplemented here.
+dependencies = [
+  "os-helper>=0.1",
+  "best-engine-ai-helper>=1.4",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# The gateway surface. Not needed on a machine that only runs `sizing`/`doctor`.
+api = ["fastapi>=0.110", "uvicorn[standard]>=0.27", "httpx>=0.27"]
+mcp = ["fastapi-mcp>=0.1"]
+# Real tokenizer counting. Without it, budget falls back to a declared
+# characters-per-token ratio and SAYS SO rather than pretending to be exact.
+tokenizers = ["tokenizers>=0.15"]
+serve = ["vllm>=0.28"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11", "httpx>=0.27"]
+all = ["ai-bunker[api,mcp,tokenizers,dev]"]
+
+[project.scripts]
+ai-bunker = "ai_bunker.cli:main"
+
+[project.urls]
+Homepage = "https://deraison.ai/ai-helpers"
+Source = "https://github.com/warith-harchaoui/ai-bunker"
+
+[tool.setuptools.packages.find]
+include = ["ai_bunker*"]
+
+[tool.setuptools.package-data]
+ai_bunker = ["py.typed", "static/*.html"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

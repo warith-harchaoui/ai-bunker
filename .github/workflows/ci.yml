@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[api,mcp,dev]"
+
+      - name: Lint
+        run: ruff check ai_bunker tests scripts
+
+      - name: Format
+        run: ruff format --check ai_bunker tests scripts
+
+      - name: Tests
+        run: pytest -q
+
+      # The rules ship with their own examples, so the rule set is itself
+      # under test. A regular expression that silently stops matching is a
+      # guardrail that silently disappears, and this is what catches it.
+      - name: Rule evidence
+        run: ai-bunker rules --check
+
+      # The dashboard's two gates. Deterministic, no browser, no model.
+      - name: Dashboard contrast
+        run: python scripts/audit_contrast.py
+
+      - name: Dashboard accessibility
+        run: python scripts/lint_a11y.py
+
+      # A deployment claim that nobody checks is a deployment claim that
+      # drifts. `doctor` returns non-zero only on a broken rule set, so an
+      # unreachable upstream in CI is a warning rather than a failure.
+      - name: Doctor
+        run: ai-bunker doctor --config config/gateway.example.yaml

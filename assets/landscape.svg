@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1224" height="946" viewBox="0 0 1224 946" role="img" aria-labelledby="sp-title sp-desc" font-family="Roboto, -apple-system, Helvetica, Arial, sans-serif"><title id="sp-title">Serving layers in the Quadrant</title><desc id="sp-desc">A 2D positioning map of 9 serving layers, Resourceful to Disciplined on the horizontal axis, Protected to Managed on the vertical axis.</desc><style>.sp-dot{cursor:pointer}.sp-dot:hover circle,.sp-dot:focus circle{stroke-width:2.4}.sp-dot:hover,.sp-dot:focus{filter:brightness(1.08);outline:none}</style><line x1="235.9" y1="484.0" x2="988.1" y2="484.0" stroke="#C7C7CC" stroke-width="1.2" stroke-dasharray="2,4"/><line x1="612.0" y1="862.0" x2="612.0" y2="106.0" stroke="#C7C7CC" stroke-width="1.2" stroke-dasharray="2,4"/><text data-pole="right" x="1164.0" y="493.1" font-size="26" font-style="italic" fill="#6E6E73" text-anchor="end">Disciplined</text><text data-pole="left" x="60.0" y="493.1" font-size="26" font-style="italic" fill="#6E6E73" text-anchor="start">Resourceful</text><text data-pole="top" x="612.0" y="64.5" font-size="26" font-style="italic" fill="#6E6E73" text-anchor="middle">Managed</text><text data-pole="bottom" x="612.0" y="918.8" font-size="26" font-style="italic" fill="#6E6E73" text-anchor="middle">Protected</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: ai-bunker
+role: best
+axis1: 2.26
+axis2: 1.72"><circle cx="912.0" cy="259.0" r="8.65" fill="#FF3B30" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: ai-bunker
+role: best
+axis1: 2.26
+axis2: 1.72</title></g><text x="924.5" y="264.9" font-size="17" fill="#1C1C1E" text-anchor="start">ai-bunker</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: LiteLLM
+role: worst
+axis1: -1.89
+axis2: -0.08"><circle cx="360.8" cy="494.0" r="8.65" fill="#A52A2A" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: LiteLLM
+role: worst
+axis1: -1.89
+axis2: -0.08</title></g><text x="348.3" y="534.6" font-size="17" fill="#1C1C1E" text-anchor="end">LiteLLM</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Portkey
+role: top
+axis1: -2.26
+axis2: 1.72"><circle cx="312.0" cy="259.0" r="8.65" fill="#AF52DE" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Portkey
+role: top
+axis1: -2.26
+axis2: 1.72</title></g><text x="324.5" y="264.9" font-size="17" fill="#1C1C1E" text-anchor="start">Portkey</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Kong AI Gateway
+role: competitor
+axis1: -1.47
+axis2: -0.28"><circle cx="416.5" cy="520.4" r="8.65" fill="#E482A1" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Kong AI Gateway
+role: competitor
+axis1: -1.47
+axis2: -0.28</title></g><text x="429.0" y="526.4" font-size="17" fill="#1C1C1E" text-anchor="start">Kong AI Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: NeMo Guardrails
+role: competitor
+axis1: 0.53
+axis2: -0.22"><circle cx="682.8" cy="513.3" r="8.65" fill="#B0A7FF" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: NeMo Guardrails
+role: competitor
+axis1: 0.53
+axis2: -0.22</title></g><text x="695.3" y="519.3" font-size="17" fill="#1C1C1E" text-anchor="start">NeMo Guardrails</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Guardrails AI
+role: competitor
+axis1: 0.14
+axis2: -0.55"><circle cx="630.5" cy="556.5" r="8.65" fill="#62A962" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Guardrails AI
+role: competitor
+axis1: 0.14
+axis2: -0.55</title></g><text x="643.0" y="562.5" font-size="17" fill="#1C1C1E" text-anchor="start">Guardrails AI</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: LLM Guard
+role: competitor
+axis1: 0.01
+axis2: -0.83"><circle cx="613.6" cy="593.1" r="8.65" fill="#B47819" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: LLM Guard
+role: competitor
+axis1: 0.01
+axis2: -0.83</title></g><text x="626.1" y="599.0" font-size="17" fill="#1C1C1E" text-anchor="start">LLM Guard</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Open Policy Agent
+role: right
+axis1: 2.26
+axis2: -1.72"><circle cx="912.0" cy="709.0" r="8.65" fill="#007AFF" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Open Policy Agent
+role: right
+axis1: 2.26
+axis2: -1.72</title></g><text x="899.5" y="715.0" font-size="17" fill="#1C1C1E" text-anchor="end">Open Policy Agent</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Client-side harness config
+role: competitor
+axis1: 1.13
+axis2: -1.50"><circle cx="761.8" cy="679.9" r="8.65" fill="#4CD8F8" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Client-side harness config
+role: competitor
+axis1: 1.13
+axis2: -1.50</title></g><text x="749.3" y="685.9" font-size="17" fill="#1C1C1E" text-anchor="end">Client-side harness config</text><text x="612.0" y="26" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">Serving layers in the Quadrant</text></svg>

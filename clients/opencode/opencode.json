@@ -1,0 +1,119 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "// ai-bunker": [
+    "Thin by design. The charter, the rule engine and the budget all live",
+    "behind the gateway, so this file carries only what happens before a",
+    "request exists: bounded reads, no skill injection, early compaction.",
+    "",
+    "AI_BUNKER_URL and AI_BUNKER_API_KEY come from the environment, so this",
+    "file is committable."
+  ],
+
+  "provider": {
+    "ai-bunker": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "ai-bunker gateway",
+      "options": {
+        "baseURL": "{{AI_BUNKER_URL}}",
+        "apiKey": "{{AI_BUNKER_API_KEY}}"
+      },
+      "models": {
+        "{{AI_BUNKER_MODEL}}": {
+          "name": "{{AI_BUNKER_MODEL}} (via ai-bunker)",
+          "tool_call": true,
+          "limit": {
+            "// context": [
+              "Declared BELOW what the engine serves. A client estimates its",
+              "own tokens with its own rule and under-counts; one measured",
+              "session believed it was under 32,768 and sent 40,433, and the",
+              "server refused the whole request. GET /v1/models publishes the",
+              "figure the gateway expects; raising this past it means being",
+              "refused eventually."
+            ],
+            "context": {{AI_BUNKER_DECLARED_CONTEXT}},
+            "output": 8192
+          }
+        }
+      }
+    }
+  },
+
+  "model": "ai-bunker/{{AI_BUNKER_MODEL}}",
+  "small_model": "ai-bunker/{{AI_BUNKER_MODEL}}",
+
+  "share": "disabled",
+  "autoupdate": false,
+
+  "compaction": {
+    "// why": [
+      "Compaction is client-side: the gateway never sees it. Starting early",
+      "and pruning old tool output is what keeps a turn from growing past the",
+      "declared context between two requests, which is the window the server",
+      "cannot protect."
+    ],
+    "auto": true,
+    "prune": true,
+    "preserve_recent_tokens": 6000,
+    "reserved": {{AI_BUNKER_COMPACTION_RESERVE}}
+  },
+
+  "tools": {
+    "// why": [
+      "skill: a harness that injects every locally-installed skill",
+      "  description into the system prompt pays for all of them on every",
+      "  request. Measured on one workstation: 59 skills, 17,754 tokens, 68%",
+      "  of the session floor. The gateway can refuse such a session and name",
+      "  the culprit; only the client can stop building it.",
+      "todowrite: a task list is paid twice, once as a tool schema on every",
+      "  request and once as the list itself. The charter already carries the",
+      "  working discipline.",
+      "webfetch/websearch: these route through a third-party API. Off, so the",
+      "  sovereignty claim stays true at the client as well as the server."
+    ],
+    "skill": false,
+    "todowrite": false,
+    "webfetch": false,
+    "websearch": false
+  },
+
+  "tool_output": {
+    "// why": [
+      "The gateway screens a tool result but cannot shrink it: by the time it",
+      "arrives, the tokens are in the request. Native truncation writes the",
+      "full output to disk and returns a preview, so nothing is lost."
+    ],
+    "max_lines": 200,
+    "max_bytes": 16000
+  },
+
+  "permission": {
+    "// why": [
+      "The gateway refuses dangerous commands, and that refusal cannot be",
+      "bypassed. This block is a second, independent barrier for the moments",
+      "the gateway is not in the path at all -- a direct model call, an",
+      "offline session. Two mechanisms beat one."
+    ],
+    "external_directory": "ask",
+    "bash": {
+      "git push --force*": "deny",
+      "git push*": "ask",
+      "rm -rf*": "ask",
+      "*": "allow"
+    }
+  },
+
+  "agent": {
+    "build": { "temperature": {{AI_BUNKER_TEMPERATURE}} },
+    "plan": { "temperature": {{AI_BUNKER_TEMPERATURE}} },
+    "explore": { "temperature": {{AI_BUNKER_TEMPERATURE}} },
+    "general": { "disable": true }
+  },
+
+  "watcher": {
+    "ignore": [
+      ".git/**", "node_modules/**", "dist/**", "build/**",
+      "coverage/**", "vendor/**", "__pycache__/**", "*.log"
+    ]
+  }
+}
