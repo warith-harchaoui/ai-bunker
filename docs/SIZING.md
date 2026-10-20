@@ -8,6 +8,20 @@ that reproduces every number.
 > published measurements, the prices are observed listings, and both are shown
 > so you can disagree with either.
 
+**The notation, once, because the rest of this document is made of it.** A
+**GPU** is a graphics processing unit, the chip or card a model's weights are
+read from, and **VRAM** is its video random-access memory — on a discrete card,
+all the room a model has. An **LLM** is a large language model. **B** counts
+billions of parameters, so a *24B* model carries 24 billion weights. **bf16**,
+**FP8**, **Q4** and **AWQ4** say how many bits each of those weights is stored
+on: bf16 is the 16-bit *brain floating point* format models are trained in, FP8
+is 8-bit floating point, Q4 a 4-bit quantisation, and AWQ4 *activation-aware
+weight quantisation* at 4 bits. **GB** is gigabytes; **GiB** gibibytes and
+**KiB** kibibytes, the powers-of-two kind, 2³⁰ and 2¹⁰ bytes apiece. **tok/s**
+is tokens per second. And the **KV cache** is the key–value cache, what a model
+keeps about the tokens already in a conversation — it grows with the context
+and is re-read for every token generated.
+
 **The short answer.** Don't buy yet. Run the model on the Mac you already own
 and measure it — the arithmetic says it already clears the bar. If it does, the
 cheapest real upgrade is a **$5,600 Mac Studio**, not a $12,600 GPU. The GPU
@@ -47,7 +61,8 @@ true read sits between the two; the floor keeps a large batch from being
 credited with single-stream economics.
 
 **This is the whole finding.** The best open coding model available
-(Qwen3-Coder-Next, SWE-bench Verified 70.6) is also the *fastest* to serve, and
+(Qwen3-Coder-Next, 70.6 on SWE-bench Verified, a software engineering
+benchmark) is also the *fastest* to serve, and
 it is nearly three times faster than the safe 24B dense choice on the same
 hardware. Choosing a smaller model to go faster is, here, exactly backwards.
 
@@ -98,7 +113,8 @@ Two things in that table deserve to be said out loud.
 **The 48 GB NVIDIA card cannot run the best model at all.** 45 GiB of weights
 plus a vision model plus overhead does not fit in 48 GiB. On NVIDIA, the
 entry ticket for Qwen3-Coder-Next is the **72 GB** card at $12,600. On Apple it
-is a $5,600 Mac Studio, because unified memory is cheap and GDDR7 is not.
+is a $5,600 Mac Studio, because unified memory is cheap and GDDR7 — graphics
+double data rate memory, seventh generation — is not.
 
 **The DGX Spark still loses, but not for the reason usually given.** It is not
 short of memory — it has 128 GB. At 273 GB/s it serves the best coder model at
@@ -172,7 +188,8 @@ points rather than printing a clean-looking table over a busy machine.
 
 What this does **not** establish, said plainly:
 
-- It is a 4B dense VLM, not the 80B MoE coder the recommendation rests on.
+- It is a 4B dense vision-language model (VLM), not the 80B MoE coder the
+  recommendation rests on.
   The shape of the curve should carry over; the absolute numbers will not.
 - It does **not** validate the 70% bandwidth-efficiency assumption. Decode
   time per token is `fixed overhead + bytes / bandwidth`, and one model size
@@ -181,8 +198,8 @@ What this does **not** establish, said plainly:
   measurement of it, because any real fixed overhead has been billed to
   bandwidth. A second model of a different size would settle it, and the 35%
   should not be quoted as though it already had.
-- One engine on one platform. llama.cpp on Metal and vLLM on CUDA do not carry
-  the same overheads.
+- One engine on one platform. llama.cpp on Metal and vLLM on CUDA — NVIDIA's
+  Compute Unified Device Architecture — do not carry the same overheads.
 
 One pleasant check does fall out: the slope implies roughly 160 KiB of KV read
 per context token at nominal bandwidth, which is within noise of the geometry
@@ -207,7 +224,8 @@ This is the one thing Apple cannot do today, and it is worth stating precisely
 because it is the only argument that justifies doubling the spend.
 
 Driving a vision-language model from an agent means **constrained decoding**:
-the model must return JSON matching a schema, every time. vLLM has guided
+the model must return JavaScript Object Notation (JSON) matching a schema,
+every time. vLLM has guided
 decoding; Ollama's `format=` equivalent is weaker, and on the Qwen3-VL
 reasoning variants it returns an **empty response**, which looks like a timeout
 and is not. vLLM has no macOS runtime. So:
@@ -231,7 +249,7 @@ running the best model and not running it, so it is the right $2,400.
 | RTX PRO 5000 48 GB | $10,200 | Cannot hold the best model. More expensive than a Mac Studio that can. |
 | RTX PRO 6000 96 GB | $20,000 | Correct for thirty people. For two it is ~$10,000 of headroom nobody will reach. |
 | H100 80 GB | $40,000 | Fastest per stream and irrelevant at this scale. |
-| RTX 5090 32 GB | $7,500 | Fast, and 32 GB holds a dense 24B with almost no KV cache. Consumer card, no ECC. |
+| RTX 5090 32 GB | $7,500 | Fast, and 32 GB holds a dense 24B with almost no KV cache. Consumer card, no ECC — error-correcting code — memory. |
 
 ---
 
@@ -250,7 +268,8 @@ Say it before the quote is signed.
 The GPU market moved roughly 80% in eighteen months, in the wrong direction for
 a buyer. A card bought today is cheap-looking in two years and obsolete in
 three. **If sovereignty is a preference, rent or route. If it is a requirement
-— NDA'd client code, data residency in a tender — the calculation above is
+— client code under an NDA, a non-disclosure agreement; data residency in a
+tender — the calculation above is
 irrelevant and the answer is the machine.**
 
 ---
@@ -285,7 +304,7 @@ ai-bunker detect                                      # this machine
 ```
 
 The one figure here that is measured rather than projected, against any
-engine with an Ollama-compatible API:
+engine with an Ollama-compatible application programming interface (API):
 
 ```bash
 ollama serve &

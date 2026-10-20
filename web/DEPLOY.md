@@ -41,16 +41,18 @@ python3 publish.py --check        # links, hreflang, canonicals, asset depth
 ```
 
 It refuses to assemble a tree when a local link does not resolve, because a
-404 discovered after upload costs a round trip through someone else's SFTP.
+404 discovered after upload costs a round trip through someone else's SFTP —
+the SSH File Transfer Protocol, SSH being Secure Shell.
 
 ## Writing a page
 
 One module per page and per language in `pages/<slug>.<lang>.py`, exposing
 `TITLE`, `DESCRIPTION`, `BODY` and optionally `EXTRA_HEAD`. The shell —
-meta tags, JSON-LD wrapper, header, footer, theme script — is shared, so the
+meta tags, the JSON-LD wrapper (JavaScript Object Notation for Linked Data),
+header, footer, theme script — is shared, so the
 header is edited once rather than eight times.
 
 The pages are **written by hand**, not generated from the Markdown. That is a
-deliberate choice and it carries a risk: the figures quoted here (354 tests,
+deliberate choice and it carries a risk: the figures quoted here (569 tests,
 19 rules, 120 assertions) can drift from the repository. `tests/test_site.py`
 asserts they match.

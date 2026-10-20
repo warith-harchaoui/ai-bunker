@@ -6,14 +6,17 @@ From: Paris, France
 
 /* SITE */
 
-Standards: HTML5, Tailwind CSS (self-hosted build, no CDN), vanilla JavaScript
-Typography: Roboto, Roboto Serif, Roboto Mono — self-hosted, SIL OFL
+Standards: HTML5, Tailwind CSS — Cascading Style Sheets — built and self-hosted,
+           with no CDN, no content delivery network, anywhere; vanilla JavaScript
+Typography: Roboto, Roboto Serif, Roboto Mono — self-hosted, under the SIL Open
+           Font License (OFL)
 Components: no framework, no tracker, no third-party request
 Doctype: HTML5
 Language: English, French
 
 /* NOTE */
 
-There is no logo yet. The mark is a placeholder drawn in SVG: a bunker's arch
+There is no logo yet. The mark is a placeholder drawn in SVG, Scalable Vector
+Graphics: a bunker's arch
 over a bounded bar, which is the session floor this project is about. It will be
 replaced wholesale, and nothing references its internals.

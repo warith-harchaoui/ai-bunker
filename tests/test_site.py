@@ -47,6 +47,7 @@ PROSE = [
     ROOT / "EXAMPLES.md",
     ROOT / "EXEMPLES.md",
     WEB / "DEPLOY.md",
+    WEB / "llms.txt",
 ]
 
 
@@ -85,8 +86,15 @@ def test_the_documentation_quotes_the_real_test_count(all_prose):
 
 
 def test_the_site_has_both_languages():
-    assert len(list(WEB.glob("*.html"))) == 4
-    assert len(list((WEB / "fr").glob("*.html"))) == 4
+    """A correspondence rather than a count. A page written in one language and
+    forgotten in the other is the failure worth catching; a hard-coded 4 caught
+    it only until the next page was added, and then failed on the language that
+    had been done right."""
+    pages = WEB / "pages"
+    slugs = {p.name.removesuffix(".en.py") for p in pages.glob("*.en.py")}
+    assert slugs == {p.name.removesuffix(".fr.py") for p in pages.glob("*.fr.py")}
+    assert {p.stem for p in WEB.glob("*.html")} == slugs
+    assert {p.stem for p in (WEB / "fr").glob("*.html")} == slugs
 
 
 # ---------------------------------------------------------------------------

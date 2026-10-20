@@ -66,6 +66,24 @@ BODY = (
         whether it is usable.</strong> Sizing on the first and ignoring the second is how a
         machine with plenty of memory ends up answering too slowly to keep.
       </p>
+      <p class="mt-5 max-w-2xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+        The notation on this page, once. A <strong class="font-semibold">GPU</strong> is a
+        graphics processing unit and <strong class="font-semibold">VRAM</strong> is its video
+        random-access memory. <strong class="font-semibold">B</strong> counts billions of
+        parameters, so a <em>24B</em> model carries 24 billion weights.
+        <strong class="font-semibold">bf16</strong>, <strong class="font-semibold">FP8</strong>,
+        <strong class="font-semibold">Q4</strong> and <strong class="font-semibold">AWQ4</strong>
+        say how many bits each weight is stored on: the 16-bit <em>brain floating point</em>
+        training format, 8-bit floating point, a 4-bit quantisation, and
+        <em>activation-aware weight quantisation</em> at 4 bits.
+        <strong class="font-semibold">GB</strong> is gigabytes;
+        <strong class="font-semibold">GiB</strong> is gibibytes, the powers-of-two kind, about 7%
+        larger. <strong class="font-semibold">tok/s</strong> is tokens per second. An
+        <strong class="font-semibold">MoE</strong> is a mixture of experts, a model where each
+        token activates only a fraction of the weights, and a
+        <strong class="font-semibold">VLM</strong> is a vision-language model, which reads images
+        as well as text.
+      </p>
     </section>
 
     <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
@@ -133,7 +151,7 @@ BODY = (
           <strong class="font-semibold text-neutral-900 dark:text-neutral-100">The 48 GB NVIDIA card
           cannot run the best model at all.</strong> On NVIDIA the entry ticket is the 72 GB card
           at $12,600; on Apple it is a $5,600 Mac Studio, because unified memory is cheap and
-          GDDR7 is not.
+          GDDR7 — graphics double data rate memory, seventh generation — is not.
         </p>
         <p class="rounded-2xl border border-neutral-200 p-5 leading-relaxed text-neutral-700 dark:border-neutral-800 dark:text-neutral-300">
           <strong class="font-semibold text-neutral-900 dark:text-neutral-100">The DGX Spark loses

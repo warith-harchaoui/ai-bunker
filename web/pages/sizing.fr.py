@@ -66,6 +66,24 @@ BODY = (
         décide s'il est utilisable.</strong> Dimensionner sur la première en ignorant la seconde,
         c'est acheter une machine pleine de mémoire qui répond trop lentement pour être gardée.
       </p>
+      <p class="mt-5 max-w-2xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+        La notation de cette page, une fois pour toutes. Un <strong class="font-semibold">GPU</strong>
+        est un processeur graphique, et le <strong class="font-semibold">VRAM</strong> sa mémoire
+        vidéo. <strong class="font-semibold">B</strong> compte les milliards de paramètres : un
+        modèle <em>24B</em> porte 24 milliards de poids.
+        <strong class="font-semibold">bf16</strong>, <strong class="font-semibold">FP8</strong>,
+        <strong class="font-semibold">Q4</strong> et <strong class="font-semibold">AWQ4</strong>
+        disent sur combien de bits chaque poids est stocké : le format <em>brain floating
+        point</em> sur 16 bits, la virgule flottante sur 8 bits, une quantification sur 4 bits,
+        et une quantification des poids sur 4 bits tenant compte des activations.
+        <strong class="font-semibold">Go</strong> est le gigaoctet ;
+        <strong class="font-semibold">Gio</strong> le gibioctet, celui des puissances de deux,
+        environ 7 % plus grand. <strong class="font-semibold">tok/s</strong> compte les tokens par
+        seconde. Un <strong class="font-semibold">MoE</strong> est un mélange d'experts, un modèle
+        où chaque token n'active qu'une fraction des poids, et un
+        <strong class="font-semibold">VLM</strong> est un modèle vision-langue, qui lit les images
+        aussi bien que le texte.
+      </p>
     </section>
 
     <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
@@ -123,7 +141,8 @@ BODY = (
           <strong class="font-semibold text-neutral-900 dark:text-neutral-100">La carte NVIDIA
           48 Go ne peut pas faire tourner le meilleur modèle du tout.</strong> Sur NVIDIA le
           ticket d'entrée est la carte 72 Go à 12 600 $ ; sur Apple c'est un Mac Studio à
-          5 600 $, parce que la mémoire unifiée est bon marché et pas la GDDR7.
+          5 600 $, parce que la mémoire unifiée est bon marché et pas la GDDR7 — <em>graphics
+          double data rate</em>, septième génération.
         </p>
         <p class="rounded-2xl border border-neutral-200 p-5 leading-relaxed text-neutral-700 dark:border-neutral-800 dark:text-neutral-300">
           <strong class="font-semibold text-neutral-900 dark:text-neutral-100">Le DGX Spark perd

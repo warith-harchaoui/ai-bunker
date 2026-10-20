@@ -4,12 +4,16 @@
 
 Tools that sit between a coding agent and a model, compared against `ai-bunker`.
 Ratings are ⭐ (1) to ⭐⭐⭐⭐⭐ (5), scored on this project's intended job: **stand in
-front of your own GPU and enforce, for every client, a charter, a rule engine and a
-context budget the server actually counts.**
+front of your own graphics processing unit (GPU) and enforce, for every client, a
+charter, a rule engine and a context budget the server actually counts.**
 
 A tool optimised for a different job is not being criticised; the score reflects fit to
 *this* niche. Several entries below are excellent at theirs, and three of them are
 better than this project at something named in the table.
+
+Two abbreviations run through the names in the table and the prose after it: **AI**
+is artificial intelligence, and an **LLM** is a large language model — the kind of
+model every tool here stands in front of.
 
 Surveyed 2026-10-19.
 
@@ -32,7 +36,8 @@ Surveyed 2026-10-19.
 ## Positioning map
 
 <!-- FIGURE:START -->
-2D representation of the table above, by PCA (see [`standpoint`](https://github.com/warith-harchaoui/standpoint)).
+A two-dimensional representation of the table above, by principal component
+analysis (PCA) (see [`standpoint`](https://github.com/warith-harchaoui/standpoint)).
 
 ![Positioning map](https://raw.githubusercontent.com/warith-harchaoui/ai-bunker/main/assets/landscape.png)
 
@@ -51,7 +56,8 @@ is reading or about to run: a tool result full of secrets and a `rm -rf ~` pass 
 a gateway as ordinary bytes.
 
 **Centre and lower right — the rule engines.** NeMo Guardrails, Guardrails AI, LLM
-Guard. They inspect content properly — PII, toxicity, injection, schema conformance —
+Guard. They inspect content properly — personally identifiable information (PII),
+toxicity, injection, schema conformance —
 and several do it better than this project does. What they are not is a gateway: they
 are libraries you call from your own application, which means an agent that does not
 call them is unprotected, and swapping harness loses them entirely.
@@ -111,7 +117,8 @@ None of this was invented here, and saying so costs nothing.
 
 - **Open Policy Agent: policy carries its own tests, and decisions are logged from day
   one.** Both are now load-bearing here — every shipped rule has `examples:` checked in
-  CI, and that caught three wrong patterns before they reached a deployment.
+  continuous integration (CI), and that caught three wrong patterns before they reached
+  a deployment.
 - **gitleaks: regex *and* an entropy gate, plus per-rule allowlists.** A scanner that
   cries wolf teaches its readers to ignore it. The entropy threshold here was measured
   rather than guessed.
@@ -126,7 +133,8 @@ None of this was invented here, and saying so costs nothing.
 
 ### LiteLLM
 
-The de-facto open-source gateway: MIT, self-hostable, one OpenAI-shaped surface over a
+The de-facto open-source gateway: licensed under the terms the Massachusetts Institute
+of Technology gave its name to (MIT), self-hostable, one OpenAI-shaped surface over a
 hundred-plus providers, with virtual keys, budgets, fallbacks and retries. For sovereign
 deployments it is the standard answer, and deservedly.
 
@@ -138,15 +146,16 @@ LiteLLM gets both, and that is a reasonable deployment.
 
 Gateway plus guardrails plus prompt versioning, with the broadest feature list in the
 field. The catch for this niche is where those features run: semantic caching, guardrails
-and versioning are primarily hosted-SaaS, and the on-premises option is enterprise. A
+and versioning are primarily hosted SaaS — software as a service, running on the
+vendor's machines — and the on-premises option is enterprise. A
 guardrail that evaluates on someone else's servers is a guardrail that has already seen
 the prompt.
 
 ### Kong AI Gateway
 
 Makes sense when a gateway must live inside infrastructure you already run — and only
-then. Heavy to operate otherwise, with PII redaction and enterprise SSO behind a paid
-licence.
+then. Heavy to operate otherwise, with PII redaction and enterprise single sign-on
+(SSO) behind a paid licence.
 
 ### NeMo Guardrails
 
@@ -154,8 +163,9 @@ NVIDIA, Apache 2.0. Programmable rails in Colang across five rail types, with re
 dialogue-flow control that regular expressions cannot express. The strongest of the rule
 engines on expressiveness.
 
-The trade is the DSL. Colang is a learning cost paid by every reader of a rule file; this
-project's rules are regexes in YAML with a description, which re-read without a manual.
+The trade is the DSL — a domain-specific language. Colang is a learning cost paid by
+every reader of a rule file; this project's rules are regexes in YAML, a configuration
+file format, with a description, and they re-read without a manual.
 That trade is defensible at two people and gets worse as the rules get subtler.
 
 ### Guardrails AI

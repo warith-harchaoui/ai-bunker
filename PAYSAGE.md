@@ -4,12 +4,17 @@
 
 Les outils qui se placent entre un agent de code et un modèle, comparés à `ai-bunker`.
 Notes de ⭐ (1) à ⭐⭐⭐⭐⭐ (5), évaluées sur le travail que ce projet se donne :
-**se tenir devant votre propre GPU et imposer, à tous les clients, une charte, un moteur
-de règles et un budget de contexte que le serveur compte vraiment.**
+**se tenir devant votre propre processeur graphique (GPU) et imposer, à tous les
+clients, une charte, un moteur de règles et un budget de contexte que le serveur
+compte vraiment.**
 
 Un outil conçu pour un autre travail n'est pas critiqué ; la note reflète l'adéquation à
 **ce** créneau. Plusieurs des entrées ci-dessous sont excellentes dans le leur, et trois
 d'entre elles battent ce projet sur une colonne du tableau.
+
+Deux sigles traversent les noms du tableau et la prose qui suit : **AI** est
+l'anglais pour intelligence artificielle, et un **LLM** est un grand modèle de
+langue — le genre de modèle devant lequel se tiennent tous les outils cités ici.
 
 Relevé le 19/10/2026.
 
@@ -32,7 +37,8 @@ Relevé le 19/10/2026.
 ## Carte de positionnement
 
 <!-- FIGURE:START -->
-Représentation 2D du tableau ci-dessus, par ACP (voir [`standpoint`](https://github.com/warith-harchaoui/standpoint)).
+Représentation en deux dimensions du tableau ci-dessus, par analyse en composantes
+principales (ACP) (voir [`standpoint`](https://github.com/warith-harchaoui/standpoint)).
 
 ![Carte de positionnement](https://raw.githubusercontent.com/warith-harchaoui/ai-bunker/main/assets/landscape.png)
 
@@ -114,7 +120,8 @@ Rien de tout cela n'a été inventé ici, et le dire ne coûte rien.
 
 - **Open Policy Agent : la politique porte ses tests, et les décisions sont journalisées
   dès le premier jour.** Les deux sont désormais porteurs ici — chaque règle livrée a ses
-  `examples:` vérifiés en CI, et ça a attrapé trois motifs faux avant tout déploiement.
+  `examples:` vérifiés en intégration continue (CI), et ça a attrapé trois motifs
+  faux avant tout déploiement.
 - **gitleaks : regex **et** seuil d'entropie, plus des listes d'exception par règle.** Un
   scanner qui crie au loup apprend à ses lecteurs à l'ignorer. Le seuil d'entropie ici a
   été mesuré, pas deviné.
@@ -130,7 +137,8 @@ Rien de tout cela n'a été inventé ici, et le dire ne coûte rien.
 
 ### LiteLLM
 
-La passerelle open-source de référence : MIT, auto-hébergeable, une surface compatible
+La passerelle open-source de référence : sous la licence qui porte le nom du
+Massachusetts Institute of Technology (MIT), auto-hébergeable, une surface compatible
 OpenAI sur plus de cent fournisseurs, avec clés virtuelles, budgets, replis et reprises.
 Pour un déploiement souverain, c'est la réponse standard, et à juste titre.
 
@@ -144,14 +152,16 @@ raisonnable.
 Passerelle plus garde-fous plus versionnement de prompts, avec la liste de
 fonctionnalités la plus large du domaine. Le hic pour ce créneau est l'endroit où ces
 fonctionnalités s'exécutent : cache sémantique, garde-fous et versionnement sont d'abord
-du SaaS hébergé, et l'option sur site est réservée à l'offre entreprise. Un garde-fou qui
+du SaaS hébergé — du logiciel en tant que service, tournant sur les machines du
+fournisseur — et l'option sur site est réservée à l'offre entreprise. Un garde-fou qui
 s'évalue sur les serveurs d'un tiers est un garde-fou qui a déjà vu le prompt.
 
 ### Kong AI Gateway
 
 Pertinent quand une passerelle doit vivre dans une infrastructure que vous exploitez
 déjà — et seulement alors. Lourd à opérer sinon, avec la censure des données personnelles
-et le SSO entreprise derrière une licence payante.
+et le SSO entreprise — *single sign-on*, l'authentification unique — derrière une
+licence payante.
 
 ### NeMo Guardrails
 
@@ -160,9 +170,9 @@ de flux de dialogue que les expressions régulières ne savent pas exprimer. Le 
 expressif des moteurs de règles.
 
 L'arbitrage, c'est le langage dédié. Colang est un coût d'apprentissage payé par chaque
-lecteur d'un fichier de règles ; ici ce sont des regex en YAML avec une description, qui
-se relisent sans manuel. Cet arbitrage se défend à deux personnes et se dégrade à mesure
-que les règles se raffinent.
+lecteur d'un fichier de règles ; ici ce sont des regex en YAML, un format de fichier de
+configuration, avec une description, et elles se relisent sans manuel. Cet arbitrage se
+défend à deux personnes et se dégrade à mesure que les règles se raffinent.
 
 ### Guardrails AI
 

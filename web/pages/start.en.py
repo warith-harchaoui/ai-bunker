@@ -43,7 +43,8 @@ BODY = r"""
             <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">01</span>Install
           </h2>
           <p class="mt-3 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
-            Python 3.10–3.13 and git. A GPU is needed only on the machine that <em>serves</em>;
+            Python 3.10–3.13 and git. A GPU — a graphics processing unit — is needed only on
+            the machine that <em>serves</em>;
             clients need neither.
           </p>
           <pre class="mt-5 overflow-x-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-5 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>git clone https://github.com/warith-harchaoui/ai-bunker.git
@@ -95,7 +96,8 @@ $ ai-bunker doctor
           <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
             <code class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-sm dark:bg-neutral-800">doctor</code>
             reports what the deployment <em>actually</em> does, including that a gateway without
-            an API key is open to anyone who can reach it. Open by accident and open on purpose
+            an API key — an application programming interface key — is open to anyone who
+            can reach it. Open by accident and open on purpose
             look identical from outside; this is what tells them apart.
           </p>
         </li>
@@ -154,7 +156,7 @@ Adopting ai-bunker into /path/to/project:
       <div class="mt-14 rounded-2xl border border-neutral-200 bg-neutral-50 p-6 dark:border-neutral-800 dark:bg-neutral-900/40">
         <h2 class="font-serif text-xl font-semibold tracking-tight">Before you depend on it</h2>
         <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
-          This is <code class="font-mono text-sm">0.1.0-alpha</code>: 560 tests and a green CI
+          This is <code class="font-mono text-sm">0.1.0-alpha</code>: 569 tests and a green continuous-integration (CI)
           gate, next to projects with years of production use. Command screening does not apply
           to streamed completions, and <code class="font-mono text-sm">/health</code> reports
           which guarantees are live rather than implying all of them are.

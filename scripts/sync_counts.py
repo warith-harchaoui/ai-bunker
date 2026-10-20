@@ -41,6 +41,7 @@ SOURCES = [
     ROOT / "EXAMPLES.md",
     ROOT / "EXEMPLES.md",
     WEB / "DEPLOY.md",
+    WEB / "llms.txt",
 ]
 
 
@@ -87,15 +88,19 @@ def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
     return [
         (re.compile(r"\b\d+ tests · "), f"{tests} tests · ", f"{tests} tests (site footer)"),
         (
-            re.compile(r"with \d+ tests and a green"),
-            f"with {tests} tests and a green",
-            "tests (FAQ)",
+            re.compile(r"\b\d+ tests and a green"),
+            f"{tests} tests and a green",
+            "tests (prose and FAQ)",
         ),
-        (re.compile(r"\b\d+ tests (and|et) a green CI"), rf"{tests} tests \1 a green CI", "tests"),
         (
-            re.compile(r"\b\d+ tests et une porte CI"),
-            f"{tests} tests et une porte CI",
+            re.compile(r"\b\d+ tests et une porte"),
+            f"{tests} tests et une porte",
             "tests (fr)",
+        ),
+        (
+            re.compile(r"\(\d+ tests,"),
+            f"({tests} tests,",
+            "tests (deploy note)",
         ),
         (re.compile(r"\|\s*\d+ tests, `ruff`"), f"| {tests} tests, `ruff`", "tests (checklist)"),
         (re.compile(r"^(\s*rules loaded\s+)\d+$", re.M), rf"\g<1>{rules}", "rules loaded"),

@@ -14,7 +14,7 @@ it is removed*.
 - [The rules](#the-rules)
 - [Running the gateway](#running-the-gateway)
 - [Equipping a repository](#equipping-a-repository)
-- [In CI](#in-ci)
+- [In continuous integration](#in-continuous-integration-ci)
 
 ---
 
@@ -40,8 +40,8 @@ ai-bunker detect
 ```
 
 `role` is the useful field: a workstation is a place to *call* a bunker from,
-not a place to be one. It is `server` only on Linux with a discrete GPU of
-40 GiB or more.
+not a place to be one. It is `server` only on Linux with a discrete graphics
+processing unit (GPU) carrying 40 GiB or more — gibibytes, 2³⁰ bytes apiece.
 
 ### Which machine should I buy for N people?
 
@@ -115,7 +115,9 @@ ai-bunker sizing --accelerator rtx-pro-5000-72 \
 ```
 
 `bound by memory` is the sentence to read: this card has speed to spare and
-runs out of KV cache first. On a slower card the same line reads `bound by
+runs out of KV cache first — the key–value cache, which is what a model keeps
+about the tokens already in a conversation, and it grows with every one of
+them. On a slower card the same line reads `bound by
 speed`, and the fix is a different card rather than more memory.
 
 ### Compare the field
@@ -397,7 +399,7 @@ See [clients/README.md](clients/README.md).
 
 ---
 
-## In CI
+## In continuous integration (CI)
 
 ```yaml
 - run: ruff check ai_bunker tests scripts

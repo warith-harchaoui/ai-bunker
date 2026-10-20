@@ -126,7 +126,7 @@ EXTRA_HEAD = r"""
           "name": "Is ai-bunker production ready?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "No. It is 0.1.0-alpha, with 560 tests and a green CI gate, next to projects with years of production use. The design is grounded in measurements from a GPU that served 6,565 messages under these constraints, but the code is new and the public interface can still move."
+            "text": "No. It is 0.1.0-alpha, with 569 tests and a green CI gate, next to projects with years of production use. The design is grounded in measurements from a GPU that served 6,565 messages under these constraints, but the code is new and the public interface can still move."
           }
         }
       ]
@@ -146,7 +146,8 @@ BODY = (
         One GPU, one charter,<br>every coding agent.
       </h1>
       <p class="mt-6 max-w-2xl text-lg leading-relaxed text-neutral-700 dark:text-neutral-300">
-        A sovereign OpenAI-compatible gateway in front of your own GPU. It carries your
+        A sovereign OpenAI-compatible gateway in front of your own GPU — your own graphics
+        processing unit. It carries your
         team's standards, enforces rules that cannot be bypassed, and counts the context
         budget <em class="font-serif">with the server's own tokenizer</em> instead of
         trusting the client's estimate.
@@ -158,7 +159,7 @@ BODY = (
         <a href="https://github.com/warith-harchaoui/ai-bunker"
           class="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-6 py-3 font-medium hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:border-neutral-700 dark:hover:border-neutral-600">Read
           the source</a>
-        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 560 tests · 0.1.0-alpha</span>
+        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 569 tests · 0.1.0-alpha</span>
       </div>
     </section>
 
@@ -263,7 +264,7 @@ BODY = (
         <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
           A regular expression is the easiest thing here to get subtly wrong, and a wrong one
           fails silently: it stops matching, nobody notices, the guardrail is gone. So every
-          rule carries its own examples, and they run in CI.
+          rule carries its own examples, and they run in continuous integration (CI).
         </p>
         <pre class="mt-8 overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-6 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>$ ai-bunker rules --check
   rules loaded                          19

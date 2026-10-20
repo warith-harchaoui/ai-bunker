@@ -1,6 +1,7 @@
 # Changelog
 
-Semantic versioning. Dates are ISO.
+Semantic versioning. Dates follow ISO 8601, the International Organization for
+Standardization's year-month-day order.
 
 ## [0.1.0] — 2026-10-19
 
@@ -18,7 +19,8 @@ client kits and a dashboard.
   for average load is overloaded half the time.
 - `sizing`, `compare`, `catalog`, `detect`. Every assumption is a flag.
 - `docs/SIZING.md`: the buying decision for a two-person team, costed on prices
-  surveyed 2026-10-19. The GPU market moved ~80% in eighteen months; a 2026
+  surveyed 2026-10-19. The market for graphics processing units (GPUs) moved
+  ~80% in eighteen months; a 2026
   sizing done on 2025 prices is wrong by a factor of two.
 
 ### Budget accounting
@@ -41,7 +43,8 @@ client kits and a dashboard.
   severity-by-scope table published because a `WARNING` on a `command` reads as
   if it stops something and does not.
 - **Every rule ships with its own examples**, checked by `ai-bunker rules
-  --check` in CI. Three shipped patterns were wrong on first write; the
+  --check` in continuous integration (CI). Three shipped patterns were wrong on
+  first write; the
   examples caught all three.
 - **Indirect prompt injection** screened at the one chokepoint where it
   arrives, plus provenance marking (*spotlighting*) as the structural defence
@@ -61,7 +64,8 @@ client kits and a dashboard.
 - Four stages: screen inbound tool results, inject the charter, measure and
   enforce the budget, screen outbound tool calls. Stages 1 and 4 are the rule
   engine's two scopes, and a gateway is the first place both exist at once.
-- An exhausted budget is refused with HTTP 413 **naming the component
+- An exhausted budget is refused with HyperText Transfer Protocol (HTTP) status
+  413 **naming the component
   responsible**, rather than failing downstream as a context-length error
   nobody can act on.
 - Routing **by need** (`X-AI-Bunker-Need`) as well as by model name. An
@@ -89,7 +93,7 @@ client kits and a dashboard.
 - `GET /gui`: the session floor by owner, the charter and its cost, the blocks
   the model sees, the decision log. No build step and **no external request** —
   a page whose purpose is to show that nothing leaves the network cannot start
-  by fetching a stylesheet from a CDN.
+  by fetching a stylesheet from a content delivery network (CDN).
 - Two deterministic gates, `scripts/audit_contrast.py` and
   `scripts/lint_a11y.py`, both in CI and both tested for their ability to fail.
   The contrast auditor found four real failures on first run, none visible by
@@ -98,7 +102,8 @@ client kits and a dashboard.
 ### Site
 
 - Eight hand-written pages in two languages, assembled from one shell rather
-  than generated from Markdown, with the figures hand-authored as SVG.
+  than generated from Markdown, with the figures hand-authored as Scalable
+  Vector Graphics (SVG).
 - `scripts/audit_figures.py` checks the figures' contrast in **both** colour
   schemes against pairs that are declared rather than discovered. The figures'
   text sits on tints of the brand colours themselves, so a token that passes
@@ -126,7 +131,8 @@ client kits and a dashboard.
 
 - `ai-bunker skill` publishes the charter in the [Agent Skills](https://agentskills.io)
   format, an open specification read natively by Claude Code, OpenCode, Cursor,
-  Goose, Amp, Roo, Codex, Copilot and Gemini CLI. A client kit has to be
+  Goose, Amp, Roo, Codex, Copilot and Gemini CLI — a command-line interface. A
+  client kit has to be
   written per client; this reaches the ones nobody will write a kit for.
 - The export is close to a rename, because the two designs agree. The format's
   progressive disclosure loads `name` and `description` at startup, the

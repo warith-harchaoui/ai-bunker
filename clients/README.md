@@ -23,7 +23,8 @@ The asymmetry is the point. A client kit cannot be trusted — it is a config fi
 on someone's laptop — so nothing load-bearing lives in one. But the three rows
 marked **client** are structurally out of the gateway's reach, and a deployment
 that ignores them pays for it in hardware: an agent that reads whole files and
-never compacts halves the number of sessions a GPU carries, for identical output.
+never compacts halves the number of sessions a graphics processing unit (GPU)
+carries, for identical output.
 
 ## Verifying a client, from the server
 
@@ -50,8 +51,9 @@ ai-bunker adopt /path/to/project --client opencode
 ai-bunker adopt /path/to/project --list           # what would be written
 ```
 
-Nothing is overwritten without `--force`, and the gateway URL and key come from
-the environment so a kit can be committed.
+Nothing is overwritten without `--force`, and the gateway's URL — its uniform
+resource locator — and key come from the environment so a kit can be
+committed.
 
 - [`opencode/`](opencode) — provider config plus one plugin, for the one thing
   the gateway cannot do.

@@ -74,6 +74,7 @@
         <a href="sizing.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Dimensionnement</a>
         <a href="landscape.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Paysage</a>
         <a href="start.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Démarrer</a>
+        <a href="glossary.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Glossaire</a>
         <menu class="m-0 hidden list-none items-center gap-2 p-0 sm:flex" aria-label="Projet">
           <li class="flex"><a href="https://github.com/warith-harchaoui/ai-bunker"
             class="rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">⭐️ sur GitHub</a></li>
@@ -94,6 +95,7 @@
         <li><a href="sizing.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Dimensionnement</a></li>
         <li><a href="landscape.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Paysage</a></li>
         <li><a href="start.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Démarrer</a></li>
+        <li><a href="glossary.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Glossaire</a></li>
         <li><a href="https://github.com/warith-harchaoui/ai-bunker" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">⭐️ sur GitHub</a></li>
       </ul>
     </div>
@@ -111,6 +113,24 @@
         La capacité décide si un modèle charge. <strong class="font-semibold">La bande passante
         décide s'il est utilisable.</strong> Dimensionner sur la première en ignorant la seconde,
         c'est acheter une machine pleine de mémoire qui répond trop lentement pour être gardée.
+      </p>
+      <p class="mt-5 max-w-2xl text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+        La notation de cette page, une fois pour toutes. Un <strong class="font-semibold">GPU</strong>
+        est un processeur graphique, et le <strong class="font-semibold">VRAM</strong> sa mémoire
+        vidéo. <strong class="font-semibold">B</strong> compte les milliards de paramètres : un
+        modèle <em>24B</em> porte 24 milliards de poids.
+        <strong class="font-semibold">bf16</strong>, <strong class="font-semibold">FP8</strong>,
+        <strong class="font-semibold">Q4</strong> et <strong class="font-semibold">AWQ4</strong>
+        disent sur combien de bits chaque poids est stocké : le format <em>brain floating
+        point</em> sur 16 bits, la virgule flottante sur 8 bits, une quantification sur 4 bits,
+        et une quantification des poids sur 4 bits tenant compte des activations.
+        <strong class="font-semibold">Go</strong> est le gigaoctet ;
+        <strong class="font-semibold">Gio</strong> le gibioctet, celui des puissances de deux,
+        environ 7 % plus grand. <strong class="font-semibold">tok/s</strong> compte les tokens par
+        seconde. Un <strong class="font-semibold">MoE</strong> est un mélange d'experts, un modèle
+        où chaque token n'active qu'une fraction des poids, et un
+        <strong class="font-semibold">VLM</strong> est un modèle vision-langue, qui lit les images
+        aussi bien que le texte.
       </p>
     </section>
 
@@ -213,7 +233,8 @@
           <strong class="font-semibold text-neutral-900 dark:text-neutral-100">La carte NVIDIA
           48 Go ne peut pas faire tourner le meilleur modèle du tout.</strong> Sur NVIDIA le
           ticket d'entrée est la carte 72 Go à 12 600 $ ; sur Apple c'est un Mac Studio à
-          5 600 $, parce que la mémoire unifiée est bon marché et pas la GDDR7.
+          5 600 $, parce que la mémoire unifiée est bon marché et pas la GDDR7 — <em>graphics
+          double data rate</em>, septième génération.
         </p>
         <p class="rounded-2xl border border-neutral-200 p-5 leading-relaxed text-neutral-700 dark:border-neutral-800 dark:text-neutral-300">
           <strong class="font-semibold text-neutral-900 dark:text-neutral-100">Le DGX Spark perd
@@ -308,13 +329,16 @@
     <div class="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-10 text-sm text-neutral-600 dark:text-neutral-400 sm:flex-row sm:items-center sm:justify-between">
       <p>
         <span class="font-semibold text-neutral-900 dark:text-neutral-100">ai-bunker</span>
-        — fait partie des <a href="https://deraison.ai/ai-helpers" class="text-brand-linktext hover:underline">AI&nbsp;Helpers</a>.
-        BSD-3-Clause.
+        — fait partie des <a href="https://deraison.ai/ai-helpers" class="text-brand-linktext hover:underline">AI&nbsp;Helpers</a>,
+        où AI est l'anglais pour intelligence artificielle. Sous licence
+        BSD-3-Clause, la licence à trois clauses de la Berkeley Software
+        Distribution.
       </p>
       <nav aria-label="Pied de page" class="flex flex-wrap gap-4">
         <a href="sizing.html" class="hover:text-brand-linktext">Dimensionnement</a>
         <a href="landscape.html" class="hover:text-brand-linktext">Paysage</a>
         <a href="start.html" class="hover:text-brand-linktext">Démarrer</a>
+        <a href="glossary.html" class="hover:text-brand-linktext">Glossaire</a>
         <a href="../index.html" class="hover:text-brand-linktext">English</a>
         <a href="https://github.com/warith-harchaoui/ai-bunker" class="hover:text-brand-linktext">GitHub</a>
       </nav>

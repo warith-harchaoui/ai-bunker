@@ -81,7 +81,8 @@ BODY = (
         Un GPU, une charte,<br>tous les agents de code.
       </h1>
       <p class="mt-6 max-w-2xl text-lg leading-relaxed text-neutral-700 dark:text-neutral-300">
-        Une passerelle souveraine compatible OpenAI, posée devant votre propre GPU. Elle porte
+        Une passerelle souveraine compatible OpenAI, posée devant votre propre GPU — votre
+        propre processeur graphique. Elle porte
         les standards de l'équipe, applique des règles qu'on ne peut pas contourner, et compte
         le budget de contexte <em class="font-serif">avec le tokenizer du serveur</em> au lieu
         de croire l'estimation du client.
@@ -92,7 +93,7 @@ BODY = (
         <a href="https://github.com/warith-harchaoui/ai-bunker"
           class="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-6 py-3 font-medium hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:border-neutral-700 dark:hover:border-neutral-600">Lire
           le code</a>
-        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 560 tests · 0.1.0-alpha</span>
+        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 569 tests · 0.1.0-alpha</span>
       </div>
     </section>
 
@@ -160,7 +161,8 @@ BODY = (
         <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
           Une expression régulière est la chose la plus facile à se tromper ici, et une regex
           fausse échoue en silence : elle cesse d'apparier, personne ne le voit, le garde-fou a
-          disparu. Chaque règle porte donc ses propres exemples, et ils tournent en CI.
+          disparu. Chaque règle porte donc ses propres exemples, et ils tournent en
+          intégration continue (CI).
         </p>
         <pre class="mt-8 overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-6 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>$ ai-bunker rules --check
   rules loaded                          19

@@ -14,7 +14,7 @@ est une mesure, ou elle est retirée*.
 - [Les règles](#les-règles)
 - [Lancer la passerelle](#lancer-la-passerelle)
 - [Équiper un dépôt](#équiper-un-dépôt)
-- [En CI](#en-ci)
+- [En intégration continue](#en-intégration-continue-ci)
 
 ---
 
@@ -41,7 +41,8 @@ ai-bunker detect
 
 `role` est le champ utile : un poste de travail est un endroit d'où **appeler**
 un bunker, pas un endroit où en être un. Il vaut `server` seulement sous Linux
-avec un GPU discret d'au moins 40 Gio.
+avec un processeur graphique (GPU) dédié d'au moins 40 Gio — des gibioctets,
+2³⁰ octets chacun.
 
 ### Quelle machine pour N personnes ?
 
@@ -116,7 +117,9 @@ ai-bunker sizing --accelerator rtx-pro-5000-72 \
 ```
 
 `bound by memory` est la phrase à lire : cette carte a de la vitesse en réserve
-et manque de KV cache en premier. Sur une carte plus lente, la même ligne dit
+et manque de KV cache en premier — le cache clé–valeur, ce qu'un modèle
+conserve des tokens déjà présents dans une conversation, et qui grossit avec
+chacun d'eux. Sur une carte plus lente, la même ligne dit
 `bound by speed`, et le remède est une autre carte, pas plus de mémoire.
 
 ### Comparer le terrain
@@ -403,7 +406,7 @@ seuils de compaction. Voir [clients/README.md](clients/README.md).
 
 ---
 
-## En CI
+## En intégration continue (CI)
 
 ```yaml
 - run: ruff check ai_bunker tests scripts

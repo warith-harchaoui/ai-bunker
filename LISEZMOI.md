@@ -7,8 +7,11 @@
 ![Local-first](https://img.shields.io/badge/local--first-oui-brightgreen)
 ![État](https://img.shields.io/badge/état-0.1.0--alpha-orange)
 
-`ai-bunker` fait partie de la suite **AI Helpers**. C'est la couche de service
-souveraine : **un GPU, une charte, tous les agents de code.**
+`ai-bunker` fait partie de la suite **AI Helpers**, où AI est l'anglais pour
+intelligence artificielle. C'est la couche de service souveraine : **un GPU,
+une charte, tous les agents de code** — un GPU étant un processeur graphique,
+la carte ou la puce qui tient les poids d'un modèle et fait l'arithmétique de
+la réponse.
 
 [🌍 AI Helpers](https://deraison.ai/ai-helpers)
 
@@ -43,8 +46,10 @@ suite :
 
 1. **Local garanti.** La passerelle, la charte, le moteur de règles, la
    comptabilité du budget et le dimensionnement matériel tournent tous sur votre
-   infrastructure. Pas de télémétrie, pas de compte, aucune dépendance SaaS.
-   Rien de ce qui entre dans un prompt ne quitte la machine qui sert.
+   infrastructure. Pas de télémétrie, pas de compte, aucune dépendance SaaS —
+   du *software as a service*, autrement dit du logiciel en tant que service,
+   donc l'ordinateur de quelqu'un d'autre. Rien de ce qui entre dans un prompt
+   ne quitte la machine qui sert.
 
 2. **Les réserves, nommées.** Trois, et seulement trois. **(a)** Les poids des
    modèles sont téléchargés une fois, depuis Hugging Face ou le registre Ollama,
@@ -164,6 +169,21 @@ L'étude complète, prix relevés le 19/10/2026 et commande derrière chaque
 chiffre, est dans **[docs/SIZING.md](docs/SIZING.md)**. Voici le raisonnement
 et la réponse.
 
+Une ligne de notation traverse tout ce qui suit ; la voici une fois pour
+toutes. **B** compte les milliards de paramètres : un modèle *24B* porte
+24 milliards de poids. **bf16**, **FP8**, **Q4** et **AWQ4** disent sur combien
+de bits chacun de ces poids est stocké — bf16 est le format *brain floating
+point* sur 16 bits dans lequel les modèles sont entraînés, FP8 de la virgule
+flottante sur 8 bits, Q4 une quantification sur 4 bits, et AWQ4 une
+quantification des poids sur 4 bits tenant compte des activations, qui choisit
+ce qu'elle arrondit en regardant quels poids les activations utilisent
+vraiment. **Go** est le gigaoctet ; **Gio** le gibioctet, 2³⁰ octets, environ
+7 % de plus qu'un gigaoctet — d'où un modèle 24B à 8 bits par poids qui se lit
+25 Gio et non 24. **tok/s** compte les tokens par seconde, la seule vitesse que
+ressente le lecteur d'un texte généré. Et le **VRAM** est la *video
+random-access memory*, la mémoire vidéo rapide posée contre un processeur
+graphique, qui sur une carte dédiée est toute la place dont dispose un modèle.
+
 ### La contrainte est la bande passante, pas la capacité
 
 Générer un token exige de lire une fois chaque poids **actif** depuis la
@@ -216,7 +236,9 @@ ai-bunker recommend --team 2 --model qwen3-coder-next --vision qwen3-vl-8b
 Deux choses méritent d'être dites à voix haute. **La carte NVIDIA 48 Go ne peut
 pas faire tourner le meilleur modèle du tout** — sur NVIDIA, le ticket d'entrée
 est la carte 72 Go à 12 600 $, là où sur Apple c'est un Mac Studio à 5 600 $,
-parce que la mémoire unifiée est bon marché et pas la GDDR7. Et **le DGX Spark
+parce que la mémoire unifiée est bon marché et pas la GDDR7 — *graphics double
+data rate*, septième génération, la mémoire rapide des cartes dédiées. Et **le
+DGX Spark
 perd sur la bande passante, pas sur la mémoire** : il a 128 Go et sert le
 meilleur modèle de code à 18 tok/s. En acheter plusieurs n'y change rien : la
 bande passante ne s'additionne pas entre machines pour un même flux.
@@ -231,7 +253,8 @@ chronométrez un vrai patch avant de dépenser quoi que ce soit.
 
 **Si ça ne suffit pas : Mac Studio M3 Ultra 96 Go, ~5 600 $.** 819 Go/s, le
 double du M2 Max, ~55 tok/s sur le meilleur modèle de code ouvert, tenant le
-modèle 80B plus un VLM 8B plus l'embedder en même temps. Une machine complète —
+modèle 80B plus un modèle vision-langue 8B — un VLM, qui lit les images aussi
+bien que le texte — plus l'embedder en même temps. Une machine complète —
 pas de châssis à spécifier, pas de carte 600 W, pas de rack, 270 W et
 silencieuse. Pour une structure de deux personnes, c'est la différence entre
 avoir un serveur et avoir un projet de serveur à construire.
@@ -255,7 +278,8 @@ meilleur modèle de code ; la 48 Go est la même puce, le même bus et les même
 | Routes premium seules | ~400 $/mois | Pas de matériel, pas d'exploitation, pas de souveraineté |
 
 Si la souveraineté est une préférence, louez ou routez. Si c'est une exigence —
-code client sous NDA, résidence des données dans un appel d'offres — le tableau
+code client sous NDA, un accord de confidentialité ; résidence des données
+dans un appel d'offres — le tableau
 est sans objet et la réponse est la machine.
 
 ### La mise à niveau la moins chère n'est pas du matériel
@@ -358,7 +382,8 @@ Le chargeur le dit quand il en rencontre un.
 `output` filtre le texte qui entre dans la session. Historiquement, cela veut
 dire des secrets qui **sortent**. De plus en plus, cela veut dire des
 instructions qui **entrent** : un agent lit des README, des tickets, des
-commentaires de code, des journaux de CI et des pages web, dont n'importe
+commentaires de code, des journaux d'intégration continue (CI) et des pages
+web, dont n'importe
 lequel peut porter une phrase adressée au modèle plutôt qu'au lecteur. Google
 relève **+32 % de contenu d'injection indirecte malveillant** entre novembre
 2025 et février 2026, et Palo Alto Networks a documenté une douzaine de cas
@@ -426,15 +451,16 @@ bits/car. et les identifiants démarrent à **3,95**. Le défaut est à 3,85.
 Un enseignement contre-intuitif mérite d'être dit : **l'entropie ne vaut que
 pour les motifs génériques**. Une règle à préfixe distinctif — `AKIA`, `ghp_`,
 `-----BEGIN` — sait déjà ce qu'elle a trouvé, et le préfixe est un signal plus
-fort que le hasard. La clé d'exemple canonique d'AWS score 3,68 : un seuil
+fort que le hasard. La clé d'exemple canonique d'AWS — Amazon Web Services —
+score 3,68 : un seuil
 global aurait silencieusement désactivé une règle qui marchait.
 
 ### Un motif pathologique ne doit jamais atteindre le serveur
 
 Le module `re` de Python n'a pas de délai d'expiration, et un motif à
-quantificateurs imbriqués sur une longue sortie d'outil peut brûler du CPU
-pendant des minutes. Côté client, c'est une session bloquée ; sur un serveur
-partagé, c'est toutes les sessions de la machine.
+quantificateurs imbriqués sur une longue sortie d'outil peut brûler du temps de
+processeur central (CPU) pendant des minutes. Côté client, c'est une session
+bloquée ; sur un serveur partagé, c'est toutes les sessions de la machine.
 
 Chaque motif est donc vérifié **statiquement** avant d'être exécuté. La
 première version de ce garde-fou chronométrait le motif au lieu de le lire, et
@@ -452,10 +478,11 @@ motifs : le filtrage est **borné en taille d'entrée**, par tranches.
 ### Les règles comme spécification approuvable
 
 Chaque règle porte déjà les cas qu'elle doit attraper et ceux qu'elle doit
-laisser passer. C'est de la spécification comportementale — écrite en YAML, à
-côté d'une expression régulière, là où la personne qui doit l'approuver ne
-peut pas la lire. Un responsable sécurité qui valide ce qu'un agent a le droit
-d'exécuter n'a pas à déchiffrer `(?:api[_-]?key|secret|token)`.
+laisser passer. C'est de la spécification comportementale — écrite en YAML, un
+format de fichier de configuration, à côté d'une expression régulière, là où la
+personne qui doit l'approuver ne peut pas la lire. Un responsable sécurité qui
+valide ce qu'un agent a le droit d'exécuter n'a pas à déchiffrer
+`(?:api[_-]?key|secret|token)`.
 
 ```bash
 ai-bunker spec --export features     # les règles livrées, en Gherkin
@@ -498,7 +525,8 @@ qu'un scénario qui refuse de se charger.
   lecteur d'un fichier de règles ; une regex plus une description se relisent
   sans manuel.
 - **Pas de vérification en direct des identifiants.** TruffleHog confirme un
-  secret trouvé auprès de l'API émettrice, ce qui réduit fortement les faux
+  secret trouvé auprès de l'interface de programmation (API) émettrice, ce qui
+  réduit fortement les faux
   positifs. Cela veut aussi dire envoyer le secret à un tiers — l'inverse exact
   de la promesse de ce projet. Le seuil d'entropie est le substitut local.
 
@@ -546,11 +574,11 @@ Un agent capable d'appeler une API de paiement peut dépenser, et la
 défaillance est un débit sur la carte de quelqu'un, décidé par un logiciel qui
 a mal lu une page.
 
-AP2 répond par des mandats : l'utilisateur autorise sur une **Trusted
-Surface**, que le protocole définit comme une interface sûre et explicitement
-**non-agentique**, et l'agent porte le résultat signé. La propriété de
-sécurité tient dans ce mot — l'agent ne produit pas l'autorisation, il
-présente une autorisation fabriquée là où il n'a pas accès. Un agent qui
+L'Agent Payments Protocol (AP2) répond par des mandats : l'utilisateur autorise
+sur une **Trusted Surface**, que le protocole définit comme une interface sûre
+et explicitement **non-agentique**, et l'agent porte le résultat signé. La
+propriété de sécurité tient dans ce mot — l'agent ne produit pas l'autorisation,
+il présente une autorisation fabriquée là où il n'a pas accès. Un agent qui
 déclenche un paiement sans mandat ne fait pas mal de l'AP2 : il fait ce que
 l'AP2 existe pour empêcher.
 
@@ -575,10 +603,15 @@ mandates:
   revocations: config/revoked.txt
 ```
 
-La signature est réellement vérifiée — ES256/384, RS256/384/512, PS256, EdDSA
-— contre un jeu de clés qui est un **fichier** dans le déploiement visé : faire
-tourner une clé, c'est copier un fichier, et la passerelle n'atteint jamais
-l'internet pour refuser un paiement. `alg: none` n'est pas dans l'ensemble
+La signature est réellement vérifiée — ES256/384, RS256/384/512, PS256, EdDSA.
+Ces noms disent l'algorithme de signature et la taille de l'empreinte en bits :
+**ES** est l'*elliptic curve digital signature algorithm*, **RS** et **PS**
+sont deux remplissages de *Rivest-Shamir-Adleman* — le simple, et son
+*probabilistic signature scheme* — et **EdDSA** l'*Edwards-curve Digital
+Signature Algorithm*. La vérification se fait contre un jeu de clés qui est un
+**fichier** dans le déploiement visé : faire tourner une clé, c'est copier un
+fichier, et la passerelle n'atteint jamais l'internet pour refuser un
+paiement. `alg: none` n'est pas dans l'ensemble
 accepté : un champ d'algorithme contrôlé par l'attaquant ne doit jamais
 sélectionner un chemin qui saute la vérification.
 
@@ -638,7 +671,9 @@ n'affecte jamais le service** : chaque export tourne sur un fil démon, les
 de croître. Mesuré : mille exports vers un collecteur mort coûtent 1,6 ms côté
 appelant et ne lèvent rien.
 
-Pas de SDK. OTLP sur HTTP avec un corps JSON est assez petit pour être écrit,
+Pas de SDK, pas le moindre kit de développement : l'OpenTelemetry Protocol
+(OTLP) sur HTTP, le HyperText Transfer Protocol du web, avec un corps en
+JavaScript Object Notation (JSON), est assez petit pour être écrit à la main —
 et l'alternative tire un gros arbre de dépendances dans une passerelle dont
 l'argument est d'être une chose mince et lisible.
 
@@ -839,12 +874,14 @@ travailler. Dans un déploiement sain, les trois segments clients doivent
 écraser les nôtres, et quand ce n'est pas le cas, la tuile dit lequel attaquer.
 
 **Aucune étape de compilation, aucune requête externe.** Le style maison pour
-ce genre de page est Tailwind, ce qui sans compilation veut dire le CDN Play —
+ce genre de page est Tailwind, ce qui sans compilation veut dire le CDN Play,
+un réseau de diffusion de contenu —
 et une passerelle dont la promesse est que rien ne quitte le réseau ne peut pas
 servir à son exploitant une page qui va chercher une feuille de style chez un
 tiers au chargement. La première chose que ferait le tableau de bord serait de
-contredire ce qu'il affiche. Le CSS est donc écrit avec la même discipline de
-tokens, et les polices sont celles du système.
+contredire ce qu'il affiche. Les *Cascading Style Sheets* (CSS) sont donc
+écrites à la main avec la même discipline de tokens, et les polices sont celles
+du système.
 
 Deux portes déterministes tournent dessus, et elles sont dans la suite de
 tests :
@@ -915,7 +952,8 @@ mauvais endroit.
 Un kit s'écrit par client, donc un client dont ce projet n'a jamais entendu
 parler n'obtient rien. [Agent Skills](https://agentskills.io) est un format
 ouvert fait exactement pour ce problème, lu nativement par Claude Code,
-OpenCode, Cursor, Goose, Amp, Roo, Codex, Copilot et Gemini CLI.
+OpenCode, Cursor, Goose, Amp, Roo, Codex, Copilot et Gemini CLI — CLI pour
+*command-line interface*, l'interface en ligne de commande.
 
 ```bash
 ai-bunker skill                      # écrit .claude/skills/team-charter/
@@ -1017,7 +1055,7 @@ derrière, pas une compétence par page : une par page pousserait l'index entier
 dans le contexte de démarrage de chaque pair, soit précisément le coût que la
 charte existe pour éviter.
 
-## MCP
+## MCP — le Model Context Protocol
 
 Avec `fastapi-mcp` installé, la passerelle monte `/mcp` et expose la charte
 comme des outils, pour qu'un hôte d'agent aille chercher de lui-même la fiche
@@ -1081,7 +1119,8 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 560 tests, `ruff` propre | ✅ |
+| 569 tests, `ruff` propre | ✅ |
+| `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
 | `ai_bunker/rules.py` — deux portées, entropie, exceptions, règles auto-testées | ✅ |
@@ -1249,4 +1288,6 @@ export OPENAI_API_KEY="<votre clé de passerelle>"
 
 ## Licence
 
-BSD-3-Clause. Voir [LICENSE](https://github.com/warith-harchaoui/ai-bunker/blob/main/LICENSE).
+BSD-3-Clause — la licence à trois clauses de la *Berkeley Software
+Distribution*. Voir
+[LICENSE](https://github.com/warith-harchaoui/ai-bunker/blob/main/LICENSE).

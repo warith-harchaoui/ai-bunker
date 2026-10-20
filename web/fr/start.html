@@ -80,6 +80,7 @@
         <a href="sizing.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Dimensionnement</a>
         <a href="landscape.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Paysage</a>
         <a href="start.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Démarrer</a>
+        <a href="glossary.html" class="hidden rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:inline">Glossaire</a>
         <menu class="m-0 hidden list-none items-center gap-2 p-0 sm:flex" aria-label="Projet">
           <li class="flex"><a href="https://github.com/warith-harchaoui/ai-bunker"
             class="rounded px-1 hover:text-brand-linktext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">⭐️ sur GitHub</a></li>
@@ -100,6 +101,7 @@
         <li><a href="sizing.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Dimensionnement</a></li>
         <li><a href="landscape.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Paysage</a></li>
         <li><a href="start.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Démarrer</a></li>
+        <li><a href="glossary.html" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">Glossaire</a></li>
         <li><a href="https://github.com/warith-harchaoui/ai-bunker" class="flex items-center rounded-lg px-2 py-2 min-h-11 hover:bg-neutral-100 hover:text-brand-linktext dark:hover:bg-neutral-800">⭐️ sur GitHub</a></li>
       </ul>
     </div>
@@ -127,7 +129,8 @@
             <span class="mr-3 font-mono text-base text-neutral-500 dark:text-neutral-400">01</span>Installer
           </h2>
           <p class="mt-3 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
-            Python 3.10–3.13 et git. Un GPU n'est nécessaire que sur la machine qui
+            Python 3.10–3.13 et git. Un GPU — un processeur graphique — n'est nécessaire que
+            sur la machine qui
             <em>sert</em> ; les clients n'en ont pas besoin.
           </p>
           <pre class="mt-5 overflow-x-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-5 font-mono text-[13px] leading-relaxed dark:border-neutral-800 dark:bg-[#141416]"><code>git clone https://github.com/warith-harchaoui/ai-bunker.git
@@ -179,7 +182,8 @@ $ ai-bunker doctor
           <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
             <code class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-sm dark:bg-neutral-800">doctor</code>
             rapporte ce que le déploiement fait <em>vraiment</em>, y compris qu'une passerelle
-            sans clé d'API est ouverte à quiconque peut l'atteindre. Ouverte par accident et
+            sans clé d'API — une clé d'interface de programmation — est ouverte à quiconque
+            peut l'atteindre. Ouverte par accident et
             ouverte exprès se ressemblent vues de dehors ; c'est ce qui les distingue.
           </p>
         </li>
@@ -238,7 +242,7 @@ Adopting ai-bunker into /chemin/du/projet:
       <div class="mt-14 rounded-2xl border border-neutral-200 bg-neutral-50 p-6 dark:border-neutral-800 dark:bg-neutral-900/40">
         <h2 class="font-serif text-xl font-semibold tracking-tight">Avant d'en dépendre</h2>
         <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
-          C'est un <code class="font-mono text-sm">0.1.0-alpha</code> : 560 tests et une porte CI
+          C'est un <code class="font-mono text-sm">0.1.0-alpha</code> : 569 tests et une porte d'intégration continue (CI)
           verte, à côté de projets qui ont des années de production. Le filtrage des commandes ne
           s'applique pas au streaming, et <code class="font-mono text-sm">/health</code> publie
           quelles garanties sont actives plutôt que de laisser croire qu'elles le sont toutes.
@@ -256,13 +260,16 @@ Adopting ai-bunker into /chemin/du/projet:
     <div class="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-10 text-sm text-neutral-600 dark:text-neutral-400 sm:flex-row sm:items-center sm:justify-between">
       <p>
         <span class="font-semibold text-neutral-900 dark:text-neutral-100">ai-bunker</span>
-        — fait partie des <a href="https://deraison.ai/ai-helpers" class="text-brand-linktext hover:underline">AI&nbsp;Helpers</a>.
-        BSD-3-Clause.
+        — fait partie des <a href="https://deraison.ai/ai-helpers" class="text-brand-linktext hover:underline">AI&nbsp;Helpers</a>,
+        où AI est l'anglais pour intelligence artificielle. Sous licence
+        BSD-3-Clause, la licence à trois clauses de la Berkeley Software
+        Distribution.
       </p>
       <nav aria-label="Pied de page" class="flex flex-wrap gap-4">
         <a href="sizing.html" class="hover:text-brand-linktext">Dimensionnement</a>
         <a href="landscape.html" class="hover:text-brand-linktext">Paysage</a>
         <a href="start.html" class="hover:text-brand-linktext">Démarrer</a>
+        <a href="glossary.html" class="hover:text-brand-linktext">Glossaire</a>
         <a href="../index.html" class="hover:text-brand-linktext">English</a>
         <a href="https://github.com/warith-harchaoui/ai-bunker" class="hover:text-brand-linktext">GitHub</a>
       </nav>
