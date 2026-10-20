@@ -52,10 +52,14 @@ from ai_bunker.sizing import (
 )
 from ai_bunker.skill import (
     CLIENT_PATHS,
+    as_charter_pack,
     build_skill,
+    import_skills,
+    read_catalog,
     read_skill,
     validate,
     warnings,
+    write_charter_pack,
     write_skill,
 )
 from ai_bunker.spec import export as spec_export
@@ -454,6 +458,33 @@ def cmd_skill(args: argparse.Namespace) -> int:
     gets its standards into a client this project has no kit for without
     waiting for one.
     """
+    if args.import_:
+        catalog = read_catalog(args.import_)
+        skills = import_skills(args.import_)
+        if not skills:
+            return 1
+        source = args.source or catalog.get("repository", "") or str(args.import_)
+        pages = as_charter_pack(
+            skills,
+            pack=args.pack,
+            source=source,
+            catalog=catalog,
+        )
+        if args.print_:
+            for rel in sorted(pages):
+                print(f"packs/{rel}  ({len(pages[rel]):,} chars)")
+            return 0
+        written = write_charter_pack(pages, args.directory, force=args.force)
+        for path in written:
+            print(f"  {path}")
+        print(
+            f"{len(written)} page(s) from {len(skills)} skill(s) into "
+            f"{args.directory}/packs/{args.pack}/"
+        )
+        if catalog.get("catalog_hash"):
+            print(f"  source catalogue hash: {catalog['catalog_hash']}")
+        return 0
+
     if args.check:
         skill = read_skill(args.check)
         problems = validate(skill)
@@ -856,6 +887,29 @@ def build_parser() -> argparse.ArgumentParser:
     sk.add_argument("--license", dest="license_", default="", help="License field.")
     sk.add_argument("--force", action="store_true", help="Replace files that already exist.")
     sk.add_argument("--check", metavar="DIR", help="Validate an existing skill instead.")
+    sk.add_argument(
+        "--import",
+        dest="import_",
+        metavar="DIR",
+        help=(
+            "Read a skills tree someone else wrote and write it into this "
+            "charter as a pack. The inverse of the export: the gateway then "
+            "serves those pages as an index, counted by the budget."
+        ),
+    )
+    sk.add_argument(
+        "--pack",
+        default="imported",
+        help="Pack name the imported pages land under. Used with --import.",
+    )
+    sk.add_argument(
+        "--source",
+        default="",
+        help=(
+            "Provenance recorded on every imported page. Defaults to the "
+            "source catalogue's repository, then to the path."
+        ),
+    )
     sk.add_argument(
         "--print", dest="print_", action="store_true", help="Print SKILL.md, write nothing."
     )

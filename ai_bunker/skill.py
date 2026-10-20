@@ -38,6 +38,7 @@ Warith Harchaoui
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -366,6 +367,37 @@ def _unfold(block: str, key: str) -> str:
 SPLIT_HEADING = "## "
 
 
+def read_catalog(directory: str | Path) -> dict[str, str]:
+    """Provenance from a skills tree's own catalogue, when it ships one.
+
+    `skore-skills` writes `.catalog.json` next to its `skills/` directory with
+    a `catalog_hash` over the whole set and a `hash` per skill. Reading those
+    rather than recomputing is the honest thing: the digest the source
+    publishes is the one a reader can compare against upstream, and a digest
+    this project invented would only prove the import was self-consistent.
+
+    Returns an empty mapping when there is no catalogue, which is the common
+    case -- the format does not require one.
+    """
+    root = Path(directory)
+    for candidate in (root / ".catalog.json", root.parent / ".catalog.json"):
+        if not candidate.is_file():
+            continue
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            osh.warning(f"[skill] {candidate} is not readable JSON ({exc}); ignoring it.")
+            return {}
+        found = {"catalog_hash": str(data.get("catalog_hash", ""))}
+        if repository := data.get("repository"):
+            found["repository"] = str(repository)
+        for entry in data.get("skills", []):
+            if isinstance(entry, dict) and entry.get("id") and entry.get("hash"):
+                found[f"skill:{entry['id']}"] = str(entry["hash"])
+        return {k: v for k, v in found.items() if v}
+    return {}
+
+
 def import_skills(directory: str | Path) -> list[Skill]:
     """Every skill under ``directory``, in name order.
 
@@ -379,7 +411,15 @@ def import_skills(directory: str | Path) -> list[Skill]:
     for child in sorted(root.iterdir()):
         if not child.is_dir() or not (child / "SKILL.md").is_file():
             continue
-        found.append(read_skill(child))
+        skill = read_skill(child)
+        # Reported, never refused. These are somebody else's skills, and this
+        # project's job is to serve them, not to police them -- but a
+        # description over the specification's limit is silently ignored or
+        # truncated by some clients, so importing one without a word would
+        # hide a real interoperability problem behind a successful import.
+        for problem in validate(skill):
+            osh.warning(f"[skill] {child.name}: {problem}")
+        found.append(skill)
     if not found:
         osh.warning(
             f"[skill] no SKILL.md found under {root}. Point --import at the "
@@ -429,6 +469,7 @@ def as_charter_pack(
     pack: str,
     source: str = "",
     limit: int = 12_000,
+    catalog: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Render skills as charter pages, keyed by path relative to ``packs/``.
 
@@ -447,22 +488,32 @@ def as_charter_pack(
     pages: dict[str, str] = {}
     for skill in skills:
         name = skill.name or "unnamed"
-        digest = hashlib.sha256(skill.body.encode("utf-8")).hexdigest()[:16]
+        published = (catalog or {}).get(f"skill:{name}", "")
+        digest = published[:16] or hashlib.sha256(skill.body.encode("utf-8")).hexdigest()[:16]
+        kind = "published" if published else "computed here"
         declared = ", ".join(f"`{k}: {v}`" for k, v in sorted(skill.metadata.items()))
 
-        header = [f"# {name}", ""]
-        if skill.description:
-            header += [skill.description.strip(), ""]
-        provenance = [f"**Imported skill.** Source: {source or 'unrecorded'}. Digest `{digest}`."]
+        provenance = [
+            f"**Imported skill.** Source: {source or 'unrecorded'}. Digest `{digest}` ({kind})."
+        ]
         if declared:
             provenance.append(
                 f"The source declares {declared}. Recorded, not acted on: a routing "
                 "decision belongs to the operator, not to an imported directory."
             )
-        header += [" ".join(provenance), ""]
 
         slices = split_body(skill.body, limit)
         for index, (heading, text) in enumerate(slices, start=1):
+            # The description is the skill's "when to load me" prose, and it
+            # runs to a couple of thousand characters in the trees seen so
+            # far. It belongs on the page a reader reaches first; repeating it
+            # on all sixteen parts would spend the page budget on one
+            # paragraph said sixteen times.
+            header = [f"# {name}", ""]
+            if skill.description and index == 1:
+                header += [skill.description.strip(), ""]
+            header += [" ".join(provenance), ""]
+
             if len(slices) == 1:
                 key = f"{pack}/{name}.md"
                 part = []

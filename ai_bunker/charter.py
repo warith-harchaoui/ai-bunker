@@ -191,12 +191,32 @@ def build_index(charter: Charter) -> str:
     if not packs:
         return ""
 
-    lines = [f"- {pack}: {', '.join(p.name for p in pages)}" for pack, pages in packs.items()]
-    body = "\n".join(lines)
-    if len(body) > MAX_INDEX_CHARS:
-        # Degrade rather than grow. An index that costs what the pages cost has
-        # reinvented concatenation.
-        body = "\n".join(f"- {pack} ({len(pages)} pages)" for pack, pages in packs.items())
+    # Degrade rather than grow: an index that costs what the pages cost has
+    # reinvented concatenation. The degradation is **per pack**, biggest
+    # first, and that detail was found by importing a 77-page pack into this
+    # charter: collapsing the whole body turned `python: 10_style.md,
+    # tests.md` into `python (2 pages)`, spending the agent's knowledge of two
+    # page names to save the forty-five characters that named them. One large
+    # pack should cost its own names, not everyone else's.
+    named = {pack: f"- {pack}: {', '.join(p.name for p in pages)}" for pack, pages in packs.items()}
+    collapsed: set[str] = set()
+    order = sorted(packs, key=lambda pack: len(named[pack]), reverse=True)
+
+    def render() -> str:
+        return "\n".join(
+            f"- {pack} ({len(packs[pack])} page{'s' if len(packs[pack]) != 1 else ''})"
+            if pack in collapsed
+            else named[pack]
+            for pack in packs
+        )
+
+    for pack in order:
+        if len(render()) <= MAX_INDEX_CHARS:
+            break
+        collapsed.add(pack)
+
+    body = render()
+    if collapsed:
         body += f"\n  List one with: ls {PACKS_DIR}/<pack>"
 
     example = next(

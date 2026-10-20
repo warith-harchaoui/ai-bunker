@@ -101,6 +101,40 @@ def test_the_index_is_capped_rather_than_allowed_to_grow(tmp_path):
     assert f"ls {PACKS_DIR}/" in index, "and say how to list one"
 
 
+def test_one_large_pack_costs_its_own_names_not_everyone_elses(tmp_path):
+    """Found by importing a 77-page pack into the shipped charter.
+
+    The cap used to degrade the body as a whole, so one big pack turned
+    `python: 10_style.md, tests.md` into `python (2 pages)` -- spending the
+    agent's knowledge of two page names to save the forty-five characters
+    that named them. The degradation is per pack now, biggest first.
+    """
+    packs = {
+        "python": {"10_style.md": "x", "tests.md": "x"},
+        "default": {"00_principles.md": "x"},
+        "big": {f"a_rather_long_page_name_{i}.md": "x" for i in range(80)},
+    }
+    index = build_index(_charter(tmp_path, packs))
+
+    assert "- big (80 pages)" in index, "the pack that overflowed must collapse"
+    assert "10_style.md" in index, "a two-page pack must keep its names"
+    assert "tests.md" in index
+    assert "00_principles.md" in index
+    assert f"ls {PACKS_DIR}/" in index, "and it must say how to list the collapsed one"
+
+
+def test_a_single_page_pack_is_not_described_as_1_pages(tmp_path):
+    """A plural that only shows up once a pack collapses."""
+    packs = {
+        "solo": {"only.md": "x"},
+        "big": {f"a_rather_long_page_name_{i}.md": "x" for i in range(200)},
+    }
+    index = build_index(_charter(tmp_path, packs))
+    assert "(1 pages)" not in index
+    if "solo (" in index:
+        assert "solo (1 page)" in index
+
+
 def test_the_shipped_index_stays_within_its_budget(shipped):
     index = build_index(shipped)
     assert 0 < len(index) <= MAX_INDEX_CHARS + 600  # prose header plus the listing
