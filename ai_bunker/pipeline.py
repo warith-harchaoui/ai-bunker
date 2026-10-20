@@ -44,6 +44,7 @@ from typing import Any
 
 import os_helper as osh
 
+from ai_bunker.breaker import as_rule as breaker_rule
 from ai_bunker.budget import Budget, Counter, measure_request
 from ai_bunker.charter import Charter, system_blocks
 from ai_bunker.dependencies import as_rule as dependency_rule
@@ -383,6 +384,8 @@ def apply_outbound(
     project_root: str | None = None,
     check_payments: bool = True,
     trust: Any = None,
+    breaker: Any = None,
+    session: str = "",
 ) -> Applied:
     """Run stage 4 over a model response.
 
@@ -396,6 +399,23 @@ def apply_outbound(
         message = choice.get("message") or {}
         calls.extend(message.get("tool_calls") or [])
 
+    # An open breaker is consulted before the rules, and refuses every tool
+    # call regardless of what it is. That is the point: the session has
+    # already been told no enough times, and the next thing to establish is
+    # not whether this particular command is allowed.
+    if breaker is not None and calls:
+        trip = breaker.state(session)
+        if trip is not None:
+            stopped = breaker_rule(trip)
+            return Applied(
+                request=response,
+                refusal=stopped,
+                refused_command=_first_command(calls, shell_tools),
+                decisions=decisions_for(
+                    [Violation(rule=stopped)], refusal=stopped, charter=charter_fingerprint
+                ),
+            )
+
     refusal, command, notes = screen_outbound(
         calls,
         rules,
@@ -407,9 +427,41 @@ def apply_outbound(
     if refusal is not None:
         osh.warning(f"[gateway] {refusal.id} refused a tool call: {refusal.description}")
 
+    decisions = decisions_for(notes, refusal=refusal, charter=charter_fingerprint)
+
+    # Counted after screening, so this turn's refusal is part of the evidence
+    # that opens the breaker rather than the one after it.
+    if breaker is not None and session:
+        breaker.record(session, decisions)
+
     return Applied(
         request=response,
         refusal=refusal,
         refused_command=command,
-        decisions=decisions_for(notes, refusal=refusal, charter=charter_fingerprint),
+        decisions=decisions,
     )
+
+
+def _first_command(calls: list[dict[str, Any]], shell_tools: tuple[str, ...]) -> str | None:
+    """The command a stopped turn was going to run, for the audit record.
+
+    Best effort: a breaker refuses every tool call, including ones that carry
+    no command at all, and naming the first shell command is more use to the
+    reader of a log than naming nothing.
+    """
+    for call in calls:
+        function = call.get("function") or {}
+        if function.get("name") not in shell_tools:
+            continue
+        arguments = function.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (ValueError, TypeError):
+                continue
+        if isinstance(arguments, dict):
+            for key in COMMAND_KEYS:
+                value = arguments.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value
+    return None

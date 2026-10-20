@@ -61,6 +61,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from ai_bunker import __version__
 from ai_bunker.a2a import agent_card, handle_message_send
+from ai_bunker.breaker import SESSION_HEADER, Breaker, session_of
 from ai_bunker.budget import Counter
 from ai_bunker.charter import build_index, load_charter, read_page
 from ai_bunker.config import Settings, load_settings
@@ -93,14 +94,16 @@ class State:
         self.charter = load_charter(settings.charter_dir)
         self.rules = load_rules(settings.rules_dir)
         self.counters: dict[tuple[str, str], Counter] = {}
+        self.breaker = Breaker(threshold=settings.breaker_refusals, window=settings.breaker_window)
         self.started = time.time()
 
         self.output_rules = sum(1 for r in self.rules if r.scope == "output")
         self.command_rules = sum(1 for r in self.rules if r.scope == "command")
+        self.tool_rules = sum(1 for r in self.rules if r.scope == "tool")
         osh.info(
             f"[gateway] charter {self.charter.fingerprint[:16]} "
             f"({len(self.charter.pages)} pages), {self.output_rules} output rules, "
-            f"{self.command_rules} command rules, "
+            f"{self.command_rules} command rules, {self.tool_rules} tool rules, "
             f"{'sovereign' if settings.sovereign else 'WITH A REMOTE ROUTE'}"
         )
 
@@ -245,7 +248,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "packs": len(state.charter.packs),
                 "pages": len(state.charter.pages),
             },
-            "rules": {"output": state.output_rules, "command": state.command_rules},
+            "rules": {
+                "output": state.output_rules,
+                "command": state.command_rules,
+                "tool": state.tool_rules,
+            },
+            "breaker": {
+                "refusals": s.breaker_refusals,
+                "window_s": s.breaker_window,
+                "open": len(state.breaker.status()),
+            },
             "enforcement": {
                 "budget": s.enforce_budget,
                 "commands": s.enforce_commands,
@@ -430,6 +442,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 continue  # a truncated last line is normal while a write lands
         return {"decisions": kept, "total": len(lines), "path": str(p)}
 
+    @app.get("/v1/breaker", dependencies=[Depends(_authenticate)])
+    async def breaker_status() -> dict[str, Any]:
+        """Which sessions are currently stopped, and for how long.
+
+        Sessions are named by a short hash, never by the prose they were
+        derived from: the identifier ends up in logs and on a dashboard, and
+        the user's own first sentence has no business in either.
+        """
+        state: State = app.state.bunker
+        s = state.settings
+        return {
+            "enabled": state.breaker.enabled,
+            "refusals": s.breaker_refusals,
+            "window_s": s.breaker_window,
+            "open": state.breaker.status(),
+        }
+
+    @app.post("/v1/breaker/reset", dependencies=[Depends(_authenticate)])
+    async def breaker_reset(session: str = "") -> dict[str, Any]:
+        """Close one breaker, or all of them.
+
+        This endpoint exists because the refusal message promises it. A
+        breaker whose only cure is waiting, or restarting the gateway, would
+        make that message a lie -- and the state is in this process, so no
+        command-line tool can reach it any other way.
+        """
+        state: State = app.state.bunker
+        closed = state.breaker.reset(session or None)
+        osh.info(f"[gateway] breaker reset by operator: {closed} session(s) closed")
+        return {"closed": closed, "open": state.breaker.status()}
+
     # -- dashboard -------------------------------------------------------
 
     @app.get("/gui", include_in_schema=False)
@@ -509,6 +552,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 project_root=s.project_root or None,
                 check_payments=s.check_payments,
                 trust=state.trust(),
+                breaker=state.breaker,
+                session=session_of(
+                    body,
+                    header=request.headers.get(SESSION_HEADER, ""),
+                    credential=s.api_key,
+                ),
             )
             state.audit(outbound.audit())
             if outbound.refusal is not None:

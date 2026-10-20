@@ -145,3 +145,26 @@ mandates:
   jwks: ""                  # e.g. config/wallet-keys.json
   issuers: []               # e.g. ["https://wallet.example"]
   revocations: ""           # one revoked mandate id per line
+
+# ---------------------------------------------------------------------------
+# Circuit breaker
+# ---------------------------------------------------------------------------
+# Every refusal this gateway issues tells the agent it is a decision and not a
+# transient failure. That sentence is a request, not an enforcement: an agent
+# may retry the same refused command two hundred times, and each attempt pays
+# for a full context window of prefill on hardware you own.
+#
+# Past `refusals` refused actions within `window_s` seconds, a session's tool
+# calls are stopped -- and only its tool calls. The conversation keeps working,
+# so the agent can tell the user it has been stopped and the transcript that
+# explains why survives. A stopped session recovers on its own after the
+# window, or an operator clears it with `ai-bunker breaker --reset`.
+#
+# Set `refusals: 0` to disable it. Honest limits: the state is in this
+# process, so it resets when the gateway restarts and two gateways behind a
+# load balancer each count their own half. Session identity comes from the
+# `X-AI-Bunker-Session` header when a client sends one, and is otherwise
+# inferred from the first user turn -- a good guess, but a guess.
+breaker:
+  refusals: 5               # 0 disables the breaker
+  window_s: 300

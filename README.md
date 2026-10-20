@@ -539,6 +539,51 @@ came from, so this cannot tell the legitimate tool from the impostor in a
 colliding pair. It reports the ambiguity and refuses to choose. Silently
 picking one would be a guess wearing a decision's clothes.
 
+### A refusal is a decision; a loop of refusals is a bill
+
+Every refusal this gateway issues ends with the same sentence: *this is a
+decision, not a transient failure, do not retry it unchanged.* That sentence
+is a request. An agent may comply, or it may retry the identical command two
+hundred times, each attempt paying for a full context window of prefill on
+hardware the team bought.
+
+The decision log has recorded every one of those attempts all along, and
+nobody reads a log in real time. The signal existed and nothing acted on it.
+
+Past **5 refused actions within 300 seconds**, a session's tool calls are
+stopped. Only its tool calls:
+
+| What the agent can still do | What it cannot |
+|---|---|
+| answer, explain, summarise, ask | call any tool |
+
+That asymmetry is the whole design. Killing the session would destroy the
+context that explains what happened and leave the work half-done; freezing the
+ability to **act** while keeping the ability to **speak** means the agent can
+tell the user it has been stopped, and the operator still has the transcript. A
+stopped session recovers on its own after the window, or an operator clears it
+with `ai-bunker breaker --reset`. Both numbers are configurable, and
+`refusals: 0` turns it off.
+
+Redactions deliberately do not count. A repository that happens to contain
+credentials is the gateway working as intended on somebody else's file, and
+counting that would stop a session for reading the wrong directory.
+
+Three limits, published rather than discovered:
+
+- **In-process and per-gateway.** The state is in memory, so it resets when
+  the gateway restarts, and two gateways behind a load balancer each count
+  their own half. Fixing that means a shared store — a dependency and a
+  network hop on the enforcement path, which is not a trade this deployment
+  should make.
+- **Session identity is approximate.** An OpenAI-shaped request carries no
+  session identifier. The `X-AI-Bunker-Session` header is used when a client
+  sends one; otherwise a fingerprint of the first user turn, which is a good
+  guess — a coding agent's opening turn is the task statement and survives
+  compaction — but a guess. Two sessions that open with the same sentence
+  share a breaker.
+- **It sees only what crosses the gateway**, like every other control here.
+
 ### The rules as a specification someone can approve
 
 Every rule already carries the cases it must catch and the cases it must leave
@@ -1146,7 +1191,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 715 tests, `ruff` clean | ✅ |
+| 742 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

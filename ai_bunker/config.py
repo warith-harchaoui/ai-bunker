@@ -24,6 +24,8 @@ from typing import Any
 import os_helper as osh
 import yaml
 
+from ai_bunker.breaker import DEFAULT_THRESHOLD as BREAKER_REFUSALS
+from ai_bunker.breaker import DEFAULT_WINDOW as BREAKER_WINDOW
 from ai_bunker.budget import DECLARED_FRACTION, MIN_WORKING_TOKENS
 
 DEFAULT_CONFIG = "config/gateway.yaml"
@@ -113,6 +115,15 @@ class Settings:
     mandate_issuers: tuple[str, ...] = ()
     #: One revoked mandate id per line.
     mandate_revocations: str = ""
+    #: Refusals within the window before a session's tool calls are stopped.
+    #: Zero disables the breaker. On by default and deliberately generous: a
+    #: legitimate session hits a BLOCKER rarely, and every refusal already
+    #: tells the agent not to retry it -- so reaching the threshold means the
+    #: agent is looping or probing, and both are worth stopping.
+    breaker_refusals: int = BREAKER_REFUSALS
+    #: Width of that window in seconds, and how long a stopped session stays
+    #: stopped before it recovers on its own.
+    breaker_window: int = BREAKER_WINDOW
     #: OTLP/HTTP collector base URL. The decision log is already a trajectory
     #: record; this ships it where trajectory-evaluation tooling can read it.
     #: Empty disables export entirely -- and a collector that is down never
@@ -206,6 +217,7 @@ TOP_LEVEL_KEYS = frozenset(
         "audit_log",
         "telemetry",
         "mandates",
+        "breaker",
     }
 )
 
@@ -335,6 +347,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
 
     budget = raw.get("budget") or {}
     enforcement = raw.get("enforcement") or {}
+    breaker = raw.get("breaker") or {}
 
     settings = Settings(
         api_key=api_key,
@@ -366,6 +379,16 @@ def load_settings(path: str | Path | None = None) -> Settings:
         telemetry_service=str(telemetry.get("service_name") or "ai-bunker"),
         enforce_budget=_as_bool(enforcement.get("budget"), True),
         enforce_commands=_as_bool(enforcement.get("commands"), True),
+        breaker_refusals=int(
+            breaker.get("refusals", BREAKER_REFUSALS)
+            if breaker.get("refusals") is not None
+            else BREAKER_REFUSALS
+        ),
+        breaker_window=int(
+            breaker.get("window_s", BREAKER_WINDOW)
+            if breaker.get("window_s") is not None
+            else BREAKER_WINDOW
+        ),
         audit_log=str(raw.get("audit_log") or ""),
     )
 

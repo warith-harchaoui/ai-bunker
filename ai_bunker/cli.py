@@ -529,6 +529,55 @@ def cmd_spec(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def cmd_breaker(args: argparse.Namespace) -> int:
+    """Read or clear the circuit breakers on a running gateway.
+
+    Over HTTP rather than in process, because the state is in the gateway's
+    memory and this is a different process. That is the honest shape: a
+    command that pretended to reset a breaker it cannot reach would be worse
+    than no command, and the refusal message points an operator here.
+    """
+    import httpx
+
+    root = args.server.rstrip("/")
+    headers = {"authorization": f"Bearer {args.key}"} if args.key else {}
+    try:
+        if args.reset:
+            response = httpx.post(
+                f"{root}/v1/breaker/reset",
+                params={"session": args.session} if args.session else None,
+                headers=headers,
+                timeout=10,
+            )
+        else:
+            response = httpx.get(f"{root}/v1/breaker", headers=headers, timeout=10)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        print(f"ai-bunker: cannot reach the gateway at {root}: {exc}", file=sys.stderr)
+        return 2
+
+    body = response.json()
+    if args.reset:
+        print(f"  {body.get('closed', 0)} breaker(s) closed")
+        return 0
+
+    if not body.get("enabled"):
+        print("  the breaker is disabled (breaker.refusals is 0)")
+        return 0
+    print(f"  {body['refusals']} refusal(s) within {body['window_s']}s stops a session")
+    stopped = body.get("open") or []
+    if not stopped:
+        print("  no session is currently stopped")
+        return 0
+    for entry in stopped:
+        rules = ", ".join(entry.get("rules") or []) or "repeated refusals"
+        print(
+            f"  {entry['session']}  {entry['refusals']} refusal(s)  "
+            f"closes in {entry['closes_in_s']}s  ({rules})"
+        )
+    return 0
+
+
 def cmd_adopt(args) -> int:
     settings = load_settings(args.config)
     upstream = (
@@ -777,6 +826,16 @@ def build_parser() -> argparse.ArgumentParser:
     dr = sub.add_parser("doctor", help="Check that everything the deployment claims is true.")
     dr.add_argument("--config", default=None)
     dr.set_defaults(func=cmd_doctor)
+
+    bk = sub.add_parser(
+        "breaker",
+        help="Which sessions a gateway has stopped, and clear them.",
+    )
+    bk.add_argument("--server", default="http://127.0.0.1:8000", help="Gateway root URL.")
+    bk.add_argument("--key", default="", help="Gateway API key, if it requires one.")
+    bk.add_argument("--reset", action="store_true", help="Close the breakers instead.")
+    bk.add_argument("--session", default="", help="Only this session, rather than all.")
+    bk.set_defaults(func=cmd_breaker)
 
     d = sub.add_parser("detect", help="What os-helper sees about this machine.")
     d.set_defaults(func=cmd_detect)

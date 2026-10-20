@@ -573,6 +573,55 @@ vient un outil, donc on ne peut pas distinguer le légitime de l'imposteur dans
 une paire en collision. On rapporte l'ambiguïté et on refuse de choisir. En
 choisir un en silence serait une supposition déguisée en décision.
 
+### Un refus est une décision ; une boucle de refus est une facture
+
+Chaque refus émis par cette passerelle se termine par la même phrase : *c'est
+une décision, pas une défaillance passagère, ne réessayez pas à l'identique.*
+Cette phrase est une demande. Un agent peut s'y conformer, ou réessayer deux
+cents fois la même commande, chaque tentative payant un plein contexte de
+préremplissage sur du matériel que l'équipe a acheté.
+
+Le journal de décision enregistrait chacune de ces tentatives depuis le début,
+et personne ne lit un journal en temps réel. Le signal existait, rien n'agissait
+dessus.
+
+Au-delà de **5 actions refusées en 300 secondes**, les appels d'outil d'une
+session sont arrêtés. Seulement ses appels d'outil :
+
+| Ce que l'agent peut encore faire | Ce qu'il ne peut plus |
+|---|---|
+| répondre, expliquer, résumer, demander | appeler le moindre outil |
+
+Cette asymétrie est toute la conception. Tuer la session détruirait le contexte
+qui explique ce qui s'est passé et laisserait le travail à moitié fait ; geler
+la capacité d'**agir** en préservant la capacité de **parler** permet à l'agent
+de dire à l'utilisateur qu'il a été arrêté, et l'exploitant garde la
+transcription. Une session arrêtée se rétablit seule après la fenêtre, ou un
+exploitant la libère avec `ai-bunker breaker --reset`. Les deux nombres sont
+configurables, et `refusals: 0` désactive le mécanisme.
+
+Les censures ne comptent délibérément pas. Un dépôt qui contient des
+identifiants, c'est la passerelle qui fait son travail sur le fichier de
+quelqu'un d'autre, et les compter arrêterait une session pour avoir lu le
+mauvais répertoire.
+
+Trois limites, publiées plutôt que découvertes :
+
+- **En processus et par passerelle.** L'état est en mémoire : il repart à zéro
+  au redémarrage, et deux passerelles derrière un répartiteur comptent chacune
+  leur moitié. Y remédier demande un magasin partagé — une dépendance et un
+  aller-retour réseau sur le chemin d'application, ce qui n'est pas un échange
+  à faire pour ce déploiement.
+- **L'identité de session est approximative.** Une requête au format OpenAI ne
+  porte pas d'identifiant de session. L'en-tête `X-AI-Bunker-Session` est
+  utilisé quand un client l'envoie ; sinon une empreinte du premier tour
+  utilisateur, ce qui est une bonne supposition — le premier tour d'un agent de
+  code est l'énoncé de la tâche et survit à la compaction — mais une
+  supposition. Deux sessions ouvrant sur la même phrase partagent un
+  coupe-circuit.
+- **Elle ne voit que ce qui traverse la passerelle**, comme tous les autres
+  contrôles ici.
+
 ### Les règles comme spécification approuvable
 
 Chaque règle porte déjà les cas qu'elle doit attraper et ceux qu'elle doit
@@ -1217,7 +1266,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 715 tests, `ruff` propre | ✅ |
+| 742 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

@@ -37,6 +37,28 @@ client kits and a dashboard.
   A page costs nothing until it is opened.
 - A content fingerprint, usable both as a prefix-cache key and as provenance.
 
+### Circuit breaker
+
+- **A session whose actions keep being refused has its tool calls stopped**
+  (`ai_bunker/breaker.py`): 5 refusals within 300 seconds by default, both
+  configurable, `refusals: 0` to disable. Refusals already tell the agent not
+  to retry; this is what happens when it does anyway, and it answers the
+  Denial-of-Wallet case where the currency is the throughput of the one card
+  the team owns.
+- **Only tool calls are stopped.** The conversation keeps working, so the
+  agent can say it has been stopped and the transcript that explains why
+  survives. Killing the session would destroy exactly the context an operator
+  needs.
+- Redactions do not count toward the threshold: a repository that contains
+  credentials is the gateway working as intended on somebody else's file.
+- `GET /v1/breaker`, `POST /v1/breaker/reset`, `ai-bunker breaker [--reset]`,
+  and a `breaker` block in `/health`. The command talks to the gateway over
+  HyperText Transfer Protocol (HTTP) because the state is in that process — the refusal message points an
+  operator at it, so it had to be reachable rather than aspirational.
+- Session identity: `X-AI-Bunker-Session` when a client sends it, otherwise a
+  fingerprint of the first user turn, otherwise the credential. Hashed, never
+  stored as prose — the identifier reaches logs and the dashboard.
+
 ### Tool declarations
 
 - **A third rule scope, `tool`.** The engine screened what a tool returned and
