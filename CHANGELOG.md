@@ -37,6 +37,30 @@ client kits and a dashboard.
   A page costs nothing until it is opened.
 - A content fingerprint, usable both as a prefix-cache key and as provenance.
 
+### Tool declarations
+
+- **A third rule scope, `tool`.** The engine screened what a tool returned and
+  what the model asked to run, and passed the tool *list* through unread —
+  the one channel a planner reads on every turn. The Model Context Protocol
+  whitepaper's tool-shadowing example produced no decisions at all against
+  this gateway; it now withholds the impostor and keeps the honest tool.
+- `BLOCKER` on this scope **withholds** the tool from the list the model is
+  offered rather than refusing the request: a tool the planner cannot see
+  cannot be chosen, and one bad declaration should not take a session down.
+  The agent is told which capability is missing, by name.
+- `charter/rules/tools.yaml`: three rules, with their examples —
+  an instruction in a description, trigger-grabbing language, and an
+  exfiltration instruction.
+- `tool.name_collision` is decided in code, because a colliding *pair* is
+  invisible to any single pattern. The comparison runs on the undisguised
+  reading of each name, so `save_note` and `sаve_note` are one collision
+  rather than two unrelated tools.
+- `withheld` is a new audit outcome, distinct from `noted`, and it reaches the
+  decision log, the dashboard and the OpenTelemetry span status. An audit
+  record that calls a lost capability a note under-reports what happened.
+- `ai-bunker spec` covers the new scope: `Given a tool declared as "..."` /
+  `Then the tool is withheld`. 20 rules, 131 assertions, 157 scenarios.
+
 ### Text that hides from the reader
 
 - **Zero-width characters and look-alike letters are removed before any

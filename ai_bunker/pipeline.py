@@ -60,6 +60,7 @@ from ai_bunker.rules import (
     screen_output,
     wrap_provenance,
 )
+from ai_bunker.tools import screen as screen_tools
 
 #: Tool-call function names whose arguments are shell commands. A gateway
 #: cannot know every client's tool vocabulary, so this is a default that a
@@ -80,6 +81,10 @@ class Applied:
     decisions: list[Decision] = field(default_factory=list)
     refusal: Rule | None = None
     refused_command: str | None = None
+    #: Tools taken off the table before the model saw them. Named rather than
+    #: counted: an agent told "a tool was withheld" cannot tell the user which
+    #: capability it has lost.
+    withheld_tools: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -334,10 +339,17 @@ def apply_inbound(
     """
     messages = list(request.get("messages") or [])
 
+    # Stage 0, in effect: the tool list. It is read before the tool results
+    # because a declaration is read by the planner on every turn, where a
+    # result is read once -- and because a withheld tool must be gone before
+    # the budget is measured, or the request is costed for a tool the model
+    # will never be offered.
+    with_tools, declarations, withheld = screen_tools(request, rules)
+
     screened, inbound = screen_inbound(messages, rules, mark_provenance=mark_provenance)
     with_charter = inject_charter(screened, charter)
 
-    prepared = {**request, "messages": with_charter}
+    prepared = {**with_tools, "messages": with_charter}
 
     blocks = system_blocks(charter)
     budget_kwargs: dict[str, Any] = {
@@ -356,8 +368,9 @@ def apply_inbound(
     return Applied(
         request=prepared,
         budget=budget,
-        inbound=inbound,
-        decisions=decisions_for(inbound, charter=fingerprint),
+        inbound=inbound + declarations,
+        decisions=decisions_for(inbound + declarations, charter=fingerprint),
+        withheld_tools=[tool.name for tool in withheld],
     )
 
 

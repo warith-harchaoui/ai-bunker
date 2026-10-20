@@ -355,7 +355,7 @@ def test_a_refusal_reads_as_a_decision_not_a_failure():
 
 def test_the_shipped_set_loads_completely(shipped):
     assert len(shipped) >= 10
-    assert {r.scope for r in shipped} == {"output", "command"}
+    assert {r.scope for r in shipped} == {"output", "command", "tool"}
     assert all(r.description for r in shipped), "every shipped rule must explain itself"
 
 

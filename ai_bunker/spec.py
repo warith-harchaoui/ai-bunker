@@ -49,16 +49,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ai_bunker.rules import Rule, screen_command, screen_output
+from ai_bunker.tools import screen as screen_tools
 
 #: The whole step vocabulary. Anything else is a parse error rather than a
 #: silently skipped line: a scenario that looks like it ran and did not is
 #: worse than one that refuses to load.
 GIVEN_OUTPUT = re.compile(r'^a tool result containing "(?P<text>.*)"$')
+GIVEN_TOOL = re.compile(r'^a tool declared as "(?P<text>.*)"$')
 GIVEN_COMMAND = re.compile(r'^the model asks to run "(?P<text>.*)"$')
 THEN_FIRES = re.compile(r"^the rule (?P<rule>[\w.]+) fires$")
 THEN_NO_RULE = re.compile(r"^no rule fires$")
 THEN_REDACTED = re.compile(r"^the text is redacted$")
 THEN_REFUSED = re.compile(r"^it is refused$")
+THEN_WITHHELD = re.compile(r"^the tool is withheld$")
 THEN_ALLOWED = re.compile(r"^it is allowed$")
 
 
@@ -73,6 +76,7 @@ class Scenario:
     expect_redacted: bool = False
     expect_refused: bool = False
     expect_allowed: bool = False
+    expect_withheld: bool = False
     line: int = 0
 
 
@@ -147,7 +151,11 @@ def export(rules: list[Rule], *, source: str = "") -> str:
     ]
 
     for rule in chosen:
-        given = "the model asks to run" if rule.scope == "command" else "a tool result containing"
+        given = {
+            "command": "the model asks to run",
+            "tool": "a tool declared as",
+            "output": "a tool result containing",
+        }[rule.scope]
         lines += [f"  # {rule.id} -- {rule.severity}", f"  # {rule.description}", ""]
 
         for case in rule.should_match:
@@ -167,6 +175,11 @@ def export(rules: list[Rule], *, source: str = "") -> str:
                     lines.append("    And it is refused")
                 else:
                     lines.append("    And it is allowed")
+            elif rule.scope == "tool":
+                # A BLOCKER on a declaration takes the tool off the list the
+                # model is offered; anything else leaves it there with a note.
+                if rule.severity == "BLOCKER":
+                    lines.append("    And the tool is withheld")
             elif rule.redact:
                 lines.append("    And the text is redacted")
             lines.append("")
@@ -176,7 +189,7 @@ def export(rules: list[Rule], *, source: str = "") -> str:
                 f"  Scenario: {rule.id} leaves {_summarise(case)} alone",
                 f'    Given {given} "{_escape(case)}"',
                 "    When the gateway screens it",
-                "    Then no rule fires" if rule.scope == "output" else "    Then it is allowed",
+                "    Then it is allowed" if rule.scope == "command" else "    Then no rule fires",
                 "",
             ]
 
@@ -221,6 +234,8 @@ def parse(text: str) -> list[Scenario]:
                 current.scope, current.text = "output", _unescape(m["text"])
             elif m := GIVEN_COMMAND.match(rest):
                 current.scope, current.text = "command", _unescape(m["text"])
+            elif m := GIVEN_TOOL.match(rest):
+                current.scope, current.text = "tool", _unescape(m["text"])
             else:
                 raise ValueError(f"line {number}: unsupported Given: {rest!r}")
         elif keyword == "When":
@@ -235,6 +250,8 @@ def parse(text: str) -> list[Scenario]:
                 current.expect_redacted = True
             elif THEN_REFUSED.match(rest):
                 current.expect_refused = True
+            elif THEN_WITHHELD.match(rest):
+                current.expect_withheld = True
             elif THEN_ALLOWED.match(rest):
                 current.expect_allowed = True
             else:
@@ -253,6 +270,7 @@ def run(scenarios: list[Scenario], rules: list[Rule]) -> list[Result]:
             results.append(Result(scenario, False, "no Given step"))
             continue
 
+        withheld = False
         if scenario.scope == "command":
             refusal, violations = screen_command(
                 scenario.text, [r for r in rules if r.scope == "command"]
@@ -260,6 +278,25 @@ def run(scenarios: list[Scenario], rules: list[Rule]) -> list[Result]:
             fired = [v.rule.id for v in violations]
             refused = refusal is not None
             redacted = False
+        elif scenario.scope == "tool":
+            # Run through the real screening path, on a request shaped the way
+            # a client sends one: a scenario that exercises a private helper
+            # proves the helper works and not that the gateway uses it. The
+            # declaration is given as one string, which is how the planner
+            # reads it, so it goes in as the description.
+            request = {
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {"name": "declared_tool", "description": scenario.text},
+                    }
+                ]
+            }
+            _screened, violations, dropped = screen_tools(request, rules)
+            fired = [v.rule.id for v in violations]
+            refused = False
+            redacted = False
+            withheld = bool(dropped)
         else:
             screened = screen_output(scenario.text, [r for r in rules if r.scope == "output"])
             fired = [v.rule.id for v in screened.violations]
@@ -278,6 +315,8 @@ def run(scenarios: list[Scenario], rules: list[Rule]) -> list[Result]:
             problems.append("expected a refusal; the command was allowed")
         if scenario.expect_allowed and refused:
             problems.append("expected it to be allowed; it was refused")
+        if scenario.expect_withheld and not withheld:
+            problems.append("expected the tool to be withheld; it stayed on the list")
 
         results.append(Result(scenario, not problems, "; ".join(problems)))
     return results

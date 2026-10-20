@@ -180,9 +180,14 @@ pre.page {
 .outcome-redacted { color: var(--blue); }
 .outcome-refused  { color: var(--red); font-weight: 600; }
 .outcome-noted    { color: var(--label-2); }
+/* A withheld tool is an enforcement action, not a note: a capability was
+   taken off the table before the model saw it. Coloured like a refusal
+   because that is what it is, in a different place. */
+.outcome-withheld { color: var(--red); font-weight: 600; }
 /* A refused command is a different kind of event from a redaction: something
    did not run. A tinted row says so before the eye reaches the word. */
 tr.refused-row td { background: color-mix(in srgb, var(--red) 6%, transparent); }
+tr.withheld-row td { background: color-mix(in srgb, var(--red) 6%, transparent); }
 td.dim { color: var(--label-3); }
 </style>
 </head>
@@ -580,13 +585,16 @@ async function loadLog() {
         td.className = cls; td.textContent = text; tr.append(td);
       }
       if (r.outcome === "refused") tr.className = "refused-row";
+      if (r.outcome === "withheld") tr.className = "withheld-row";
       return tr;
     }));
     const refused = d.decisions.filter((r) => r.outcome === "refused").length;
+    const withheld = d.decisions.filter((r) => r.outcome === "withheld").length;
     const date = (d.decisions[0]?.at || "").split("-")[0];
     note.textContent =
       `${d.total} decision(s) in ${d.path}${date ? `, latest ${date}` : ""}. ` +
-      `${refused} command(s) refused. The matched text is never written.`;
+      `${refused} command(s) refused, ${withheld} tool(s) withheld. ` +
+      `The matched text is never written.`;
   } catch (err) {
     body.replaceChildren(Object.assign(document.createElement("tr"), {
       innerHTML: `<td colspan="5" class="empty">${err}</td>` }));

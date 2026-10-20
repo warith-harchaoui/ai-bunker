@@ -133,15 +133,20 @@ def span_from_decisions(
         return None
 
     now = time.time_ns()
+    # A withheld tool sets the span's error status alongside a refusal: both
+    # are the gateway stopping something, and a trace that marks only one of
+    # them makes the other invisible to whoever is reading the traces.
     refused = any(r.get("outcome") == "refused" for r in records)
+    withheld = any(r.get("outcome") == "withheld" for r in records)
     return Span(
         name=name,
         start_ns=now,
         end_ns=now,
-        refused=refused,
+        refused=refused or withheld,
         attributes={
             "ai_bunker.decisions": len(records),
             "ai_bunker.refused": refused,
+            "ai_bunker.withheld": withheld,
             "ai_bunker.charter": records[0].get("charter", ""),
         },
         events=[

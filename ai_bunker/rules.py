@@ -66,10 +66,10 @@ from ai_bunker.invisible import as_rules as hidden_rules
 from ai_bunker.invisible import normalise
 
 Severity = Literal["BLOCKER", "WARNING", "SUGGESTION"]
-Scope = Literal["output", "command"]
+Scope = Literal["output", "command", "tool"]
 
 SEVERITIES: tuple[Severity, ...] = ("BLOCKER", "WARNING", "SUGGESTION")
-SCOPES: tuple[Scope, ...] = ("output", "command")
+SCOPES: tuple[Scope, ...] = ("output", "command", "tool")
 
 #: Most notes an agent is shown at once. A rule engine that answers with a
 #: paragraph has spent the context it was protecting.
@@ -192,6 +192,12 @@ class Rule:
         """Whether a match actually changes anything, rather than just noting it."""
         if self.scope == "command":
             return self.severity == "BLOCKER"
+        if self.scope == "tool":
+            # A tool declaration is both text and a contract. A BLOCKER drops
+            # the tool from the list the model is offered -- which is the only
+            # defence that works, since a tool the planner cannot see cannot
+            # be chosen -- and a redacting rule rewrites the description.
+            return self.severity == "BLOCKER" or self.redact
         return self.redact
 
     @property
@@ -493,10 +499,10 @@ def compile_rule(spec: Any, source: str = "<inline>") -> Rule | None:
     if entropy < 0:
         osh.warning(f"[rules] {rule_id} skipped: match.entropy cannot be negative.")
         return None
-    if entropy > 0 and scope == "command":
+    if entropy > 0 and scope in ("command", "tool"):
         osh.warning(
-            f"[rules] {rule_id}: an entropy gate on a command is meaningless -- a "
-            "command is not a credential. Ignoring it."
+            f"[rules] {rule_id}: an entropy gate on a {scope} is meaningless -- "
+            "neither a command nor a tool declaration is a credential. Ignoring it."
         )
         entropy = 0.0
 
@@ -559,6 +565,12 @@ def compile_rule(spec: Any, source: str = "<inline>") -> Rule | None:
             design_notes.append(
                 f"{severity} on a command: it will be NOTED, not refused. "
                 "Only BLOCKER refuses a command."
+            )
+        elif scope == "tool":
+            design_notes.append(
+                f"{severity} on a tool with action 'none': the tool stays in the list "
+                "the model is offered and the agent only gets a note. Use BLOCKER to "
+                "withhold the tool, or action.type 'redact' to rewrite its description."
             )
         elif severity == "BLOCKER":
             design_notes.append(
@@ -906,7 +918,7 @@ class Decision:
     rule_id: str
     severity: Severity
     scope: Scope
-    outcome: Literal["redacted", "refused", "noted"]
+    outcome: Literal["redacted", "refused", "noted", "withheld"]
     count: int
     charter: str = ""
 
@@ -937,7 +949,13 @@ def decisions_for(
     out: list[Decision] = []
     for v in violations:
         if refusal is not None and v.rule.id == refusal.id:
-            outcome: Literal["redacted", "refused", "noted"] = "refused"
+            outcome: Literal["redacted", "refused", "noted", "withheld"] = "refused"
+        elif v.rule.scope == "tool" and v.rule.severity == "BLOCKER":
+            # The tool was taken off the list the model is offered. Not
+            # "noted" -- a capability disappeared from this request, and an
+            # audit record that calls that a note under-reports what the
+            # gateway did.
+            outcome = "withheld"
         elif v.rule.redact:
             outcome = "redacted"
         else:

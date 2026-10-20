@@ -78,6 +78,9 @@ ignore = ["E501"]
 # files that hold specimens and nowhere else.
 "ai_bunker/invisible.py" = ["RUF001", "RUF002"]
 "tests/test_invisible.py" = ["RUF001", "RUF002"]
+# Same exemption, same reason: a look-alike name is the specimen under test.
+"ai_bunker/tools.py" = ["RUF001", "RUF002", "RUF003"]
+"tests/test_tools.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
