@@ -37,6 +37,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -276,11 +277,26 @@ def read_skill(directory: str | Path) -> Skill:
     _, _, rest = source.partition("---")
     block, _, body = rest.partition("\n---")
     fields: dict[str, str] = {}
+    metadata: dict[str, str] = {}
+    folded: str | None = None
     for line in block.splitlines():
-        if line.startswith(("  ", "\t")) or ":" not in line:
+        indented = line.startswith(("  ", "\t"))
+        if indented and folded == "metadata":
+            # A nested mapping, which this parser used to drop on the floor.
+            # It matters because that is where another project puts the facts
+            # about a skill that are not prose -- skore-skills carries
+            # `role` and `modelTier` there -- and dropping them meant an
+            # imported skill arrived stripped of everything machine-readable.
+            key, _, value = line.partition(":")
+            if value.strip():
+                metadata[key.strip()] = value.strip().strip("\"'")
+            continue
+        if indented or ":" not in line:
             continue
         key, _, value = line.partition(":")
-        fields[key.strip()] = value.strip()
+        key = key.strip()
+        folded = key if not value.strip() or value.strip() in {">", "|", ">-", "|-"} else None
+        fields[key] = value.strip()
 
     references = {}
     if (root / "references").is_dir():
@@ -289,9 +305,211 @@ def read_skill(directory: str | Path) -> Skill:
         }
     return Skill(
         name=fields.get("name", ""),
-        description=fields.get("description", ""),
+        description=_unfold(block, "description") or fields.get("description", ""),
         body=body.strip(),
         references=references,
+        metadata=metadata,
         license=fields.get("license", ""),
         compatibility=fields.get("compatibility", ""),
     )
+
+
+def _unfold(block: str, key: str) -> str:
+    """Recover a folded scalar (``description: >``) as one line.
+
+    Written because the skills this project did not write use the folded form
+    for `description` -- it is the only field long enough to need it -- and
+    reading only the text after the colon returned the fold marker instead of
+    the description. A skill whose description is `>` passes every length
+    check and tells an agent nothing.
+    """
+    lines = block.splitlines()
+    for index, line in enumerate(lines):
+        head, _, value = line.partition(":")
+        if head.strip() != key or value.strip() not in {">", "|", ">-", "|-"}:
+            continue
+        collected: list[str] = []
+        for following in lines[index + 1 :]:
+            if following.strip() and not following.startswith(("  ", "\t")):
+                break
+            collected.append(following.strip())
+        return " ".join(part for part in collected if part).strip()
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# The other direction: a skills tree someone else wrote, read in as a charter
+# pack.
+#
+# `build_skill` exports a charter so clients with no kit can read it. This is
+# the inverse, and it exists because the export already proved the formats
+# line up: an Agent Skill is a description plus a body plus bundled
+# references, and a charter pack is an indexed directory of Markdown. The
+# useful asymmetry is what the gateway adds on the way through -- the pages
+# arrive as a ~600-token index rather than a wall of text, the budget counts
+# them with the server's own tokenizer, and the rule engine screens them like
+# any other text crossing the boundary.
+#
+# Deliberately NOT done here: acting on `modelTier`. skore-skills declares
+# `metadata.modelTier: small | medium | big`, which lines up exactly with this
+# project's routing by need rather than by model name, and it is tempting to
+# wire the two together. It is not wired. A third-party directory that can
+# raise the tier is a third-party directory deciding what the team pays for
+# inference, and that is an operator's decision. The declaration is preserved
+# on the page, where a person can read it and configure a route, and it never
+# reaches the router on its own.
+# ---------------------------------------------------------------------------
+
+#: Heading level the splitter cuts on. Chosen because the specification's own
+#: advice is to keep `SKILL.md` short and push detail into references, so a
+#: body long enough to need splitting is already organised under `##`.
+SPLIT_HEADING = "## "
+
+
+def import_skills(directory: str | Path) -> list[Skill]:
+    """Every skill under ``directory``, in name order.
+
+    A skill is any immediate subdirectory holding a ``SKILL.md``. Nothing
+    recurses past that: a `references/` folder belongs to its skill, and
+    treating it as a nesting level would turn one skill into several.
+    """
+    root = Path(directory)
+    osh.check(root.is_dir(), f"{root} is not a directory")
+    found: list[Skill] = []
+    for child in sorted(root.iterdir()):
+        if not child.is_dir() or not (child / "SKILL.md").is_file():
+            continue
+        found.append(read_skill(child))
+    if not found:
+        osh.warning(
+            f"[skill] no SKILL.md found under {root}. Point --import at the "
+            "directory that *contains* the skills, not at one skill."
+        )
+    return found
+
+
+def split_body(body: str, limit: int) -> list[tuple[str, str]]:
+    """Cut a long body at ``##`` boundaries, returning (heading, text) slices.
+
+    Text is **distributed, never rewritten**: every slice is a contiguous run
+    of the original, so concatenating them returns the input. That is the line
+    this project draws elsewhere about editing someone else's content -- a
+    gateway may decide where a page ends, and may not decide what it says.
+
+    A body already inside the limit comes back as one unnamed slice, so the
+    common case produces exactly one page with no heading invented for it.
+    """
+    if len(body) <= limit:
+        return [("", body)]
+
+    chunks: list[tuple[str, str]] = []
+    heading = ""
+    buffer: list[str] = []
+    for line in body.splitlines(keepends=True):
+        if line.startswith(SPLIT_HEADING):
+            if "".join(buffer).strip():
+                chunks.append((heading, "".join(buffer)))
+            heading = line[len(SPLIT_HEADING) :].strip()
+            buffer = [line]
+            continue
+        buffer.append(line)
+    if "".join(buffer).strip():
+        chunks.append((heading, "".join(buffer)))
+    return chunks or [("", body)]
+
+
+def _slug(text: str, fallback: str) -> str:
+    out = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return out[:48] or fallback
+
+
+def as_charter_pack(
+    skills: list[Skill],
+    *,
+    pack: str,
+    source: str = "",
+    limit: int = 12_000,
+) -> dict[str, str]:
+    """Render skills as charter pages, keyed by path relative to ``packs/``.
+
+    One page per skill, plus one per bundled reference, plus a split into
+    numbered parts for a body over ``limit``. The default limit is the
+    charter's own page budget, and it is a parameter rather than an import so
+    this function can be tested at a size that fits in a test.
+
+    Each page opens with what the index cannot carry: where it came from, what
+    the source declared about it, and a digest of the text it was made from.
+    The digest is the point of the header -- it is what lets anyone check
+    later whether this copy still matches upstream, which is the same argument
+    `build_skill` makes in reverse about a skill on disk drifting from the
+    charter the gateway enforces.
+    """
+    pages: dict[str, str] = {}
+    for skill in skills:
+        name = skill.name or "unnamed"
+        digest = hashlib.sha256(skill.body.encode("utf-8")).hexdigest()[:16]
+        declared = ", ".join(f"`{k}: {v}`" for k, v in sorted(skill.metadata.items()))
+
+        header = [f"# {name}", ""]
+        if skill.description:
+            header += [skill.description.strip(), ""]
+        provenance = [f"**Imported skill.** Source: {source or 'unrecorded'}. Digest `{digest}`."]
+        if declared:
+            provenance.append(
+                f"The source declares {declared}. Recorded, not acted on: a routing "
+                "decision belongs to the operator, not to an imported directory."
+            )
+        header += [" ".join(provenance), ""]
+
+        slices = split_body(skill.body, limit)
+        for index, (heading, text) in enumerate(slices, start=1):
+            if len(slices) == 1:
+                key = f"{pack}/{name}.md"
+                part = []
+            else:
+                # The first slice is the body's preamble -- everything before
+                # the first `##` -- and has no heading to be named after.
+                fallback = "overview" if index == 1 else f"part{index}"
+                key = f"{pack}/{name}/{index:02d}_{_slug(heading, fallback)}.md"
+                part = [
+                    f"*Part {index} of {len(slices)} of `{name}`, split at a heading "
+                    "because the whole exceeded the page budget. The text is "
+                    "unchanged.*",
+                    "",
+                ]
+            pages[key] = "\n".join(header + part + [text.strip(), ""])
+
+        for ref_name, ref_text in skill.references.items():
+            stem = Path(ref_name).stem
+            pages[f"{pack}/{name}/ref_{_slug(stem, 'reference')}.md"] = (
+                f"# {name}: {stem}\n\n"
+                f"*Bundled reference from the imported skill `{name}`. "
+                f"Source: {source or 'unrecorded'}.*\n\n"
+                f"{ref_text.strip()}\n"
+            )
+    return pages
+
+
+def write_charter_pack(
+    pages: dict[str, str],
+    charter_root: str | Path,
+    *,
+    force: bool = False,
+) -> list[Path]:
+    """Write rendered pages under ``charter_root/packs/``.
+
+    Nothing is overwritten without ``force``, for the reason `adopt` gives:
+    a charter page that already exists was written or reviewed by somebody,
+    and replacing it silently is how a tool stops being run.
+    """
+    base = Path(charter_root) / "packs"
+    written: list[Path] = []
+    for rel, text in sorted(pages.items()):
+        target = base / rel
+        if target.exists() and not force:
+            osh.warning(f"[skill] {target} exists; left alone. Pass --force to replace.")
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        written.append(target)
+    return written
