@@ -326,8 +326,8 @@ cite le secret qu'elle vient de censurer n'a rien censuré.
 
 ```bash
 $ ai-bunker rules --check
-  rules loaded                          19
-  assertions passed                    120
+  rules loaded                          17
+  assertions passed                    111
   assertions failed                      0
   rules carrying evidence            100%
 ```

@@ -85,7 +85,21 @@ class Result:
 
 def _escape(text: str) -> str:
     """Gherkin step arguments are quoted; a literal quote would end them."""
-    return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    text = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    # A character with no glyph has to be written down, or a specification
+    # about hidden text is a specification nobody can read. This is the
+    # scenario that made the point: `Given a tool result containing "Ig?nore"`
+    # where `?` is a zero-width space looks exactly like `"Ignore"` on screen,
+    # so a reviewer approving it has approved something invisible.
+    out = []
+    for char in text:
+        if char.isprintable() or char == "\t":
+            out.append(char)
+        elif ord(char) > 0xFFFF:
+            out.append(f"\\U{ord(char):08x}")
+        else:
+            out.append(f"\\u{ord(char):04x}")
+    return "".join(out)
 
 
 def _unescape(text: str) -> str:
@@ -93,6 +107,17 @@ def _unescape(text: str) -> str:
     while i < len(text):
         if text[i] == "\\" and i + 1 < len(text):
             nxt = text[i + 1]
+            # Four digits for the basic plane, eight for everything above it:
+            # an emoji and a Unicode tag character both live up there, and
+            # both turn up in these scenarios.
+            width = {"u": 4, "U": 8}.get(nxt)
+            if width and i + 2 + width <= len(text):
+                try:
+                    out.append(chr(int(text[i + 2 : i + 2 + width], 16)))
+                    i += 2 + width
+                    continue
+                except (ValueError, OverflowError):
+                    pass  # not a hex escape after all; fall through
             out.append({"n": "\n", '"': '"', "\\": "\\"}.get(nxt, "\\" + nxt))
             i += 2
         else:

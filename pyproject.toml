@@ -70,6 +70,15 @@ ignore = ["E501"]
 # rule aimed at a different problem.
 "web/pages/*.py" = ["RUF001"]
 
+# These two are *about* confusable characters, so they have to contain them.
+# RUF001 and RUF002 exist to stop a Cyrillic о sneaking into an identifier;
+# here the Cyrillic о is the subject matter -- the confusables table, the
+# payloads that bypassed the rules, and the prose explaining why. A linter
+# cannot tell a specimen from a mistake, so the exemption is scoped to the two
+# files that hold specimens and nowhere else.
+"ai_bunker/invisible.py" = ["RUF001", "RUF002"]
+"tests/test_invisible.py" = ["RUF001", "RUF002"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Third-party pytest plugins installed in the ambient environment are loaded

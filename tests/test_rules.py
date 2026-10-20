@@ -671,10 +671,19 @@ def test_injection_rules_warn_rather_than_block(shipped):
 
 
 def test_hidden_characters_are_caught(shipped):
-    """Invisible to a human reviewer, fully visible to the model."""
-    result = screen_output("normal text​​​hidden", shipped)
-    assert any(v.rule.id == "injection.hidden_text" for v in result.violations)
-    assert "​" not in result.text
+    """Invisible to a human reviewer, fully visible to the model.
+
+    This used to assert `injection.hidden_text`, a pattern that needed two or
+    more invisible characters in a row. It was retired: the threshold was the
+    bypass, and flagging the disguise while leaving it in place let the
+    payload through beside the note. The control is now
+    `ai_bunker.invisible`, which runs before any pattern here -- see
+    `tests/test_invisible.py` for what it is held to.
+    """
+    result = screen_output("normal text" + "\u200b" * 3 + "hidden", shipped)
+    assert any(v.rule.id == "text.hidden_characters" for v in result.violations)
+    assert "\u200b" not in result.text
+    assert result.text == "normal texthidden"
 
 
 # ---------------------------------------------------------------------------

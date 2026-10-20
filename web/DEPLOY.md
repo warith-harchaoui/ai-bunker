@@ -53,6 +53,6 @@ header, footer, theme script — is shared, so the
 header is edited once rather than eight times.
 
 The pages are **written by hand**, not generated from the Markdown. That is a
-deliberate choice and it carries a risk: the figures quoted here (566 tests,
-19 rules, 120 assertions) can drift from the repository. `tests/test_site.py`
+deliberate choice and it carries a risk: the figures quoted here (687 tests,
+17 rules, 111 assertions) can drift from the repository. `tests/test_site.py`
 asserts they match.

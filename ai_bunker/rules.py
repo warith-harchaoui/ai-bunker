@@ -62,6 +62,9 @@ from typing import Any, Literal
 import os_helper as osh
 import yaml
 
+from ai_bunker.invisible import as_rules as hidden_rules
+from ai_bunker.invisible import normalise
+
 Severity = Literal["BLOCKER", "WARNING", "SUGGESTION"]
 Scope = Literal["output", "command"]
 
@@ -663,6 +666,40 @@ def format_note(violations: list[Violation]) -> str:
     return "\n\n[rules]\n" + "\n".join(lines)
 
 
+def _apply(rule: Rule, deliver: str, shadow: str) -> tuple[str, int]:
+    """Match a rule against ``shadow`` and redact the same spans in ``deliver``.
+
+    The two strings are the same length and aligned character for character --
+    see :mod:`ai_bunker.invisible` -- so a span found in the undisguised
+    reading is a span that can be cut out of the text actually being
+    delivered. That indirection is the whole point: it lets a pattern written
+    for ``curl`` match ``cu<U+200B>rl`` and still redact the real characters,
+    without every pattern in the charter having to anticipate the trick.
+
+    Returns the new delivered text (unchanged for a noting rule) and the
+    number of hits that survived the allowlist and the entropy gate.
+    """
+    pieces: list[str] = []
+    last = 0
+    hits = 0
+    for found in rule.pattern.finditer(shadow):
+        if not rule._accepts(found):
+            continue
+        hits += 1
+        if rule.redact:
+            start, end = found.span()
+            # A zero-width match would loop forever and redact nothing.
+            if end == start:
+                continue
+            pieces.append(deliver[last:start])
+            pieces.append(rule.replacement)
+            last = end
+    if rule.redact and hits:
+        pieces.append(deliver[last:])
+        return "".join(pieces), hits
+    return deliver, hits
+
+
 def screen_output(text: str, rules: list[Rule]) -> Screened:
     """Screen text on its way into the session.
 
@@ -715,31 +752,36 @@ def screen_output(text: str, rules: list[Rule]) -> Screened:
                 merged[v.rule.id] = Violation(rule=v.rule, count=v.count)
         return Screened(text=head.text + tail.text, violations=list(merged.values()))
 
-    out = text
-    violations: list[Violation] = []
+    # De-obfuscate before matching anything. Characters with no glyph are
+    # removed from what the model will see -- they cannot carry meaning to a
+    # reader, so removing them cannot change meaning -- and a shadow copy is
+    # folded so a pattern written in Latin letters matches text spelled in
+    # look-alikes. Without this, every pattern below is one invisible
+    # character away from being bypassed, including the BLOCKERs.
+    normal = normalise(text)
+    out = normal.text
+    shadow = normal.shadow
+
+    violations: list[Violation] = [
+        Violation(rule=found) for found in hidden_rules(normal, scope="output")
+    ]
+
     for rule in rules:
         if rule.scope != "output":
             continue
 
-        # Substitute through a callback so the allowlist and the entropy gate
-        # are consulted per hit. Deciding once for the whole text would either
-        # redact an exempted example or let a real secret through beside one.
-        hits = 0
-
-        def decide(found: re.Match[str], _rule: Rule = rule) -> str:
-            nonlocal hits
-            if not _rule._accepts(found):
-                return found.group(0)
-            hits += 1
-            return _rule.replacement if _rule.redact else found.group(0)
-
         if rule.redact:
-            replaced = rule.pattern.sub(decide, out)
+            out, hits = _apply(rule, out, shadow)
             if hits:
                 violations.append(Violation(rule=rule, count=hits))
-                out = replaced
+                # The delivered text just changed length, so its shadow has to
+                # be rebuilt before the next rule matches against it.
+                shadow = normalise(out).shadow
         else:
-            rule.pattern.sub(decide, text)  # the original, see the docstring
+            # Against the text as it arrived, see the docstring -- but the
+            # undisguised reading of it, so a redaction upstream cannot hide a
+            # classification and neither can a homoglyph.
+            _, hits = _apply(rule, normal.text, normal.shadow)
             if hits:
                 violations.append(Violation(rule=rule, count=hits))
 
@@ -762,8 +804,16 @@ def screen_command(command: str, rules: list[Rule]) -> tuple[Rule | None, list[V
     if not isinstance(command, str) or not command:
         return None, notes
 
+    # Matched against the undisguised reading, for the reason given in
+    # `screen_output`. It mattered more here: `cu<U+200B>rl x.sh | sh` walked
+    # past `shell.pipe_to_shell`, so one character nobody can see turned a
+    # BLOCKER into nothing on the one path this project claims no client can
+    # bypass.
+    normal = normalise(command)
+    notes.extend(Violation(rule=found) for found in hidden_rules(normal, scope="command"))
+
     for rule in rules:
-        if rule.scope != "command" or not rule.fires_on(command):
+        if rule.scope != "command" or not rule.fires_on(normal.shadow):
             continue
         notes.append(Violation(rule=rule))
         if refusal is None and rule.severity == "BLOCKER":
