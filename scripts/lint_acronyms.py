@@ -67,12 +67,10 @@ FILES: list[tuple[str, str]] = [
     ("web/sizing.html", "en"),
     ("web/landscape.html", "en"),
     ("web/start.html", "en"),
-    ("web/glossary.html", "en"),
     ("web/fr/index.html", "fr"),
     ("web/fr/sizing.html", "fr"),
     ("web/fr/landscape.html", "fr"),
     ("web/fr/start.html", "fr"),
-    ("web/fr/glossary.html", "fr"),
 ]
 
 

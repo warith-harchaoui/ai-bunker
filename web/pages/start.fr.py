@@ -157,7 +157,7 @@ Adopting ai-bunker into /chemin/du/projet:
       <div class="mt-14 rounded-2xl border border-neutral-200 bg-neutral-50 p-6 dark:border-neutral-800 dark:bg-neutral-900/40">
         <h2 class="font-serif text-xl font-semibold tracking-tight">Avant d'en dépendre</h2>
         <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
-          C'est un <code class="font-mono text-sm">0.1.0-alpha</code> : 569 tests et une porte d'intégration continue (CI)
+          C'est un <code class="font-mono text-sm">0.1.0-alpha</code> : 566 tests et une porte d'intégration continue (CI)
           verte, à côté de projets qui ont des années de production. Le filtrage des commandes ne
           s'applique pas au streaming, et <code class="font-mono text-sm">/health</code> publie
           quelles garanties sont actives plutôt que de laisser croire qu'elles le sont toutes.

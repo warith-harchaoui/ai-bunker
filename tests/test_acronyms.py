@@ -2,9 +2,10 @@
 Tests for the abbreviation rule.
 
 The documentation's rule is that no abbreviation is used before the prose has
-spelled it out, in that file, in that language. A glossary does not satisfy it:
-a list at the bottom of the page explains a term after every sentence that
-already used it, and the reader who needed it has long since moved on.
+spelled it out, in that file, in that language. A glossary does not satisfy it,
+which is why the project does not ship one: a list at the bottom of the page --
+or on a page of its own -- explains a term after every sentence that already
+used it, and the reader who needed it has long since moved on.
 
 A rule nobody checks is a style preference. `scripts/lint_acronyms.py` is the
 check; these are the tests that it works and that the documentation passes it.
@@ -68,7 +69,7 @@ def test_every_french_file_has_french_spellings(lint):
     assert missing == [], f"used in French with no French spelling: {missing}"
 
 
-def test_the_check_can_fail(lint, tmp_path):
+def test_the_check_can_fail(lint, tmp_path, monkeypatch):
     """A linter nobody has seen fail is a linter nobody should trust.
 
     Two probes, because the interesting part is not that a gap is caught but
@@ -76,6 +77,10 @@ def test_the_check_can_fail(lint, tmp_path):
     paragraphs, since documentation hard-wrapped at 80 columns splits
     "mixture of experts" across lines all the time, and a per-line rule would
     have had the prose rewritten to please the checker.
+
+    Both probes go through ``monkeypatch`` so the redirection is undone: the
+    fixture is module-scoped, and leaving it aimed at a temporary directory
+    made the tests after this one inspect the probe rather than the repository.
     """
     bad = tmp_path / "bad.md"
     bad.write_text("An agent verifies an AP2 mandate before paying.\n", encoding="utf-8")
@@ -85,24 +90,30 @@ def test_the_check_can_fail(lint, tmp_path):
         encoding="utf-8",
     )
 
-    lint.ROOT = tmp_path
-    lint.FILES = [("bad.md", "en")]
+    monkeypatch.setattr(lint, "ROOT", tmp_path)
+    monkeypatch.setattr(lint, "FILES", [("bad.md", "en")])
     assert [g[1] for g in lint.gaps()] == ["AP2"], "a plain gap went unreported"
 
-    lint.FILES = [("good.md", "en")]
+    monkeypatch.setattr(lint, "FILES", [("good.md", "en")])
     assert lint.gaps() == [], "an expansion split across two lines was called a gap"
 
 
-def test_the_glossary_page_is_not_the_mechanism():
-    """The site keeps a glossary page, which is fine as a destination. What it
-    must not become is the answer to this rule: if the only place a term is
-    spelled out is that page, every other page is unexplained. The linter
-    treats it as one more file, and this says so out loud."""
-    spec = importlib.util.spec_from_file_location("lint_acronyms", LINTER)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    checked = {rel for rel, _ in module.FILES}
-    assert "web/glossary.html" in checked
-    assert "web/fr/glossary.html" in checked
-    # And the pages that do not link to it are held to the same rule.
+def test_every_assembled_page_is_checked(lint):
+    """The list of checked files is hand-written, which is the hole: a page
+    added later and never listed is a page exempt from the rule, and nothing
+    would say so. This closes it."""
+    web = ROOT / "web"
+    pages = {
+        p.relative_to(ROOT).as_posix()
+        for p in sorted(web.glob("*.html")) + sorted((web / "fr").glob("*.html"))
+    }
+    unchecked = pages - {rel for rel, _ in lint.FILES}
+    assert unchecked == set(), f"pages nobody checks: {sorted(unchecked)}"
+
+
+def test_both_readmes_are_checked(lint):
+    """The two files a newcomer reads first, and the ones a glossary used to
+    cover. There is no glossary now -- the explanations are in place, at first
+    use -- so these two must be in the list or the rule means nothing."""
+    checked = {rel for rel, _ in lint.FILES}
     assert "README.md" in checked and "LISEZMOI.md" in checked

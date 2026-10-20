@@ -24,7 +24,6 @@ context budget. ai-bunker occupies the intersection.
 - [Sizing](https://deraison.ai/ai-bunker/sizing.html): which machine to buy, from a memory-roofline model validated against published measurements.
 - [Landscape](https://deraison.ai/ai-bunker/landscape.html): the gateways, the rule engines and the policy engines compared, including where this project is behind.
 - [Get started](https://deraison.ai/ai-bunker/start.html): install, configure, serve, adopt a repository.
-- [Glossary](https://deraison.ai/ai-bunker/glossary.html): every abbreviation this project uses, spelled out once — the agent protocols, the serving arithmetic, the security vocabulary.
 
 ## Key facts
 
@@ -38,7 +37,7 @@ context budget. ai-bunker occupies the intersection.
 
 ## Honest limits
 
-- `0.1.0-alpha`. 569 tests and a green CI gate, but the public interface can still move.
+- `0.1.0-alpha`. 566 tests and a green CI gate, but the public interface can still move.
 - Command screening does not apply to streamed completions: a tool call arrives in fragments, and refusing it would mean buffering the whole response.
 - The accessibility lint on the dashboard is static only; a browser audit catches what a rendered page reveals.
 - Provider breadth is far behind LiteLLM. ai-bunker can sit in front of it rather than compete.
