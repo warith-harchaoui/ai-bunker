@@ -47,6 +47,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from ai_bunker.i18n import DEFAULT_LOCALE, translator
 from ai_bunker.mandates import Trust
 from ai_bunker.mandates import claims_of as mandate_claims
 from ai_bunker.mandates import verify as verify_mandate
@@ -250,20 +251,11 @@ def inspect(tool_name: str, arguments: Any, trust: Trust | None = None) -> Findi
     return finding
 
 
-def refusal_message(finding: Finding) -> str:
-    return (
-        "This call moves money and will not be forwarded: "
-        + "; ".join(finding.problems)
-        + ". A payment is forwarded only when a mandate is attached, its "
-        "signature verifies against a key this deployment trusts, and what it "
-        "authorises matches what is being charged. Mandate CHAINS are not "
-        "verified: a verified mandate here is signed by a trusted key for this "
-        "charge, which is not the same as proof the user saw this cart on a "
-        "Trusted Surface."
-    )
+def refusal_message(finding: Finding, locale: str = DEFAULT_LOCALE) -> str:
+    return translator(locale)("payments.refusal", problems="; ".join(finding.problems))
 
 
-def as_rule(finding: Finding) -> Rule:
+def as_rule(finding: Finding, locale: str = DEFAULT_LOCALE) -> Rule:
     """Express the refusal as a Rule, so nothing downstream needs a second path."""
     from ai_bunker.rules import Rule
 
@@ -271,7 +263,7 @@ def as_rule(finding: Finding) -> Rule:
         id="payments.unauthorised",
         severity="BLOCKER",
         scope="command",
-        description=refusal_message(finding),
+        description=refusal_message(finding, locale),
         pattern=re.compile(r"(?!)"),  # never matches: decided in code
         redact=False,
         replacement="",

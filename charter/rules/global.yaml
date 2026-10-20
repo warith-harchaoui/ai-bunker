@@ -9,6 +9,9 @@ rules:
     severity: BLOCKER
     scope: output
     description: "An API key, token or password must never enter the model's context."
+    description_fr: >-
+      Une clé d'interface, un jeton ou un mot de passe ne doit jamais entrer
+      dans le contexte du modèle.
     match:
       # The value is CAPTURED so the entropy gate scores the credential rather
       # than the "api_key = " prefix, which would drag a real secret under the
@@ -62,6 +65,9 @@ rules:
     severity: BLOCKER
     scope: output
     description: "A credential with a known vendor prefix appeared in a tool output."
+    description_fr: >-
+      Un identifiant au préfixe d'éditeur connu est apparu dans une sortie
+      d'outil.
     match:
       # No entropy gate here, deliberately, and for the reason the generic rule
       # states in reverse: a distinctive prefix is a stronger signal than
@@ -94,6 +100,8 @@ rules:
     severity: BLOCKER
     scope: output
     description: "A private key block appeared in a tool output."
+    description_fr: >-
+      Un bloc de clé privée est apparu dans une sortie d'outil.
     match:
       # Bounded repetition on purpose: an unbounded [\s\S]* inside a block this
       # large is how a rule engine stalls a server.
@@ -113,6 +121,8 @@ rules:
     severity: BLOCKER
     scope: output
     description: "An Authorization header carried a token in clear text."
+    description_fr: >-
+      Un en-tête Authorization portait un jeton en clair.
     match:
       pattern: 'authorization\s*:\s*(bearer|basic)\s+[A-Za-z0-9_\-\.=]{12,512}'
       flags: i
@@ -131,6 +141,9 @@ rules:
     severity: BLOCKER
     scope: output
     description: "An AWS access key id appeared in a tool output."
+    description_fr: >-
+      Un identifiant de clé d'accès Amazon Web Services est apparu dans une
+      sortie d'outil.
     match:
       pattern: '\b(AKIA|ASIA)[0-9A-Z]{16}\b'
     action:
@@ -148,6 +161,9 @@ rules:
     severity: WARNING
     scope: output
     description: "A URL carrying inline credentials; rotate it rather than reuse it."
+    description_fr: >-
+      Une adresse portant des identifiants en ligne ; faites-la tourner plutôt
+      que de la réutiliser.
     match:
       pattern: '(https?|ssh)://[^/\s:@]{1,64}:[^/\s@]{1,64}@'
       flags: i

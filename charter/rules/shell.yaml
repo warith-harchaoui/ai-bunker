@@ -11,6 +11,9 @@ rules:
     severity: BLOCKER
     scope: command
     description: "Recursive delete of root, home or a bare wildcard. Target a precise path."
+    description_fr: >-
+      Suppression récursive de la racine, du dossier personnel ou d'un joker nu.
+      Visez un chemin précis.
     match:
       # Two independent conditions, which is why there is a lookahead:
       #   1. a recursive flag appears SOMEWHERE in the command, not necessarily
@@ -42,6 +45,9 @@ rules:
     severity: BLOCKER
     scope: command
     description: "Rewriting remote history is a human decision, not an agent's."
+    description_fr: >-
+      Réécrire l'historique distant est une décision humaine, pas celle d'un
+      agent.
     match:
       pattern: '\bgit\s+push\b[^\n]{0,200}(--force(?!-with-lease)|\s-f(\s|$))'
     examples:
@@ -57,6 +63,9 @@ rules:
     severity: BLOCKER
     scope: command
     description: "A download piped straight into a shell. Install from a verified source."
+    description_fr: >-
+      Un téléchargement redirigé directement dans un interpréteur. Installez
+      depuis une source vérifiée.
     match:
       pattern: '\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(ba|z|k)?sh\b'
     examples:
@@ -72,6 +81,9 @@ rules:
     severity: BLOCKER
     scope: command
     description: "A whole-repository diff or log floods the window. Use --stat, a range, or a path."
+    description_fr: >-
+      Un diff ou un journal de tout le dépôt noie la fenêtre. Utilisez --stat,
+      une plage, ou un chemin.
     match:
       # Same correction: the option run is bounded. Non-capturing groups too,
       # since nothing reads the captures back.
@@ -91,6 +103,9 @@ rules:
     severity: BLOCKER
     scope: command
     description: "Rewriting local history can discard work that was never pushed."
+    description_fr: >-
+      Réécrire l'historique local peut jeter du travail qui n'a jamais été
+      poussé.
     match:
       pattern: '\bgit\s+(reset\s+--hard|rebase\s+(-i|--interactive)|filter-branch|reflog\s+expire)\b'
     examples:
@@ -109,6 +124,10 @@ rules:
       The environment, or a credential file, is being piped to a remote host.
       This is how a secret leaves a machine, and no legitimate build step
       needs it.
+    description_fr: >-
+      L'environnement, ou un fichier d'identifiants, est redirigé vers une
+      machine distante. C'est ainsi qu'un secret quitte une machine, et aucune
+      étape de compilation légitime n'en a besoin.
     match:
       # Two halves, both required: something that reads secrets, and something
       # that sends them somewhere. Either alone is ordinary -- `env` is
@@ -136,6 +155,9 @@ rules:
     severity: WARNING
     scope: command
     description: "Reading a credential store will put its contents in the context window."
+    description_fr: >-
+      Lire un magasin d'identifiants mettra son contenu dans la fenêtre de
+      contexte.
     match:
       pattern: '\b(cat|less|head|tail|strings|xxd|od)\b[^\n]{0,120}(\.env|\.netrc|id_rsa|id_ed25519|credentials|\.aws/|/etc/shadow|/etc/passwd|\.ssh/)'
     examples:

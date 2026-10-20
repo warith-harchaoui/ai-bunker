@@ -50,6 +50,7 @@ from ai_bunker.charter import Charter, system_blocks
 from ai_bunker.dependencies import as_note as dependency_note
 from ai_bunker.dependencies import as_rule as dependency_rule
 from ai_bunker.dependencies import check as dependency_check
+from ai_bunker.i18n import DEFAULT_LOCALE
 from ai_bunker.payments import as_rule as payment_rule
 from ai_bunker.payments import inspect as payment_inspect
 from ai_bunker.rules import (
@@ -243,6 +244,7 @@ def screen_outbound(
     project_root: str | None = None,
     check_payments: bool = True,
     trust: Any = None,
+    locale: str = DEFAULT_LOCALE,
 ) -> tuple[Rule | None, str | None, list[Violation]]:
     """Screen the shell commands a model is asking to run.
 
@@ -284,7 +286,9 @@ def screen_outbound(
                 # Noted, not refused: installing a pinned package without
                 # naming its version is usually a human typing the obvious
                 # thing, and the cost of refusing it would exceed the risk.
-                notes.append(Violation(rule=dependency_note(result), count=len(result.unpinned)))
+                notes.append(
+                    Violation(rule=dependency_note(result, locale), count=len(result.unpinned))
+                )
 
     # Payments are screened over EVERY tool call, not only the shell ones. A
     # payment does not arrive as a command -- it arrives as `create_payment`,
@@ -298,7 +302,7 @@ def screen_outbound(
             )
             if finding.ok:
                 continue
-            rule = payment_rule(finding)
+            rule = payment_rule(finding, locale)
             notes.append(Violation(rule=rule, count=1))
             if refusal is None:
                 refusal, refused = rule, str(function.get("name") or "")
@@ -306,7 +310,9 @@ def screen_outbound(
     return refusal, refused, notes
 
 
-def refusal_as_tool_result(call: dict[str, Any], rule: Rule) -> dict[str, Any]:
+def refusal_as_tool_result(
+    call: dict[str, Any], rule: Rule, locale: str = DEFAULT_LOCALE
+) -> dict[str, Any]:
     """The message an agent gets back instead of running a refused command.
 
     Shaped as a tool result rather than an HTTP error on purpose. An agent that
@@ -318,7 +324,7 @@ def refusal_as_tool_result(call: dict[str, Any], rule: Rule) -> dict[str, Any]:
         "role": "tool",
         "tool_call_id": call.get("id", ""),
         "name": (call.get("function") or {}).get("name", "bash"),
-        "content": refusal_message(rule),
+        "content": refusal_message(rule, locale),
     }
 
 
@@ -338,6 +344,7 @@ def apply_inbound(
     declared_context: int | None = None,
     min_working: int | None = None,
     mark_provenance: bool = True,
+    locale: str = DEFAULT_LOCALE,
 ) -> Applied:
     """Run stages 1 to 3 over an inbound request.
 
@@ -356,7 +363,7 @@ def apply_inbound(
     # result is read once -- and because a withheld tool must be gone before
     # the budget is measured, or the request is costed for a tool the model
     # will never be offered.
-    with_tools, declarations, withheld = screen_tools(request, rules)
+    with_tools, declarations, withheld = screen_tools(request, rules, locale)
 
     screened, inbound = screen_inbound(messages, rules, mark_provenance=mark_provenance)
     with_charter = inject_charter(screened, charter)
@@ -397,6 +404,7 @@ def apply_outbound(
     trust: Any = None,
     breaker: Any = None,
     session: str = "",
+    locale: str = DEFAULT_LOCALE,
 ) -> Applied:
     """Run stage 4 over a model response.
 
@@ -417,7 +425,7 @@ def apply_outbound(
     if breaker is not None and calls:
         trip = breaker.state(session)
         if trip is not None:
-            stopped = breaker_rule(trip)
+            stopped = breaker_rule(trip, locale=locale)
             return Applied(
                 request=response,
                 refusal=stopped,
@@ -434,6 +442,7 @@ def apply_outbound(
         project_root=project_root,
         check_payments=check_payments,
         trust=trust,
+        locale=locale,
     )
     if refusal is not None:
         osh.warning(f"[gateway] {refusal.id} refused a tool call: {refusal.description}")

@@ -42,6 +42,8 @@ from typing import TYPE_CHECKING
 
 import os_helper as osh
 
+from ai_bunker.i18n import DEFAULT_LOCALE, translator
+
 if TYPE_CHECKING:  # pragma: no cover - import cycle avoided at runtime
     from ai_bunker.rules import Rule
 
@@ -542,47 +544,23 @@ def check(command: str, root: str | Path = ".") -> Check:
     )
 
 
-def pin_message(result: Check) -> str:
+def pin_message(result: Check, locale: str = DEFAULT_LOCALE) -> str:
     """What to tell a model that asked for a version the project does not use."""
-    listed = "; ".join(
-        f"{pin.package} {pin.asked} (the project declares {pin.declared})"
-        for pin in result.mismatched
-    )
-    return (
-        f"This command installs a version the project does not declare: {listed}. "
-        "A downgrade is the supply-chain attack that needs no new package, only "
-        "an older release of an approved one with a known hole in it -- and a "
-        "check that only looks at names passes it. If the declared version is "
-        "genuinely wrong, that is a change to the manifest for a human to make "
-        "and commit, not one to make by installing something else."
-    )
+    listed = "; ".join(f"{pin.package} {pin.asked} ({pin.declared})" for pin in result.mismatched)
+    return translator(locale)("deps.mismatch", listed=listed)
 
 
-def unpinned_message(result: Check) -> str:
+def unpinned_message(result: Check, locale: str = DEFAULT_LOCALE) -> str:
     """What to note when a pinned package is installed without its version."""
-    names = ", ".join(result.unpinned)
-    pins = ", ".join(f"{name}" for name in result.unpinned)
-    return (
-        f"This command installs {names} with no version, and the project pins "
-        f"{pins}. Whatever the index serves today is what lands, which may not "
-        "be what the repository says is installed. Name the declared version, or "
-        "install from the manifest."
-    )
+    return translator(locale)("deps.unpinned", names=", ".join(result.unpinned))
 
 
-def refusal_message(result: Check) -> str:
+def refusal_message(result: Check, locale: str = DEFAULT_LOCALE) -> str:
     """What to tell a model that just tried to install an unknown package."""
     if not result.undeclared and result.mismatched:
-        return pin_message(result)
-    names = ", ".join(result.undeclared)
-    plural = "packages are" if len(result.undeclared) > 1 else "package is"
-    return (
-        f"This {plural} not declared anywhere in the project: {names}. "
-        "Either the name is wrong -- models invent package names, and an "
-        "attacker who registers an invented one owns this machine -- or it is "
-        "a new dependency, which is a decision for a human to write into a "
-        "manifest and commit, not one to take mid-task. Check the spelling "
-        "against the real package, then ask."
+        return pin_message(result, locale)
+    return translator(locale).ngettext(
+        "deps.undeclared", len(result.undeclared), names=", ".join(result.undeclared)
     )
 
 
@@ -601,7 +579,7 @@ def warn_if_unreadable(root: str | Path) -> None:
         )
 
 
-def as_rule(result: Check) -> Rule:
+def as_rule(result: Check, locale: str = DEFAULT_LOCALE) -> Rule:
     """Express a failed check as a Rule, so nothing downstream needs to know.
 
     The audit log, the refusal sent back as a tool result, and the dashboard's
@@ -615,7 +593,7 @@ def as_rule(result: Check) -> Rule:
         id=("deps.undeclared_package" if result.undeclared else "deps.version_mismatch"),
         severity="BLOCKER",
         scope="command",
-        description=refusal_message(result),
+        description=refusal_message(result, locale),
         pattern=re.compile(r"(?!)"),  # never matches: this rule is decided in code
         redact=False,
         replacement="",
@@ -623,7 +601,7 @@ def as_rule(result: Check) -> Rule:
     )
 
 
-def as_note(result: Check) -> Rule:
+def as_note(result: Check, locale: str = DEFAULT_LOCALE) -> Rule:
     """Express an unpinned install as a rule that notes rather than refuses."""
     from ai_bunker.rules import Rule
 
@@ -631,7 +609,7 @@ def as_note(result: Check) -> Rule:
         id="deps.unpinned_install",
         severity="WARNING",
         scope="command",
-        description=unpinned_message(result),
+        description=unpinned_message(result, locale),
         pattern=re.compile(r"(?!)"),  # never matches: this rule is decided in code
         redact=False,
         replacement="",

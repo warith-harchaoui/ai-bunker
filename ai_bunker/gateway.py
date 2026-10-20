@@ -65,6 +65,7 @@ from ai_bunker.breaker import SESSION_HEADER, Breaker, session_of
 from ai_bunker.budget import Counter
 from ai_bunker.charter import build_index, load_charter, read_page
 from ai_bunker.config import Settings, load_settings
+from ai_bunker.i18n import negotiate
 from ai_bunker.mandates import Trust, load_trust
 from ai_bunker.pipeline import (
     apply_inbound,
@@ -509,7 +510,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             osh.debug(f"[gateway] {model!r} -> {resolved!r} on {upstream.name} ({why})")
             body = {**body, "model": resolved}
 
-        applied = _prepare(state, body, upstream)
+        locale = negotiate(request.headers.get("accept-language", ""), s.language)
+        applied = _prepare(state, body, upstream, locale=locale)
         state.audit(applied.audit())
 
         if s.enforce_budget and not applied.ok:
@@ -552,6 +554,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 project_root=s.project_root or None,
                 check_payments=s.check_payments,
                 trust=state.trust(),
+                locale=locale,
                 breaker=state.breaker,
                 session=session_of(
                     body,
@@ -653,12 +656,13 @@ def _mount_mcp(app: FastAPI) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _prepare(state: State, body: dict[str, Any], upstream: Any):
+def _prepare(state: State, body: dict[str, Any], upstream: Any, *, locale: str = "en"):
     """Run the inbound pipeline for one request."""
     s = state.settings
     counter = state.counter_for(upstream.name, str(body.get("model") or ""))
     return apply_inbound(
         body,
+        locale=locale,
         charter=state.charter,
         rules=state.rules,
         counter=counter,

@@ -66,6 +66,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from ai_bunker.i18n import DEFAULT_LOCALE, translator
+
 if TYPE_CHECKING:  # pragma: no cover - import cycle avoided at runtime
     from ai_bunker.rules import Decision, Rule
 
@@ -303,7 +305,7 @@ def session_of(
 # ---------------------------------------------------------------------------
 
 
-def as_rule(trip: Trip, *, now: float | None = None) -> Rule:
+def as_rule(trip: Trip, *, now: float | None = None, locale: str = DEFAULT_LOCALE) -> Rule:
     """Express an open breaker as the rule that refuses a command."""
     from ai_bunker.rules import Rule
 
@@ -315,13 +317,12 @@ def as_rule(trip: Trip, *, now: float | None = None) -> Rule:
         id=RULE_ID,
         severity="BLOCKER",
         scope="command",
-        description=(
-            f"This session has had {trip.count} action(s) refused within "
-            f"{trip.window}s ({because}), so tool calls are now stopped for "
-            f"{seconds}s. Refusals are decisions and retrying them costs a full "
-            f"context window each time. The conversation is still working: say what "
-            f"you were trying to do and what was refused, and let the user decide. "
-            f"An operator can clear this with `ai-bunker breaker --reset`."
+        description=translator(locale)(
+            "breaker.tripped",
+            count=trip.count,
+            window=trip.window,
+            because=because,
+            seconds=seconds,
         ),
         pattern=re.compile(r"(?!)"),  # never matches: decided in code
         redact=False,

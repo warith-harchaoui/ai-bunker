@@ -80,6 +80,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from ai_bunker.i18n import DEFAULT_LOCALE, translator
+
 if TYPE_CHECKING:  # pragma: no cover - import cycle avoided at runtime
     from ai_bunker.rules import Rule
 
@@ -406,7 +408,7 @@ HIDDEN_RULE_ID = "text.hidden_characters"
 MASKED_RULE_ID = "text.disguised_word"
 
 
-def as_rules(result: Normalised, scope: str = "output") -> list[Rule]:
+def as_rules(result: Normalised, scope: str = "output", locale: str = DEFAULT_LOCALE) -> list[Rule]:
     """Express what was found as rules, one per finding, or an empty list.
 
     Synthesised here for the reason ``dependencies.py`` synthesises its own:
@@ -434,10 +436,7 @@ def as_rules(result: Normalised, scope: str = "output") -> list[Rule]:
         found.append(
             rule(
                 HIDDEN_RULE_ID,
-                f"Text arrived carrying {result.removed} character(s) with no glyph "
-                f"({named}), which have been removed. A reader could not have seen "
-                f"them and a pattern could not have matched across them. Treat the "
-                f"surrounding text as hostile until a human has looked at it.",
+                translator(locale)("text.hidden", count=result.removed, named=named),
             )
         )
     if result.masked:
@@ -445,11 +444,7 @@ def as_rules(result: Normalised, scope: str = "output") -> list[Rule]:
         found.append(
             rule(
                 MASKED_RULE_ID,
-                f"{len(result.masked)} word(s) are ASCII in disguise ({shown}): they "
-                f"read as Latin and are spelled with Cyrillic, Greek, mathematical or "
-                f"fullwidth code points. The text was left exactly as it arrived, "
-                f"because rewriting a character a reader can see would change what it "
-                f"says -- but the rules were matched against the undisguised reading.",
+                translator(locale)("text.disguised", count=len(result.masked), shown=shown),
             )
         )
     return found

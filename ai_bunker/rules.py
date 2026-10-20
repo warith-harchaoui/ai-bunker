@@ -62,6 +62,7 @@ from typing import Any, Literal
 import os_helper as osh
 import yaml
 
+from ai_bunker.i18n import DEFAULT_LOCALE, translator
 from ai_bunker.invisible import as_rules as hidden_rules
 from ai_bunker.invisible import normalise
 
@@ -180,12 +181,25 @@ class Rule:
     #: Strings the rule must and must not match. A rule ships with its evidence.
     should_match: tuple[str, ...] = ()
     should_not_match: tuple[str, ...] = ()
+    #: Description by locale, from `description_<locale>:` in the YAML. The
+    #: English `description` above stays the default and the fallback, so a
+    #: rule that has never been translated behaves exactly as before.
+    translations: dict[str, str] = field(default_factory=dict)
     #: Observations for whoever maintains this rule -- a combination that reads
     #: as if it stops something and does not, a missing description. Carried on
     #: the rule and surfaced by `ai-bunker rules --check` rather than logged on
     #: every load: this is authoring feedback, and a warning that repeats in
     #: production logs is a warning nobody reads.
     notes: tuple[str, ...] = ()
+
+    def describe(self, locale: str = DEFAULT_LOCALE) -> str:
+        """This rule's description, in the reader's language if it has one.
+
+        Falls back to the English rather than to the identifier: a rule whose
+        French is missing should still explain itself, and an operator reading
+        a half-translated note can see exactly which one to write next.
+        """
+        return self.translations.get(locale) or self.description
 
     @property
     def enforces(self) -> bool:
@@ -554,6 +568,11 @@ def compile_rule(spec: Any, source: str = "<inline>") -> Rule | None:
         allow=tuple(allow),
         should_match=should_match,
         should_not_match=should_not_match,
+        translations={
+            key.removeprefix("description_"): str(value)
+            for key, value in spec.items()
+            if key.startswith("description_") and isinstance(value, str) and value.strip()
+        },
         notes=(),
     )
 
@@ -833,18 +852,14 @@ def screen_command(command: str, rules: list[Rule]) -> tuple[Rule | None, list[V
     return refusal, notes
 
 
-def refusal_message(rule: Rule) -> str:
+def refusal_message(rule: Rule, locale: str = DEFAULT_LOCALE) -> str:
     """What the agent is told when a command is refused.
 
     Phrased as a decision rather than a failure. An agent that reads a refusal
     as a transient error retries it, which is both useless and, for the
     commands in scope here, occasionally dangerous.
     """
-    return (
-        f"[rules] {rule.id} refuses this command: {rule.description}\n"
-        "This is a decision, not a transient failure. Do not retry it unchanged: "
-        "reformulate with a narrower target, a bounded range, or a summary flag."
-    )
+    return translator(locale)("rules.refusal", rule=rule.id, description=rule.describe(locale))
 
 
 # ---------------------------------------------------------------------------

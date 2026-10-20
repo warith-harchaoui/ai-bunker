@@ -168,3 +168,24 @@ mandates:
 breaker:
   refusals: 5               # 0 disables the breaker
   window_s: 300
+
+# ---------------------------------------------------------------------------
+# Language
+# ---------------------------------------------------------------------------
+# What the gateway says back: rule descriptions, refusals, and the notes an
+# agent receives. `en` or `fr` today; a locale with no catalogue falls back to
+# English and warns rather than refusing to start.
+#
+# Empty means English, and that default is a decision rather than an oversight.
+# A refusal is read by a *model* before it reaches a person, and changing its
+# language changes what the model reads -- so a deployment opts in, the same
+# way it opts into a premium route.
+#
+# NOT translated, on purpose: log lines, rule identifiers, configuration keys
+# and command names. A log that changes language with a configuration file is
+# a log nobody can grep, and the rest are names.
+#
+# When nothing is set here, the request's `Accept-Language` header is read
+# instead. When something IS set, it wins: the language an agent is instructed
+# in belongs to the operator, not to a per-call header.
+language: ""                # "" | en | fr

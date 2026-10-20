@@ -37,6 +37,34 @@ client kits and a dashboard.
   A page costs nothing until it is opened.
 - A content fingerprint, usable both as a prefix-cache key and as provenance.
 
+### The runtime speaks both languages
+
+- **`language: fr` and the gateway answers in French** (`ai_bunker/i18n.py`):
+  all twenty rule descriptions, every refusal, the withheld-tool notes, the
+  breaker message, the dependency and payment refusals. The documentation was
+  bilingual from the first commit and the runtime never was, on a tool written
+  for French-speaking teams.
+- Call sites use gettext's shape — `_()`, `ngettext()`, named placeholders, a
+  fallback — so a later move to real `.po` files changes nothing above the
+  catalogue. The catalogue itself is YAML, a configuration file format, rather
+  than a compiled `.mo`, for
+  the reason `css/app.css` is committed: a binary would put a compilation step
+  between an operator and a corrected sentence.
+- Rule descriptions carry their own `description_fr:` in the same file as the
+  pattern, so a rule and its translation are reviewed in one diff.
+- **English stays the default, deliberately.** A refusal is read by a model
+  before it reaches a person, and changing its language changes what the model
+  reads — so a deployment opts in. With nothing configured the request's
+  `Accept-Language` is read; with something configured it wins, because the
+  language an agent is instructed in belongs to the operator.
+- Not translated on purpose: log lines (a log that changes language is a log
+  nobody can grep), identifiers and configuration keys (they are names), and
+  the dashboard (a separate piece of work, named rather than half-done).
+- `ai-bunker doctor` reports whether the catalogue in use is complete. The
+  test suite refuses a missing key, an extra key, a positional placeholder, a
+  plural with one form, and a message whose placeholders disagree with the
+  English — the last being the one that raises rather than reads badly.
+
 ### Dependency versions
 
 - **A version the project does not declare is refused** (`deps.version_mismatch`).

@@ -39,6 +39,11 @@ rules:
       than a statement of what the tool does. A declaration is a contract,
       not a prompt: whoever wrote this was addressing the planner, and the
       tool has been withheld from this request.
+    description_fr: >-
+      Une description d'outil contient une instruction visant le modèle plutôt
+      qu'un énoncé de ce que fait l'outil. Une déclaration est un contrat, pas
+      un prompt : qui a écrit ceci s'adressait au planificateur, et l'outil a
+      été retiré de cette requête.
     match:
       # Deliberately narrower than `injection.override_instructions`, which
       # runs on prose that may legitimately discuss injection -- a security
@@ -68,6 +73,12 @@ rules:
       what the tool does. This is how a declaration overshadows a more
       specific one and collects work that was meant for it -- the shadowing
       pattern. Check which tool the operator intended for this job.
+    description_fr: >-
+      Une description d'outil revendique un large ensemble de déclencheurs au
+      lieu de nommer ce que fait l'outil. C'est ainsi qu'une déclaration en
+      éclipse une plus précise et récupère un travail qui lui était destiné — le
+      motif de l'éclipse d'outil. Vérifiez quel outil l'exploitant destinait à
+      ce travail.
     match:
       # The signature is a universal quantifier attached to the act of
       # choosing: "whenever the user mentions", "for any request", "always
@@ -96,6 +107,12 @@ rules:
       that moves data says so as a statement of its purpose; a description
       that tells the planner to forward results elsewhere is an exfiltration
       instruction wearing a schema. The tool has been withheld.
+    description_fr: >-
+      Une description d'outil demande au modèle d'envoyer des données quelque
+      part. Un outil qui déplace des données le dit comme un énoncé de sa raison
+      d'être ; une description qui dit au planificateur de transmettre des
+      résultats ailleurs est une instruction d'exfiltration habillée d'un
+      schéma. L'outil a été retiré.
     match:
       pattern: '\b(?:send|post|forward|upload|exfiltrate|transmit|copy)\b[^.\n]{0,40}\b(?:to|into)\b\s*(?:https?://|[\w.-]+\.(?:com|net|io|co|ru|cn|xyz|sh)\b)|\b(?:also|additionally|silently|quietly)\b[^.\n]{0,20}\b(?:send|post|forward|report)\b'
       flags: i

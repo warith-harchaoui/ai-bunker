@@ -16,7 +16,7 @@ from pathlib import Path
 
 import os_helper as osh
 
-from ai_bunker import __version__
+from ai_bunker import __version__, i18n
 from ai_bunker.adopt import CLIENTS, adopt, plan_adopt
 from ai_bunker.budget import (
     DECLARED_FRACTION,
@@ -368,6 +368,25 @@ def cmd_doctor(args) -> int:
     check(
         any(r.scope == "command" and r.enforces for r in rules),
         "at least one rule can refuse a command",
+    )
+
+    # A catalogue that has quietly fallen behind is the normal failure mode of
+    # any translation, and the only one worth automating against.
+    locale = i18n.negotiate(configured=settings.language)
+    absent, extra = i18n.missing(locale)
+    untranslated = [r.id for r in rules if locale != "en" and locale not in r.translations]
+    check(
+        not absent and not extra and not untranslated,
+        f"answering in {locale!r}, catalogue complete",
+        "; ".join(
+            part
+            for part in (
+                f"{len(absent)} message(s) missing" if absent else "",
+                f"{len(extra)} message(s) no longer used" if extra else "",
+                f"{len(untranslated)} rule(s) untranslated" if untranslated else "",
+            )
+            if part
+        ),
     )
 
     check(

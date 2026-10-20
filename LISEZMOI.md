@@ -668,6 +668,54 @@ exigée : un verbe d'une lettre autorisé à flotter près d'un nom d'outil
 reconnaît `npm run build && cp -i a b`, et le contrôle refuserait alors une
 copie de fichier pour installation de paquets non déclarés.
 
+### Le runtime apprend la langue du lecteur
+
+La documentation est bilingue depuis le premier commit. Le *runtime* ne
+l'était pas : chaque refus reçu par un agent, chaque description de règle,
+chaque note était en anglais — sur un outil écrit pour des équipes
+francophones. Les règles, elles, savaient déjà.
+`injection.override_instructions` porte une branche française parce qu'une
+injection n'a pas à être écrite dans la langue où les règles ont été écrites,
+et cela a été trouvé en sondant, pas en raisonnant. Le même argument vaut pour
+ce que la passerelle répond.
+
+Mettez `language: fr` et les vingt descriptions de règles, les refus, les
+notes d'outil retiré et le message du coupe-circuit arrivent en français. Les
+appels ressemblent à ceux de `gettext` — `_()`, `ngettext()`, marqueurs
+nommés, repli — parce que si ce projet veut un jour de vrais fichiers `.po` et
+l'outillage d'un traducteur, rien au-dessus du catalogue ne devra changer.
+
+Ce qui est dessous est un fichier YAML — un format de fichier de configuration —
+et non un `.mo` compilé, pour la même
+raison que `css/app.css` est commité : ici le déploiement est une copie de
+fichiers, et un catalogue binaire mettrait une étape de compilation entre un
+exploitant et une phrase corrigée. Un catalogue qui se lit dans un diff vaut
+plus pour ce projet qu'un catalogue qu'un outillage standard sait traiter.
+
+**Trois choses ne sont volontairement pas traduites.** Les lignes de journal,
+parce qu'un journal qui change de langue avec un fichier de configuration est
+un journal que personne ne peut chercher. Les identifiants de règles, les clés
+de configuration et les noms de commandes, parce que ce sont des noms. Et le
+tableau de bord — il devrait être traduit, c'est un chantier à part, nommé ici
+plutôt qu'à moitié fait.
+
+**Le défaut reste l'anglais, et c'est une décision, pas un oubli.** Un refus
+est lu par un *modèle* avant d'atteindre une personne, et en changer la langue
+change ce que le modèle lit. Un déploiement choisit donc d'y entrer, comme il
+choisit une route premium : la passerelle ne décide pas en silence qu'un agent
+doit être instruit en français. Quand rien n'est configuré, l'en-tête
+`Accept-Language` de la requête est lu ; quand quelque chose l'est, il gagne,
+parce que la langue dans laquelle un agent est instruit appartient à
+l'exploitant et non à un en-tête par appel.
+
+Une traduction prend du retard — c'est le seul mode de défaillance intéressant
+d'un catalogue. `ai-bunker doctor` rapporte donc si celui en usage est
+complet, et la suite de tests refuse un catalogue avec une clé manquante, une
+clé en trop, un marqueur positionnel, un pluriel à une seule forme, ou un
+message dont les marqueurs diffèrent de l'anglais. Ce dernier est celui qui
+lève une exception au lieu de mal se lire : un traducteur qui perd `{count}`
+livre un message qui marche jusqu'au jour où on l'appelle avec un compte.
+
 ### Les règles comme spécification approuvable
 
 Chaque règle porte déjà les cas qu'elle doit attraper et ceux qu'elle doit
@@ -1312,7 +1360,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 771 tests, `ruff` propre | ✅ |
+| 791 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

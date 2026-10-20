@@ -627,6 +627,51 @@ shorthand is now screened, with adjacency required: a one-letter verb allowed
 to float near a tool name matches `npm run build && cp -i a b`, and the check
 would then refuse a file copy for installing undeclared packages.
 
+### The runtime learns the reader's language
+
+The documentation has been bilingual since the first commit. The *runtime*
+never was: every refusal an agent received, every rule description, every note
+was English — on a tool written for French-speaking teams. The rules already
+knew better. `injection.override_instructions` carries a French branch because
+an injection does not have to be written in the language the rules were
+written in, and that was found by probing rather than by reasoning. The same
+argument applies to what the gateway says back.
+
+Set `language: fr` and the twenty rule descriptions, the refusals, the
+withheld-tool notes and the breaker's message all arrive in French. The call
+sites look like `gettext` — `_()`, `ngettext()`, named placeholders, a
+fallback — because if this ever wants real `.po` files and a translator's
+toolchain, nothing above the catalogue should have to change.
+
+What sits under them is a YAML file — a configuration file format — rather than
+a compiled `.mo`, for the same reason `css/app.css` is committed: deployment here is a file upload, and a
+binary catalogue would put a compilation step between an operator and a
+corrected sentence. A catalogue that can be read in a diff is worth more to
+this project than one a standard toolchain can process.
+
+**Three things are deliberately not translated.** Log lines, because a log
+that changes language with a configuration file is a log nobody can grep. Rule
+identifiers, configuration keys and command names, because they are names. And
+the dashboard — it should be localised and it is a separate piece of work,
+named here rather than half-done.
+
+**The default stays English, and that is a decision rather than an oversight.**
+A refusal is read by a *model* before it reaches a person, and changing its
+language changes what the model reads. So a deployment opts in, the same way
+it opts into a premium route: the gateway does not quietly decide that an
+agent should be instructed in French. When nothing is configured, the
+request's `Accept-Language` header is read; when something is, it wins,
+because the language an agent is instructed in belongs to the operator and not
+to a per-call header.
+
+A translation falls behind — that is the only interesting failure mode a
+catalogue has. So `ai-bunker doctor` reports whether the one in use is
+complete, and the test suite refuses a catalogue with a missing key, an extra
+one, a positional placeholder, a plural with only one form, or a message whose
+placeholders disagree with the English. That last one is the one that raises
+rather than reads badly: a translator who drops `{count}` ships a message that
+works until the day it is called with a count.
+
 ### The rules as a specification someone can approve
 
 Every rule already carries the cases it must catch and the cases it must leave
@@ -1234,7 +1279,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 771 tests, `ruff` clean | ✅ |
+| 791 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

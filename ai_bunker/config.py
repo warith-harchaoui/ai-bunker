@@ -115,6 +115,11 @@ class Settings:
     mandate_issuers: tuple[str, ...] = ()
     #: One revoked mandate id per line.
     mandate_revocations: str = ""
+    #: Language the gateway answers in: rule descriptions, refusals and notes.
+    #: Empty means English, and that default is deliberate rather than lazy --
+    #: a refusal is read by a model before it reaches a person, and changing
+    #: its language changes what the model reads. A deployment opts in.
+    language: str = ""
     #: Refusals within the window before a session's tool calls are stopped.
     #: Zero disables the breaker. On by default and deliberately generous: a
     #: legitimate session hits a BLOCKER rarely, and every refusal already
@@ -218,6 +223,7 @@ TOP_LEVEL_KEYS = frozenset(
         "telemetry",
         "mandates",
         "breaker",
+        "language",
     }
 )
 
@@ -390,6 +396,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
             else BREAKER_WINDOW
         ),
         audit_log=str(raw.get("audit_log") or ""),
+        language=str(raw.get("language") or ""),
     )
 
     if not settings.sovereign:
