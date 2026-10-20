@@ -74,6 +74,7 @@ from ai_bunker.pipeline import (
 )
 from ai_bunker.rules import decisions_for, load_rules
 from ai_bunker.telemetry import Exporter, span_from_decisions
+from ai_bunker.tools import Pins, approved_fingerprints
 
 #: How long to wait on an upstream. Generous: a 256k prompt on a busy GPU is
 #: slow to first token, and a gateway that times out before the model answers
@@ -96,6 +97,10 @@ class State:
         self.rules = load_rules(settings.rules_dir)
         self.counters: dict[tuple[str, str], Counter] = {}
         self.breaker = Breaker(threshold=settings.breaker_refusals, window=settings.breaker_window)
+        self.pins = Pins()
+        self.approved_tools = (
+            approved_fingerprints(settings.tools_lock) if settings.tools_lock else {}
+        )
         self.started = time.time()
 
         self.output_rules = sum(1 for r in self.rules if r.scope == "output")
@@ -537,7 +542,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             body = {**body, "model": resolved}
 
         locale = negotiate(request.headers.get("accept-language", ""), s.language)
-        applied = _prepare(state, body, upstream, locale=locale)
+        # One session identity for the whole turn: the tool pins taken on the
+        # way in and the breaker counted on the way out have to agree about
+        # which conversation this is.
+        session = session_of(
+            body, header=request.headers.get(SESSION_HEADER, ""), credential=s.api_key
+        )
+        applied = _prepare(state, body, upstream, locale=locale, session=session)
         state.audit(applied.audit())
 
         if s.enforce_budget and not applied.ok:
@@ -582,11 +593,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 trust=state.trust(),
                 locale=locale,
                 breaker=state.breaker,
-                session=session_of(
-                    body,
-                    header=request.headers.get(SESSION_HEADER, ""),
-                    credential=s.api_key,
-                ),
+                session=session,
             )
             state.audit(outbound.audit())
             if outbound.refusal is not None:
@@ -682,13 +689,18 @@ def _mount_mcp(app: FastAPI) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _prepare(state: State, body: dict[str, Any], upstream: Any, *, locale: str = "en"):
+def _prepare(
+    state: State, body: dict[str, Any], upstream: Any, *, locale: str = "en", session: str = ""
+):
     """Run the inbound pipeline for one request."""
     s = state.settings
     counter = state.counter_for(upstream.name, str(body.get("model") or ""))
     return apply_inbound(
         body,
         locale=locale,
+        pins=state.pins,
+        session=session,
+        approved_tools=state.approved_tools,
         charter=state.charter,
         rules=state.rules,
         counter=counter,

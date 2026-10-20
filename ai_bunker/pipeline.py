@@ -345,6 +345,9 @@ def apply_inbound(
     min_working: int | None = None,
     mark_provenance: bool = True,
     locale: str = DEFAULT_LOCALE,
+    pins: Any = None,
+    session: str = "",
+    approved_tools: dict[str, str] | None = None,
 ) -> Applied:
     """Run stages 1 to 3 over an inbound request.
 
@@ -363,7 +366,9 @@ def apply_inbound(
     # result is read once -- and because a withheld tool must be gone before
     # the budget is measured, or the request is costed for a tool the model
     # will never be offered.
-    with_tools, declarations, withheld = screen_tools(request, rules, locale)
+    with_tools, declarations, withheld = screen_tools(
+        request, rules, locale, pins=pins, session=session, approved=approved_tools
+    )
 
     screened, inbound = screen_inbound(messages, rules, mark_provenance=mark_provenance)
     with_charter = inject_charter(screened, charter)

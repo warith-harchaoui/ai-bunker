@@ -120,6 +120,34 @@ client kits and a dashboard.
   fingerprint of the first user turn, otherwise the credential. Hashed, never
   stored as prose — the identifier reaches logs and the dashboard.
 
+### Rug pulls
+
+- **Each tool's contract is fingerprinted and compared** (`tool.contract_changed`).
+  Screening a declaration catches what it says; it cannot catch a server that
+  behaves until it is trusted and then changes the description. Nothing in the
+  new text need look suspicious, so no content rule sees it.
+- Two tiers, severity following what was promised: a contract that changes
+  **mid-session** is reported and the tool stays (a server may legitimately
+  have restarted); a contract that differs from `config/tools.lock` — which a
+  human wrote and committed — is **withheld**.
+- `ai-bunker tools <captured-request.json> --pin` writes the approvals;
+  without `--pin` it compares and exits non-zero on drift, so it gates. Commit
+  the diff: that diff is the review.
+- The fingerprint covers the parameter schema, not only the prose — a server
+  that keeps its description and adds a `callback_url` has changed what the
+  tool does without changing a word of what it says. Hashed raw, which makes
+  this the one place where the undisguised reading would be wrong.
+- Taken from `agent-scan`, named in LANDSCAPE.md as the best idea in the
+  survey that this project had not taken.
+
+### Configuration
+
+- **A duplicated top-level block is now reported.** YAML keeps the last one
+  and discards the first silently, so a second `enforcement:` turns off
+  everything the first configured. Found by writing one into this project's
+  own example config while adding `tools_lock`: the whole enforcement block
+  vanished and the file still parsed.
+
 ### Tool declarations
 
 - **A third rule scope, `tool`.** The engine screened what a tool returned and

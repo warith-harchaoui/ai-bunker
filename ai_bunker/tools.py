@@ -60,9 +60,15 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import os_helper as osh
+import yaml
 
 from ai_bunker.i18n import DEFAULT_LOCALE, translator
 from ai_bunker.invisible import normalise
@@ -93,6 +99,11 @@ class Tool:
     #: Empty when the client declared none, which is common and legitimate:
     #: a name alone is still text the planner reads.
     description: str = ""
+    #: The parameter schema, as declared. Part of the contract and therefore
+    #: part of the fingerprint: a server that keeps its description and adds a
+    #: `callback_url` field has changed what the tool does without changing a
+    #: word of what it says.
+    schema: Any = None
     index: int = 0
 
     @property
@@ -113,6 +124,144 @@ class Collision:
     def describe(self) -> str:
         how = "the same name" if self.identical else "near-identical names"
         return f"{self.first.name!r} and {self.second.name!r} ({how})"
+
+
+def fingerprint(tool: Tool) -> str:
+    """A stable hash of everything a tool promises.
+
+    Name, description and parameter schema, canonicalised so that key order
+    and whitespace in the client's serialisation do not change the answer.
+    Hashed raw, deliberately: two descriptions that differ only by a
+    zero-width character are not the same contract, and this is the one place
+    in the project where the undisguised reading is the wrong thing to use.
+
+    Sixteen hexadecimal characters. A collision would have to be found by
+    somebody who already controls the tool list, at which point they have
+    easier attacks available.
+    """
+    payload = json.dumps(
+        {"name": tool.name, "description": tool.description, "parameters": tool.schema},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+@dataclass
+class Change:
+    """A tool whose contract is not what it was.
+
+    Attributes
+    ----------
+    name : str
+        The tool that changed.
+    was, now : str
+        Fingerprints, before and after.
+    approved : bool
+        True when the earlier fingerprint came from the lock file -- a human
+        wrote it down and committed it -- rather than from this session's
+        memory. The difference decides whether the tool is withheld or noted.
+    """
+
+    name: str
+    was: str
+    now: str
+    approved: bool = False
+
+
+@dataclass
+class Pins:
+    """What each tool looked like the first time it was seen.
+
+    In memory, per session, for the same reasons set out in
+    :mod:`ai_bunker.breaker`: the state resets when the gateway restarts, two
+    gateways behind a load balancer each keep their own half, and session
+    identity is inferred rather than given. Those limits are acceptable here
+    because this tier is the *free* one -- it costs no configuration and
+    catches the attack in its usual shape, a server that behaves until it is
+    trusted and then changes a description mid-conversation.
+
+    The tier that does not have those limits is the lock file, where a human
+    writes the fingerprint down and commits it. That is the same argument
+    `dependencies.py` makes about manifests, applied to tools.
+    """
+
+    #: session -> {tool name: fingerprint}
+    _seen: dict[str, dict[str, str]] = field(default_factory=dict, repr=False)
+    #: How many sessions to remember. A bound rather than a cache policy: an
+    #: unbounded dictionary on a long-running gateway is a leak with a
+    #: respectable name.
+    limit: int = 512
+
+    def check(self, session: str, tools: list[Tool]) -> list[Change]:
+        """Record this request's tools, and report any that changed."""
+        if not session or not tools:
+            return []
+        known = self._seen.get(session)
+        if known is None:
+            if len(self._seen) >= self.limit:
+                # Oldest first: dictionaries keep insertion order.
+                self._seen.pop(next(iter(self._seen)))
+            self._seen[session] = {tool.name: fingerprint(tool) for tool in tools}
+            return []
+
+        changed: list[Change] = []
+        for tool in tools:
+            now = fingerprint(tool)
+            was = known.get(tool.name)
+            if was is None:
+                known[tool.name] = now  # a tool offered for the first time
+            elif was != now:
+                changed.append(Change(name=tool.name, was=was, now=now))
+                known[tool.name] = now  # report once, not on every later turn
+        return changed
+
+    def forget(self, session: str | None = None) -> None:
+        self._seen.clear() if session is None else self._seen.pop(session, None)
+
+
+def approved_fingerprints(path: str | Path) -> dict[str, str]:
+    """The tool contracts a human wrote down and committed.
+
+    Absent or unreadable means "nothing was approved", which disables the
+    strict tier rather than refusing every tool -- the same choice
+    `dependencies.py` makes when a project has no manifest, and for the same
+    reason: a check with nothing to check against is not a guardrail.
+    """
+    file = Path(path)
+    if not file.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        osh.warning(f"[tools] {file} could not be read and is being ignored: {exc}")
+        return {}
+    entries = raw.get("tools") if isinstance(raw, dict) else None
+    if not isinstance(entries, dict):
+        return {}
+    return {str(k): str(v) for k, v in entries.items() if v}
+
+
+def write_lock(tools: list[Tool], path: str | Path) -> int:
+    """Write the fingerprints of ``tools`` as an approval file."""
+    lines = [
+        "# Tool contracts this project has approved.",
+        "#",
+        "# Each fingerprint covers a tool's name, description and parameter schema.",
+        "# When a server changes any of them, the gateway withholds that tool and says",
+        "# so: a tool that was approved and then changed is the rug pull, and no amount",
+        "# of reading the new description tells you whether the change was honest.",
+        "#",
+        "# Regenerate with `ai-bunker tools --pin <captured-request.json>` after a change",
+        "# you reviewed, and commit the diff -- that diff IS the review.",
+        "",
+        "tools:",
+    ]
+    lines += [f"  {tool.name}: {fingerprint(tool)}" for tool in sorted(tools, key=lambda x: x.name)]
+    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return len(tools)
 
 
 @dataclass
@@ -175,6 +324,7 @@ def declared_tools(request: dict[str, Any]) -> list[Tool]:
             Tool(
                 name=name,
                 description=description if isinstance(description, str) else "",
+                schema=body.get("parameters"),
                 index=position,
             )
         )
@@ -215,6 +365,7 @@ def inspect(request: dict[str, Any]) -> Inspected:
 # ---------------------------------------------------------------------------
 
 COLLISION_RULE_ID = "tool.name_collision"
+CHANGED_RULE_ID = "tool.contract_changed"
 
 
 def as_rules(result: Inspected, locale: str = DEFAULT_LOCALE) -> list[Rule]:
@@ -247,8 +398,47 @@ def as_rules(result: Inspected, locale: str = DEFAULT_LOCALE) -> list[Rule]:
     ]
 
 
+def changed_rule(changes: list[Change], locale: str = DEFAULT_LOCALE) -> Rule:
+    """Express changed contracts as a rule.
+
+    Severity follows how much was actually promised, and that is the whole
+    design of the two tiers. A contract that differs from a **lock file** is a
+    deviation from something a human wrote down and committed, so the tool is
+    withheld -- there is no ambiguity to weigh. A contract that merely differs
+    from what this session saw an hour ago is suspicious and might be a server
+    that restarted with an updated description, so it is reported and the tool
+    stays. Withholding on that would turn every honest upgrade into an outage.
+    """
+    from ai_bunker.rules import Rule
+
+    approved = [c for c in changes if c.approved]
+    listed = ", ".join(f"{c.name} ({c.was} -> {c.now})" for c in changes[:3])
+    if len(changes) > 3:
+        listed += f", and {len(changes) - 3} more"
+    return Rule(
+        id=CHANGED_RULE_ID,
+        severity="BLOCKER" if approved else "WARNING",
+        scope="tool",
+        description=translator(locale)(
+            "tools.changed_approved" if approved else "tools.changed_session",
+            listed=listed,
+            count=len(changes),
+        ),
+        pattern=re.compile(r"(?!)"),  # never matches: decided in code
+        redact=False,
+        replacement="",
+        source="tools.py",
+    )
+
+
 def screen(
-    request: dict[str, Any], rules: list[Rule], locale: str = DEFAULT_LOCALE
+    request: dict[str, Any],
+    rules: list[Rule],
+    locale: str = DEFAULT_LOCALE,
+    *,
+    pins: Pins | None = None,
+    session: str = "",
+    approved: dict[str, str] | None = None,
 ) -> tuple[dict[str, Any], list[Violation], list[Tool]]:
     """Screen every declared tool, and withhold the ones a BLOCKER refuses.
 
@@ -298,6 +488,30 @@ def screen(
     found = inspect(request)
     for rule in as_rules(found, locale):
         violations[rule.id] = Violation(rule=rule)
+
+    # Rug pulls. Two sources for "what this tool used to be": the lock file,
+    # which a human approved, and this session's own memory, which is free and
+    # catches the mid-conversation swap.
+    changes: list[Change] = []
+    if approved:
+        changes += [
+            Change(name=tool.name, was=approved[tool.name], now=current, approved=True)
+            for tool in tools
+            if (current := fingerprint(tool)) != approved.get(tool.name, current)
+        ]
+    if pins is not None:
+        already = {c.name for c in changes}
+        changes += [c for c in pins.check(session, tools) if c.name not in already]
+    if changes:
+        rule = changed_rule(changes, locale)
+        violations[rule.id] = Violation(rule=rule, count=len(changes))
+        if rule.severity == "BLOCKER":
+            # A tool another rule already withheld must not be named twice:
+            # the agent is told which capabilities it lost, and a list that
+            # repeats one reads as though two different tools went missing.
+            already = {t.index for t in withheld}
+            deviating = {c.name for c in changes if c.approved}
+            withheld += [t for t in tools if t.name in deviating and t.index not in already]
 
     if not withheld and not rewritten:
         return request, list(violations.values()), []

@@ -806,3 +806,40 @@ def test_an_upstream_without_a_model_is_unchanged():
     )
     _, resolved, _ = settings.route("", "")
     assert resolved == ""
+
+
+def test_a_duplicated_configuration_block_is_reported(tmp_path, caplog):
+    """YAML keeps the last duplicate and discards the first without a word, so
+    a second `enforcement:` silently turns off everything the first one set.
+
+    Found by writing one into this project's own example config while adding
+    `tools_lock`: the entire enforcement block vanished and the file still
+    parsed. Same family as the misplaced `api_key` that `_warn_about_strays`
+    exists for -- a configuration that reads as though it says something and
+    does not.
+    """
+    from ai_bunker.config import load_settings
+
+    path = tmp_path / "gateway.yaml"
+    path.write_text(
+        "enforcement:\n  budget: true\n  commands: true\nenforcement:\n  payments: false\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level("WARNING"):
+        load_settings(str(path))
+    assert "declared 2 times" in caplog.text
+    assert "enforcement" in caplog.text
+
+
+def test_an_ordinary_configuration_says_nothing_about_duplicates(tmp_path, caplog):
+    """A warning that fires on correct input is a warning people learn to
+    ignore."""
+    from ai_bunker.config import load_settings
+
+    path = tmp_path / "gateway.yaml"
+    path.write_text(
+        "enforcement:\n  budget: true\nbudget:\n  compaction_reserve: 0\n", encoding="utf-8"
+    )
+    with caplog.at_level("WARNING"):
+        load_settings(str(path))
+    assert "declared" not in caplog.text

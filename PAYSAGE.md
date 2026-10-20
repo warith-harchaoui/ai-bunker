@@ -24,7 +24,7 @@ Relevé le 19/10/2026, re-relevé le 20/10/2026.
 <!-- TABLE:START -->
 | Couche de service | Rien ne quitte le réseau | Filtre ce que l'agent lit | Filtre les déclarations d'outils | Refuse ce que l'agent exécute | Isole l'exécution des outils | Compte le budget côté serveur | Sert les standards d'équipe | Règles livrées avec tests | Tout client OpenAI | Largeur de fournisseurs |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **ai-bunker** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
+| **ai-bunker** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
 | LiteLLM | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | Bifrost | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | Portkey | ⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
@@ -175,9 +175,10 @@ Rien de tout cela n'a été inventé ici, et le dire ne coûte rien.
 - **`agent-scan` : une description d'outil mérite d'être filtrée, et d'être hachée.** La
   première moitié est arrivée ici sous forme de portée `tool`. La seconde — épingler
   chaque description et remarquer qu'un serveur en change une en douce après son
-  approbation, le *rug pull* — est la meilleure idée de ce relevé que ce projet n'a pas
-  encore prise, et elle ne demande ni réseau ni connaissance de l'origine. C'est la
-  prochaine chose à construire.
+  approbation, le *rug pull* — était nommée ici comme la meilleure idée du relevé que ce
+  projet n'avait pas prise ; elle l'est désormais : `tool.contract_changed`, en deux
+  niveaux. Ce qui leur reste en propre, c'est de savoir de quel serveur vient un outil,
+  ce qu'une requête au format OpenAI ne dit pas.
 - **Le cours 5-Day AI Agents de Google, Jour 4.** Il nomme deux techniques
   d'obscurcissement contre lesquelles ce projet ne s'était jamais testé. Trois sondes sur
   six passaient devant toutes les règles, et deux devant un `BLOCKER`. La valeur était la

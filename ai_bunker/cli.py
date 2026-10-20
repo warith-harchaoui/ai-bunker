@@ -548,6 +548,55 @@ def cmd_spec(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def cmd_tools(args: argparse.Namespace) -> int:
+    """Read a captured request's tool list, and approve it or compare it.
+
+    Captured rather than fetched, for the same reason the dashboard asks for a
+    pasted request body: the gateway sees whatever a client declares, and what
+    a client declares is the only honest source for what to approve.
+    """
+    from ai_bunker.tools import approved_fingerprints, declared_tools, fingerprint, write_lock
+
+    try:
+        body = json.loads(Path(args.request).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"ai-bunker: cannot read {args.request}: {exc}", file=sys.stderr)
+        return 2
+
+    tools = declared_tools(body if isinstance(body, dict) else {})
+    if not tools:
+        print(f"ai-bunker: {args.request} declares no tools", file=sys.stderr)
+        return 2
+
+    if args.pin:
+        count = write_lock(tools, args.out)
+        print(f"  {count} tool contract(s) approved in {args.out}")
+        print("  Commit the diff: that diff is the review.")
+        return 0
+
+    approved = approved_fingerprints(args.out)
+    if not approved:
+        print(f"  {args.out} approves nothing yet; run with --pin to write it")
+        for tool in sorted(tools, key=lambda t: t.name):
+            print(f"    {fingerprint(tool)}  {tool.name}")
+        return 0
+
+    drifted = 0
+    for tool in sorted(tools, key=lambda t: t.name):
+        now, was = fingerprint(tool), approved.get(tool.name)
+        if was is None:
+            print(f"  [new ] {tool.name}: {now} (never approved)")
+            drifted += 1
+        elif was != now:
+            print(f"  [DIFF] {tool.name}: approved {was}, declared {now}")
+            drifted += 1
+        else:
+            print(f"  [ok  ] {tool.name}: {now}")
+    for name in sorted(set(approved) - {t.name for t in tools}):
+        print(f"  [gone] {name}: approved but not declared")
+    return 1 if drifted else 0
+
+
 def cmd_breaker(args: argparse.Namespace) -> int:
     """Read or clear the circuit breakers on a running gateway.
 
@@ -845,6 +894,15 @@ def build_parser() -> argparse.ArgumentParser:
     dr = sub.add_parser("doctor", help="Check that everything the deployment claims is true.")
     dr.add_argument("--config", default=None)
     dr.set_defaults(func=cmd_doctor)
+
+    tl = sub.add_parser(
+        "tools",
+        help="Approve the tool contracts a captured request declares, or check them.",
+    )
+    tl.add_argument("request", help="A captured request body, as JSON.")
+    tl.add_argument("--pin", action="store_true", help="Write the approvals instead of checking.")
+    tl.add_argument("--out", default="config/tools.lock", help="The approval file.")
+    tl.set_defaults(func=cmd_tools)
 
     bk = sub.add_parser(
         "breaker",

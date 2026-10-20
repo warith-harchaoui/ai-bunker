@@ -731,6 +731,52 @@ message dont les marqueurs diffèrent de l'anglais. Ce dernier est celui qui
 lève une exception au lieu de mal se lire : un traducteur qui perd `{count}`
 livre un message qui marche jusqu'au jour où on l'appelle avec un compte.
 
+### L'outil qui a été approuvé, puis a changé
+
+Filtrer une déclaration d'outil attrape ce qu'elle **dit**. Cela n'attrape pas
+un serveur qui dit quelque chose de raisonnable, attend d'obtenir la confiance,
+puis change la description — le **rug pull**. Rien dans le nouveau texte n'a
+besoin d'être suspect. La seule preuve, c'est que le contrat n'est plus celui
+qu'il était, et relire la nouvelle version ne dit pas si le changement est
+honnête.
+
+Le nom, la description et le schéma de paramètres de chaque outil sont donc
+hachés, et l'empreinte est comparée. Deux niveaux, et la sévérité suit ce qui a
+réellement été promis :
+
+| Comparé à | Quand ça se déclenche | Ce qui arrive |
+|---|---|---|
+| ce que la session a vu en premier | un contrat change en cours de conversation | **signalé**, l'outil reste |
+| `config/tools.lock` | un contrat diffère de ce qu'un humain a approuvé | **retiré** |
+
+Le niveau gratuit ne coûte aucune configuration et attrape l'attaque dans sa
+forme habituelle. Il signale plutôt qu'il ne retire, car un serveur a pu
+légitimement redémarrer avec un nouveau texte, et retirer dans ce cas
+transformerait chaque mise à jour honnête en panne. Le niveau strict n'a pas
+cette ambiguïté à peser — quelqu'un a écrit l'empreinte et l'a commitée — donc
+un écart coûte à l'outil sa place dans la liste.
+
+```bash
+ai-bunker tools requete-capturee.json --pin   # approuver ce que votre client déclare
+ai-bunker tools requete-capturee.json         # comparer ; code non nul s'il y a dérive
+```
+
+Puis commitez le diff. **Ce diff est la relecture** : approuver un outil veut
+dire que quelqu'un a lu ce qu'il prétend faire et a dit oui, et un commit est
+l'endroit où ce projet enregistre déjà ce genre de décision — le même argument
+que `dependencies.py` tient sur les manifestes, appliqué aux outils.
+
+L'empreinte couvre le schéma de paramètres et pas seulement la prose, car un
+serveur qui garde sa description et ajoute un champ `callback_url` a changé ce
+que fait l'outil sans changer un mot de ce qu'il dit. Elle est prise sur le
+texte brut, ce qui fait de cet endroit le seul du projet où la lecture non
+déguisée serait **fausse** : deux descriptions qui diffèrent d'un seul
+caractère de largeur nulle ne sont pas le même contrat.
+
+Repris d'`agent-scan`, qui fait cela et deux choses que ce projet ne peut pas —
+il lit la configuration du client, donc il sait de quel serveur vient chaque
+outil.
+
 ### Les règles comme spécification approuvable
 
 Chaque règle porte déjà les cas qu'elle doit attraper et ceux qu'elle doit
@@ -1375,7 +1421,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 800 tests, `ruff` propre | ✅ |
+| 820 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

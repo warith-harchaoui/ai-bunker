@@ -686,6 +686,50 @@ placeholders disagree with the English. That last one is the one that raises
 rather than reads badly: a translator who drops `{count}` ships a message that
 works until the day it is called with a count.
 
+### The tool that was approved, and then changed
+
+Screening a tool declaration catches what it *says*. It cannot catch a server
+that says something reasonable, waits until it is trusted, and then changes
+the description — the **rug pull**. Nothing in the new text need look
+suspicious. The only evidence is that the contract is not what it was, and no
+amount of reading the new version tells you whether the change was honest.
+
+So each tool's name, description and parameter schema are hashed, and the
+hash is compared. Two tiers, and the severity follows how much was actually
+promised:
+
+| Compared against | When it fires | What happens |
+|---|---|---|
+| what this session first saw | a contract changes mid-conversation | **reported**, the tool stays |
+| `config/tools.lock` | a contract differs from what a human approved | **withheld** |
+
+The free tier costs no configuration and catches the attack in its usual
+shape. It reports rather than withholds because a server may legitimately have
+restarted with new text, and withholding on that would turn every honest
+upgrade into an outage. The strict tier has no such ambiguity to weigh —
+somebody wrote the fingerprint down and committed it — so a deviation costs
+the tool its place in the list.
+
+```bash
+ai-bunker tools captured-request.json --pin   # approve what your client declares
+ai-bunker tools captured-request.json         # compare; non-zero on drift, so it gates
+```
+
+Then commit the diff. **That diff is the review**: approving a tool means
+somebody read what it claims to do and said yes, and a commit is where this
+project already records that kind of decision — the same argument
+`dependencies.py` makes about manifests, applied to tools.
+
+The fingerprint covers the parameter schema and not only the prose, because a
+server that keeps its description and adds a `callback_url` field has changed
+what the tool does without changing a word of what it says. It is taken over
+the raw text, which makes this the one place in the project where the
+undisguised reading is the *wrong* thing to use: two descriptions differing by
+a single zero-width character are not the same contract.
+
+Taken from `agent-scan`, which does this and two things this cannot — it reads
+the client's own configuration, so it knows which server each tool came from.
+
 ### The rules as a specification someone can approve
 
 Every rule already carries the cases it must catch and the cases it must leave
@@ -1293,7 +1337,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 800 tests, `ruff` clean | ✅ |
+| 820 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

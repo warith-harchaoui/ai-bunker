@@ -37,6 +37,7 @@ SUBCOMMANDS = (
     "serve",
     "doctor",
     "breaker",
+    "tools",
     "detect",
     "catalog",
 )

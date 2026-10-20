@@ -86,6 +86,9 @@ enforcement:
   commands: true
   mark_provenance: true
 
+  # Approved tool contracts -- see the note above this file's last section.
+  tools_lock: ""            # e.g. config/tools.lock
+
   # The repository whose manifests say which packages are approved. Set it to
   # refuse any install of a package the project never declared -- the offline
   # answer to hallucinated package names. A registry lookup cannot give that
@@ -189,3 +192,35 @@ breaker:
 # instead. When something IS set, it wins: the language an agent is instructed
 # in belongs to the operator, not to a per-call header.
 language: ""                # "" | en | fr
+
+# ---------------------------------------------------------------------------
+# Approved tool contracts
+# ---------------------------------------------------------------------------
+# A tool arrives as a name, a description and a parameter schema, and the
+# planner chooses between tools by reading them. A server can behave until it
+# is trusted and then change that description -- the *rug pull*. Nothing in
+# the new text need look suspicious, so no content rule can catch it; the only
+# evidence is that the contract is not what it was.
+#
+# Two tiers, and the severity follows how much was actually promised:
+#
+#   free, always on   The gateway remembers each tool's fingerprint the first
+#                     time it sees it in a session. A contract that changes
+#                     mid-conversation is REPORTED and the tool stays -- a
+#                     server may legitimately have restarted with new text,
+#                     and withholding on that would turn every honest upgrade
+#                     into an outage.
+#
+#   tools_lock        A file a human wrote and committed. A contract that
+#                     differs from it is unambiguous, so the tool is WITHHELD.
+#
+# Write it from a request your client actually sends:
+#
+#     ai-bunker tools captured-request.json --pin
+#
+# then commit the diff. That diff is the review: approving a tool means
+# somebody looked at what it says it does and said yes, and a commit is where
+# this project already records that kind of decision.
+#
+# `ai-bunker tools captured-request.json` without --pin compares instead, and
+# exits non-zero on drift, so it works as a gate.

@@ -23,7 +23,7 @@ Surveyed 2026-10-19, re-surveyed 2026-10-20.
 <!-- TABLE:START -->
 | Serving layer | Nothing leaves the network | Screens what the agent reads | Screens the tool declarations | Refuses what the agent runs | Isolates tool execution | Counts the budget server-side | Serves team standards | Rules ship with tests | Any OpenAI client | Provider breadth |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **ai-bunker** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
+| **ai-bunker** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
 | LiteLLM | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | Bifrost | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | Portkey | ⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
@@ -168,9 +168,10 @@ None of this was invented here, and saying so costs nothing.
   is prevention, moved server-side — which the taxonomy does not have a box for.
 - **`agent-scan`: a tool description is worth screening, and worth hashing.** The first
   half arrived here as the `tool` scope. The second half — pinning each description and
-  noticing when a server quietly changes one after it was approved, the *rug pull* — is
-  the best idea in this survey that this project has not taken yet, and it needs no
-  network and no knowledge of origin. It is the next thing to build.
+  noticing when a server quietly changes one after it was approved, the *rug pull* — was
+  named here as the best idea in this survey that this project had not taken, and it is
+  taken now: `tool.contract_changed`, in two tiers. What is still theirs alone is
+  knowing which server a tool came from, which an OpenAI-shaped request does not say.
 - **Google's 5-Day AI Agents course, Day 4.** Named two obfuscation techniques this
   project had never tested itself against. Three of six probes walked past every rule,
   and two walked past a `BLOCKER`. The value was the checklist, not the knowledge: the

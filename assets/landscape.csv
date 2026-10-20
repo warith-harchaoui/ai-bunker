@@ -1,5 +1,5 @@
 Serving layer,Nothing leaves the network,Screens what the agent reads,Screens the tool declarations,Refuses what the agent runs,Isolates tool execution,Counts the budget server-side,Serves team standards,Rules ship with tests,Any OpenAI client,Provider breadth
-ai-bunker,5,5,4,5,1,5,5,5,5,2
+ai-bunker,5,5,5,5,1,5,5,5,5,2
 LiteLLM,5,1,1,1,1,2,1,1,5,5
 Bifrost,5,4,3,3,1,2,1,1,5,4
 Portkey,2,4,1,1,1,2,2,2,5,5

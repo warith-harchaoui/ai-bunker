@@ -17,6 +17,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -115,6 +116,12 @@ class Settings:
     mandate_issuers: tuple[str, ...] = ()
     #: One revoked mandate id per line.
     mandate_revocations: str = ""
+    #: File of approved tool fingerprints. Set it and a tool whose name,
+    #: description or parameter schema no longer matches what was approved is
+    #: WITHHELD rather than merely noted -- the rug pull, caught against
+    #: something a human committed. Empty leaves the free tier running: a
+    #: contract that changes mid-session is still reported.
+    tools_lock: str = ""
     #: Language the gateway answers in: rule descriptions, refusals and notes.
     #: Empty means English, and that default is deliberate rather than lazy --
     #: a refusal is read by a model before it reaches a person, and changing
@@ -244,6 +251,36 @@ MISPLACED_KEYS = {
 }
 
 
+#: A top-level key, at column zero, which is where a block begins.
+_TOP_KEY = re.compile(r"^([A-Za-z_][\w-]*):", re.M)
+
+
+def _warn_about_duplicates(text: str, path: Path) -> None:
+    """Say something when a block is declared twice.
+
+    YAML keeps the last one and discards the first without a word, so a second
+    `enforcement:` further down the file silently turns off everything the
+    first one configured. Found by writing one into this project's own example
+    config: the whole enforcement block vanished and the file still parsed.
+
+    This is the same failure as the misplaced `api_key` that
+    `_warn_about_strays` exists for -- a configuration that reads as though it
+    says something and does not -- so it gets the same treatment rather than a
+    comment in a file nobody rereads.
+    """
+    seen: dict[str, int] = {}
+    for found in _TOP_KEY.finditer(text):
+        key = found.group(1)
+        seen[key] = seen.get(key, 0) + 1
+    for key, count in seen.items():
+        if count > 1:
+            osh.warning(
+                f"[gateway] {path}: `{key}:` is declared {count} times. YAML keeps the "
+                f"LAST one and silently discards the others, so whatever the earlier "
+                f"`{key}:` block configured is not in effect. Merge them."
+            )
+
+
 def _warn_about_strays(raw: dict[str, Any], path: Path) -> None:
     """Say something about top-level keys the loader does not read.
 
@@ -316,7 +353,9 @@ def load_settings(path: str | Path | None = None) -> Settings:
     p = Path(path or DEFAULT_CONFIG)
     raw: dict[str, Any] = {}
     if osh.file_exists(str(p)):
-        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        text = p.read_text(encoding="utf-8")
+        _warn_about_duplicates(text, p)
+        raw = yaml.safe_load(text) or {}
     else:
         osh.debug(f"[gateway] no config at {p}; using defaults and the environment.")
 
@@ -397,6 +436,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
         ),
         audit_log=str(raw.get("audit_log") or ""),
         language=str(raw.get("language") or ""),
+        tools_lock=str(enforcement.get("tools_lock") or ""),
     )
 
     if not settings.sovereign:
