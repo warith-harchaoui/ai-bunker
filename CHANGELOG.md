@@ -37,6 +37,29 @@ client kits and a dashboard.
   A page costs nothing until it is opened.
 - A content fingerprint, usable both as a prefix-cache key and as provenance.
 
+### Dependency versions
+
+- **A version the project does not declare is refused** (`deps.version_mismatch`).
+  The check asked only whether a package was declared, which is blind to the
+  attack that needs no new package: an older release of an approved one with a
+  known hole. `pip install requests==2.6.0` against a project pinning 2.31.0
+  passed every name-based check, including this one.
+- A **range is not a pin**. `flask>=2.0` is a decision to accept what
+  satisfies it, so landing inside the range is not a departure; only an exact
+  pin counts. Trailing zeros are the same release, so `2.31` and `2.31.0` do
+  not disagree.
+- An unversioned install of a pinned package is **noted, not refused**
+  (`deps.unpinned_install`): usually a human typing the obvious thing, but the
+  repository stops describing what is installed, which is worth saying.
+- **`npm i lodash` was never screened at all.** The installer pattern wanted
+  the word `install`, so the shorthand people actually type walked past the
+  undeclared-package refusal; `pnpm i` too. Every shorthand is now matched,
+  with adjacency required so a one-letter verb cannot turn `cp -i a b` into a
+  refused install.
+- Not attempted and not implied: the cryptographic signature and
+  Software-Bill-of-Materials verification the whitepaper also asks for. Both
+  need a network, and this gateway's claim is that nothing leaves it.
+
 ### Circuit breaker
 
 - **A session whose actions keep being refused has its tool calls stopped**

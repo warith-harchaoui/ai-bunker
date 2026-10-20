@@ -47,6 +47,7 @@ import os_helper as osh
 from ai_bunker.breaker import as_rule as breaker_rule
 from ai_bunker.budget import Budget, Counter, measure_request
 from ai_bunker.charter import Charter, system_blocks
+from ai_bunker.dependencies import as_note as dependency_note
 from ai_bunker.dependencies import as_rule as dependency_rule
 from ai_bunker.dependencies import check as dependency_check
 from ai_bunker.payments import as_rule as payment_rule
@@ -273,7 +274,17 @@ def screen_outbound(
             result = dependency_check(command, project_root)
             if not result.ok:
                 refusal, refused = dependency_rule(result), command
-                notes.append(Violation(rule=refusal, count=len(result.undeclared)))
+                notes.append(
+                    Violation(
+                        rule=refusal,
+                        count=len(result.undeclared) or len(result.mismatched),
+                    )
+                )
+            elif result.unpinned:
+                # Noted, not refused: installing a pinned package without
+                # naming its version is usually a human typing the obvious
+                # thing, and the cost of refusing it would exceed the risk.
+                notes.append(Violation(rule=dependency_note(result), count=len(result.unpinned)))
 
     # Payments are screened over EVERY tool call, not only the shell ones. A
     # payment does not arrive as a command -- it arrives as `create_payment`,

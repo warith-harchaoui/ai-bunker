@@ -622,6 +622,52 @@ Trois limites, publiées plutôt que découvertes :
 - **Elle ne voit que ce qui traverse la passerelle**, comme tous les autres
   contrôles ici.
 
+### Une rétrogradation n'a besoin d'aucun nouveau paquet, seulement d'un plus ancien
+
+Le contrôle des dépendances posait une question : *ce projet a-t-il déclaré ce
+paquet ?* C'est la défense contre le slopsquatting, et elle est bonne. Elle est
+aussi aveugle à l'attaque qui n'a besoin d'aucun nouveau paquet — une version
+plus ancienne d'un paquet **approuvé**, avec un trou connu dedans.
+`pip install requests==2.6.0` sur un projet qui déclare `requests==2.31.0`
+passe tous les contrôles par nom qui existent, celui-ci compris, parce que le
+nom est le bon.
+
+Le contrôle pose donc maintenant deux questions, et la seconde porte sur la
+version :
+
+| Commande, sur un projet déclarant `requests==2.31.0` | Avant | Maintenant |
+|---|---|---|
+| `pip install requests==2.31.0` | autorisé | autorisé |
+| `pip install requests==2.6.0` | autorisé | **refusé** |
+| `pip install requests` | autorisé | noté |
+| `pip install flask==3.0`, avec `flask>=2.0` déclaré | autorisé | autorisé |
+
+Une plage n'est **pas** un épinglage, et la distinction est porteuse.
+`flask>=2.0` est une décision d'accepter ce qui la satisfait : une commande qui
+atterrit dans la plage ne s'écarte pas du manifeste, et la refuser serait un
+faux refus. Seul un épinglage exact — `==2.31.0`, une version nue dans
+`package.json`, une entrée de fichier de verrouillage — en est un.
+
+Un install sans version d'un paquet épinglé est **noté, pas refusé**. C'est en
+général un humain qui tape l'évident, et le refuser coûterait plus que le
+risque ; mais ce que l'index sert aujourd'hui est ce qui atterrit, et le dépôt
+ne décrit alors plus ce qui est installé — cela mérite d'être dit.
+
+La limite, nommée : le papier demande un épinglage *cryptographique*, des
+signatures vérifiées et une nomenclature logicielle contrôlée dans la chaîne
+d'intégration. Rien de tout cela n'est possible hors ligne, et toute la
+promesse de cette passerelle est que rien ne quitte le réseau — ce n'est donc
+ni tenté ni sous-entendu. Ce qui *est* possible sans réseau, c'est lire le
+dépôt et comparer, la même épistémologie que le contrôle d'origine.
+
+**Et un trou trouvé en l'écrivant.** `npm i lodash` — la forme qu'on tape
+vraiment — n'était pas reconnue du tout par le motif d'installateurs : elle
+passait donc complètement à côté du refus de paquet non déclaré. `pnpm i`
+aussi. Toutes les formes abrégées sont désormais filtrées, avec adjacence
+exigée : un verbe d'une lettre autorisé à flotter près d'un nom d'outil
+reconnaît `npm run build && cp -i a b`, et le contrôle refuserait alors une
+copie de fichier pour installation de paquets non déclarés.
+
 ### Les règles comme spécification approuvable
 
 Chaque règle porte déjà les cas qu'elle doit attraper et ceux qu'elle doit
@@ -1266,7 +1312,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 742 tests, `ruff` propre | ✅ |
+| 771 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

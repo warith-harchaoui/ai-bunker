@@ -584,6 +584,49 @@ Three limits, published rather than discovered:
   share a breaker.
 - **It sees only what crosses the gateway**, like every other control here.
 
+### A downgrade needs no new package, only an older one
+
+The dependency check asked one question: *did this project declare this
+package?* That is the slopsquatting defence and it is a good one. It is also
+blind to the attack that needs no new package at all — an older release of an
+**approved** one, with a known hole in it. `pip install requests==2.6.0` on a
+project that declares `requests==2.31.0` passes every name-based check in
+existence, including this one, because the name is right.
+
+So the check now asks two questions, and the second is about the version:
+
+| Command, against a project declaring `requests==2.31.0` | Before | Now |
+|---|---|---|
+| `pip install requests==2.31.0` | allowed | allowed |
+| `pip install requests==2.6.0` | allowed | **refused** |
+| `pip install requests` | allowed | noted |
+| `pip install flask==3.0`, declared `flask>=2.0` | allowed | allowed |
+
+A range is **not** a pin, and that distinction is load-bearing. `flask>=2.0`
+is a decision to accept whatever satisfies it, so a command landing inside the
+range has not departed from the manifest and refusing it would be a false
+refusal. Only an exact pin — `==2.31.0`, a bare version in `package.json`, a
+lock-file entry — is treated as one.
+
+An unversioned install of a pinned package is **noted, not refused**. It is
+usually a human typing the obvious thing, and the cost of refusing that
+exceeds the risk; but whatever the index serves today is what lands, and the
+repository then no longer describes what is installed, so it is worth saying.
+
+The limit, named: the whitepaper asks for *cryptographic* version pinning,
+verified signatures and a Software Bill of Materials checked in the pipeline.
+None of that is possible offline, and this gateway's whole claim is that
+nothing leaves the network — so it is not attempted and not implied. What
+*can* be done without a network is read the repository and compare, which is
+the same epistemology as the original check.
+
+**And a hole found while writing it.** `npm i lodash` — the form people
+actually type — was not matched by the installer pattern at all, so it walked
+past the undeclared-package refusal entirely. So did `pnpm i`. Every
+shorthand is now screened, with adjacency required: a one-letter verb allowed
+to float near a tool name matches `npm run build && cp -i a b`, and the check
+would then refuse a file copy for installing undeclared packages.
+
 ### The rules as a specification someone can approve
 
 Every rule already carries the cases it must catch and the cases it must leave
@@ -1191,7 +1234,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 742 tests, `ruff` clean | ✅ |
+| 771 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
