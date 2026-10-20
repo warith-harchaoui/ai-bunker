@@ -15,17 +15,22 @@ from __future__ import annotations
 import pytest
 
 from ai_bunker.adopt import ROOT
-from ai_bunker.charter import load_charter
+from ai_bunker.charter import build_index, load_charter
 from ai_bunker.skill import (
     CLIENT_PATHS,
     MAX_DESCRIPTION,
     NAME_PATTERN,
     RECOMMENDED_BODY_LINES,
     Skill,
+    as_charter_pack,
     build_skill,
+    import_skills,
+    read_catalog,
     read_skill,
+    split_body,
     validate,
     warnings,
+    write_charter_pack,
     write_skill,
 )
 
@@ -184,3 +189,216 @@ def test_the_default_path_serves_both_named_clients():
     one copy there serves Claude Code and OpenCode without writing twice."""
     assert CLIENT_PATHS["claude"] == ".claude/skills"
     assert "opencode" in CLIENT_PATHS and "agents" in CLIENT_PATHS
+
+
+# ---------------------------------------------------------------------------
+# The other direction: reading in a skills tree somebody else wrote.
+#
+# `build_skill` exports; these cover the import. Every number asserted here
+# was measured against the real probabl-ai/skore-skills tree, then reduced to
+# a fixture small enough to read.
+# ---------------------------------------------------------------------------
+
+
+FOLDED_SKILL = """---
+name: build-ml-pipeline
+description: >
+  Declare a skrub DataOps graph from the data source to the predictor.
+  Stateless steps use `.skb.apply_func`.
+metadata:
+  role: helper
+  modelTier: big
+---
+
+# Build ML Pipeline
+
+Preamble prose before any heading.
+
+## Scope
+
+Scope text.
+
+## Core rules
+
+Core rules text.
+"""
+
+
+def _tree(root, skills):
+    """A skills tree on disk: {name: (skill_md, {ref_name: text})}."""
+    for name, (source, refs) in skills.items():
+        directory = root / name
+        directory.mkdir(parents=True)
+        (directory / "SKILL.md").write_text(source, encoding="utf-8")
+        for ref_name, text in refs.items():
+            (directory / "references").mkdir(exist_ok=True)
+            (directory / "references" / ref_name).write_text(text, encoding="utf-8")
+    return root
+
+
+def test_a_folded_description_is_recovered_not_returned_as_its_marker(tmp_path):
+    """`description: >` is the form other projects use, and it used to win.
+
+    Reading only the text after the colon returned the fold marker, so the
+    description became ">". That passes every length check and tells an agent
+    nothing about when to load the skill.
+    """
+    _tree(tmp_path, {"build-ml-pipeline": (FOLDED_SKILL, {})})
+    skill = read_skill(tmp_path / "build-ml-pipeline")
+    assert skill.description.startswith("Declare a skrub DataOps graph")
+    assert "`.skb.apply_func`" in skill.description, "the fold must join its lines"
+    assert ">" not in skill.description.split()[0]
+
+
+def test_nested_metadata_survives_the_read(tmp_path):
+    """Where another project puts the facts that are not prose.
+
+    The parser skipped every indented line, so `role` and `modelTier` were
+    dropped and an imported skill arrived stripped of everything
+    machine-readable.
+    """
+    _tree(tmp_path, {"build-ml-pipeline": (FOLDED_SKILL, {})})
+    skill = read_skill(tmp_path / "build-ml-pipeline")
+    assert skill.metadata == {"role": "helper", "modelTier": "big"}
+
+
+def test_a_split_body_is_distributed_never_rewritten():
+    """The line this project draws about editing someone else's content.
+
+    A gateway may decide where a page ends. It may not decide what it says.
+    """
+    body = "intro\n\n## One\n\nalpha\n\n## Two\n\nbeta\n"
+    slices = split_body(body, limit=10)
+    assert len(slices) == 3, "it should cut at every heading it needs"
+    assert "".join(text for _, text in slices) == body, "the rejoin must be exact"
+    assert [heading for heading, _ in slices] == ["", "One", "Two"]
+
+
+def test_a_body_inside_the_budget_is_left_whole():
+    """No heading is invented for a page that did not need splitting."""
+    body = "# Title\n\nshort enough\n"
+    assert split_body(body, limit=10_000) == [("", body)]
+
+
+def test_import_reads_every_skill_and_ignores_everything_else(tmp_path):
+    _tree(
+        tmp_path,
+        {
+            "alpha": (FOLDED_SKILL.replace("build-ml-pipeline", "alpha"), {}),
+            "beta": (FOLDED_SKILL.replace("build-ml-pipeline", "beta"), {"r.md": "ref"}),
+        },
+    )
+    (tmp_path / "not-a-skill").mkdir()
+    (tmp_path / "loose.md").write_text("ignored", encoding="utf-8")
+    skills = import_skills(tmp_path)
+    assert [s.name for s in skills] == ["alpha", "beta"]
+    assert skills[1].references == {"r.md": "ref"}
+
+
+def test_a_declared_model_tier_is_recorded_and_never_acted_on(tmp_path):
+    """The decision, asserted so it cannot be quietly reversed.
+
+    skore-skills declares `modelTier: small | medium | big`, which lines up
+    with this project's routing by need rather than by model name. Wiring the
+    two would let a third-party directory decide what the team pays for
+    inference, and that is an operator's call.
+    """
+    _tree(tmp_path, {"build-ml-pipeline": (FOLDED_SKILL, {})})
+    skills = import_skills(tmp_path)
+    pages = as_charter_pack(skills, pack="ml", source="probabl-ai/skore-skills", limit=60)
+    page = next(text for key, text in pages.items() if key.endswith("01_overview.md"))
+    assert "modelTier: big" in page, "the declaration must survive for a human to read"
+    assert "not acted on" in page, "and the page must say it is not a routing decision"
+
+
+def test_every_imported_page_carries_its_provenance(tmp_path):
+    _tree(tmp_path, {"build-ml-pipeline": (FOLDED_SKILL, {"guide.md": "detail"})})
+    pages = as_charter_pack(
+        import_skills(tmp_path), pack="ml", source="probabl-ai/skore-skills", limit=60
+    )
+    assert pages, "the import produced nothing"
+    for key, text in pages.items():
+        assert "probabl-ai/skore-skills" in text, f"{key} does not say where it came from"
+
+
+def test_the_description_is_paid_once_not_on_every_part(tmp_path):
+    """It runs to 2,400 characters upstream; sixteen copies is the page budget."""
+    _tree(tmp_path, {"build-ml-pipeline": (FOLDED_SKILL, {})})
+    pages = as_charter_pack(import_skills(tmp_path), pack="ml", limit=60)
+    carrying = [k for k, v in pages.items() if "Declare a skrub DataOps graph" in v]
+    assert len(carrying) == 1, f"the description appears on {len(carrying)} pages"
+    assert carrying[0].endswith("01_overview.md")
+
+
+def test_a_published_digest_is_preferred_over_one_we_invent(tmp_path):
+    """A digest this project computed only proves the import is self-consistent."""
+    _tree(tmp_path, {"build-ml-pipeline": (FOLDED_SKILL, {})})
+    catalog = {"skill:build-ml-pipeline": "abc123def456789000", "catalog_hash": "top"}
+    pages = as_charter_pack(import_skills(tmp_path), pack="ml", catalog=catalog)
+    page = next(iter(pages.values()))
+    assert "abc123def4567890" in page
+    assert "(published)" in page
+
+    without = as_charter_pack(import_skills(tmp_path), pack="ml")
+    assert "(computed here)" in next(iter(without.values()))
+
+
+def test_a_catalogue_is_read_when_present_and_absent_otherwise(tmp_path):
+    tree = _tree(tmp_path / "skills", {"alpha": (FOLDED_SKILL, {})})
+    assert read_catalog(tree) == {}
+    (tmp_path / ".catalog.json").write_text(
+        '{"repository": "probabl-ai/skore-skills", "catalog_hash": "deadbeef", '
+        '"skills": [{"id": "alpha", "hash": "aaa"}]}',
+        encoding="utf-8",
+    )
+    found = read_catalog(tree)
+    assert found["repository"] == "probabl-ai/skore-skills"
+    assert found["catalog_hash"] == "deadbeef"
+    assert found["skill:alpha"] == "aaa"
+
+
+def test_a_broken_catalogue_is_ignored_rather_than_fatal(tmp_path):
+    tree = _tree(tmp_path / "skills", {"alpha": (FOLDED_SKILL, {})})
+    (tmp_path / ".catalog.json").write_text("{not json", encoding="utf-8")
+    assert read_catalog(tree) == {}
+
+
+def test_an_imported_page_is_not_overwritten_without_force(tmp_path):
+    pages = {"ml/alpha.md": "new text"}
+    target = tmp_path / "packs" / "ml" / "alpha.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("written by a person", encoding="utf-8")
+
+    assert write_charter_pack(pages, tmp_path) == []
+    assert target.read_text(encoding="utf-8") == "written by a person"
+
+    assert write_charter_pack(pages, tmp_path, force=True) == [target]
+    assert target.read_text(encoding="utf-8") == "new text"
+
+
+def test_the_import_round_trips_through_the_charter(tmp_path):
+    """The point of the whole exercise, asserted end to end.
+
+    A skills tree becomes pages the charter loads, groups into a pack and
+    serves as an index -- which is what makes it cheap: the pages are on disk
+    and the prompt carries a reference to them.
+    """
+    source = tmp_path / "source"
+    _tree(source, {"build-ml-pipeline": (FOLDED_SKILL, {"guide.md": "detail"})})
+    root = tmp_path / "charter"
+    root.mkdir()
+    (root / "AGENTS.md").write_text("Read one page at a time.", encoding="utf-8")
+
+    pages = as_charter_pack(import_skills(source), pack="ml", source="probabl-ai/skore-skills")
+    written = write_charter_pack(pages, root)
+    assert written, "nothing was written"
+
+    charter = load_charter(root)
+    assert {p.pack for p in charter.pages} == {"ml"}
+    assert len(charter.pages) == len(pages)
+    assert charter.warnings == [], f"the charter complained: {charter.warnings}"
+
+    on_disk = sum(p.chars for p in charter.pages)
+    index = build_index(charter)
+    assert len(index) < on_disk, "an index that costs what the pages cost is concatenation"
+    assert "ml" in index

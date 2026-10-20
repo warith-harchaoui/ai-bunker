@@ -1339,6 +1339,69 @@ drifted from the one being enforced. And it is not a replacement for a kit —
 a skill carries standards, not bounded reads or compaction thresholds, which
 are the three things in the table above that only a client can do.
 
+### The other direction: a skills tree someone else wrote
+
+The export proved the two formats agree, which means the import is nearly
+free — and it is the more useful direction, because the standards a team most
+wants served are usually ones it did not write.
+
+```bash
+ai-bunker skill --import ~/skore-skills/skills --pack ml \
+                --source probabl-ai/skore-skills
+```
+
+Measured against [`probabl-ai/skore-skills`](https://github.com/probabl-ai/skore-skills),
+a set of skills for steering machine-learning experiments with scikit-learn,
+skrub and skore:
+
+| | |
+|---|---|
+| skills read | 5 |
+| their `SKILL.md` bodies | 103,788 characters |
+| charter pages written | 77 |
+| largest page | 8,183 characters (budget: 12,000) |
+| pages over budget | **0** |
+| what the prompt then carries | **~597 tokens**, operating rules and index together |
+
+That is the whole point stated as a measurement: a hundred kilobytes of
+standards become something an agent is *told about* for six hundred tokens and
+reads one page of when a task calls for it.
+
+**A body over the page budget is split at its `##` headings, and the text is
+distributed rather than rewritten.** The rejoin is byte-identical — asserted,
+not assumed, on every real skill tested. This is the line the project draws
+elsewhere about touching content it did not author: a gateway may decide where
+a page ends, and may not decide what it says.
+
+**Provenance travels, and the source's own digest is preferred.**
+`skore-skills` ships a `.catalog.json` with a `catalog_hash` over the set and a
+hash per skill; those are recorded instead of a digest computed here, because
+a digest this project invented would only prove the import was
+self-consistent, not that it still matches upstream.
+
+**Two findings worth stating, because the import is where they surfaced.**
+First, all five of those skills carry a `description` longer than the Agent
+Skills limit of 1,024 characters — between 1,783 and 2,431 — because they use
+that field for trigger and scope prose. The import *reports* this and proceeds:
+these are somebody else's skills and the job here is to serve them, not to
+police them, but a silent import would hide a real interoperability problem
+behind a success message. Second, importing a 77-page pack exposed a bug in
+this project's own index: the size cap degraded the listing as a whole, so one
+large pack turned `python: 10_style.md, tests.md` into `python (2 pages)` —
+spending an agent's knowledge of two page names to save the forty-five
+characters that named them. The cap now degrades **per pack, largest first**.
+
+**`modelTier` is recorded and deliberately not acted on.** These skills declare
+`metadata.modelTier: small | medium | big`, which lines up exactly with
+[routing by need](#routing-by-need-not-by-model-name) rather than by model
+name, and wiring the two together is tempting. It is not wired. A third-party
+directory that can raise the tier is a third-party directory deciding what the
+team pays for inference, and that is an operator's decision. The declaration
+is preserved on the page where a person can read it and configure a route; it
+never reaches the router on its own. This is the `tool` scope's argument
+applied to a second channel: a declaration someone else wrote is an
+instruction channel, not a fact.
+
 ### Verifying a client, from the server
 
 A client kit is a claim; `POST /v1/budget` is how you check it. The response
@@ -1416,7 +1479,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 857 tests, `ruff` clean | ✅ |
+| 872 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

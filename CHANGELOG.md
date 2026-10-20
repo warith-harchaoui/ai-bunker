@@ -193,6 +193,47 @@ client kits and a dashboard.
   `git config --get core.hooksPath`, `scp build/out.tar deploy@prod:`), because
   refusing those would make the gateway unusable rather than safe.
 
+### Importing a skills tree someone else wrote
+
+- **`ai-bunker skill --import DIR --pack NAME`** reads a tree of Agent Skills
+  and writes it into the charter as a pack, which the gateway then serves as
+  an index rather than as a wall of text. The export already proved the two
+  formats agree; this is the more useful direction, because the standards a
+  team wants served are usually ones it did not write.
+- Measured against `probabl-ai/skore-skills`: 5 skills, 103,788 characters of
+  `SKILL.md` body, become **77 charter pages, none over the 12,000-character
+  page budget**, and a prompt carrying **~597 tokens** of operating rules and
+  index together.
+- **A body over budget is split at its `##` headings, and the text is
+  distributed rather than rewritten.** The rejoin is byte-identical, asserted
+  on every real skill tested. A gateway may decide where a page ends; it may
+  not decide what it says.
+- **Two real bugs in `read_skill`**, both of which only bite on a skill this
+  project did not write. A folded `description: >` came back as the literal
+  fold marker `>` — a one-character description that passes the non-empty
+  check and tells an agent nothing. And every indented line was skipped, so a
+  nested `metadata:` block was dropped: an imported skill arrived stripped of
+  everything machine-readable.
+- **Provenance prefers the source's own digest.** `.catalog.json` ships a
+  `catalog_hash` and a hash per skill; those are recorded rather than a digest
+  computed here, which would only prove the import was self-consistent.
+- **Specification violations are reported, not refused.** All five skore
+  skills carry a `description` over the format's 1,024-character limit
+  (1,783–2,431) because they use it for trigger and scope prose. These are
+  somebody else's skills and the job is to serve them — but a silent import
+  would hide an interoperability problem behind a success message.
+- **`modelTier` is recorded and deliberately not wired to the router.** The
+  declaration lines up with routing by need rather than by model name, and
+  acting on it would let a third-party directory decide what the team pays for
+  inference. It stays on the page for a person to read. The `tool` scope's
+  argument, applied to a second channel.
+- **A bug in this project's own index, found by using the feature.** The size
+  cap degraded the listing as a whole, so importing one 77-page pack turned
+  `python: 10_style.md, tests.md` into `python (2 pages)` — spending an agent's
+  knowledge of two page names to save the forty-five characters that named
+  them. The cap now degrades **per pack, largest first**, and a one-page pack
+  is no longer described as "1 pages".
+
 ### Configuration
 
 - **A duplicated top-level block is now reported.** YAML keeps the last one

@@ -1374,6 +1374,73 @@ ce n'est pas un remplacement de kit : une skill porte des standards, pas les
 lectures bornées ni les seuils de compaction — les trois lignes du tableau
 ci-dessus que seul un client peut tenir.
 
+### L'autre sens : un arbre de skills écrit par quelqu'un d'autre
+
+L'export a prouvé que les deux formats s'accordent, donc l'import est presque
+gratuit — et c'est le sens le plus utile, parce que les standards qu'une
+équipe veut le plus faire servir sont en général ceux qu'elle n'a pas écrits.
+
+```bash
+ai-bunker skill --import ~/skore-skills/skills --pack ml \
+                --source probabl-ai/skore-skills
+```
+
+Mesuré contre [`probabl-ai/skore-skills`](https://github.com/probabl-ai/skore-skills),
+un jeu de skills pour piloter des expériences d'apprentissage automatique avec
+scikit-learn, skrub et skore :
+
+| | |
+|---|---|
+| skills lus | 5 |
+| leurs corps `SKILL.md` | 103 788 caractères |
+| pages de charte écrites | 77 |
+| plus grosse page | 8 183 caractères (budget : 12 000) |
+| pages hors budget | **0** |
+| ce que l'invite porte ensuite | **~597 tokens**, règles d'opération et index réunis |
+
+C'est tout l'intérêt énoncé comme une mesure : cent kilo-octets de standards
+deviennent quelque chose dont un agent est *informé* pour six cents tokens, et
+dont il lit une page quand une tâche l'exige.
+
+**Un corps au-delà du budget de page est découpé à ses titres `##`, et le texte
+est réparti, pas réécrit.** Le recollage est identique octet pour octet —
+affirmé, pas supposé, sur chaque skill réel testé. C'est la ligne que ce projet
+trace ailleurs sur le fait de toucher du contenu qu'il n'a pas écrit : une
+passerelle peut décider où une page s'arrête, elle ne peut pas décider ce
+qu'elle dit.
+
+**La provenance voyage, et l'empreinte de la source est préférée.**
+`skore-skills` livre un `.catalog.json` avec un `catalog_hash` sur l'ensemble
+et une empreinte par skill ; ce sont celles-là qui sont enregistrées plutôt
+qu'un digest calculé ici, parce qu'un digest inventé par ce projet ne
+prouverait que la cohérence interne de l'import, pas la correspondance avec
+l'amont.
+
+**Deux trouvailles à dire, parce que c'est l'import qui les a fait sortir.**
+D'abord, les cinq skills portent une `description` plus longue que la limite
+de 1 024 caractères du format Agent Skills — entre 1 783 et 2 431 — parce
+qu'ils s'en servent pour la prose de déclenchement et de périmètre. L'import le
+**signale** et continue : ce sont les skills de quelqu'un d'autre et le rôle
+d'ai-bunker est de les servir, pas de les police, mais un import muet cacherait
+un vrai problème d'interopérabilité derrière un message de succès. Ensuite,
+importer un paquet de 77 pages a révélé un bug dans l'index de ce projet : le
+plafond dégradait la liste **entière**, donc un gros paquet transformait
+`python: 10_style.md, tests.md` en `python (2 pages)` — en dépensant la
+connaissance qu'un agent avait de deux noms de page pour économiser les
+quarante-cinq caractères qui les nommaient. Le plafond dégrade désormais **par
+paquet, le plus gros d'abord**.
+
+**`modelTier` est enregistré et délibérément pas suivi.** Ces skills déclarent
+`metadata.modelTier: small | medium | big`, ce qui recoupe exactement le
+[routage par besoin](#routage-par-besoin-pas-par-nom-de-modèle) plutôt que par
+nom de modèle, et câbler les deux est tentant. Ce n'est pas câblé. Un dossier
+tiers qui peut relever le palier est un dossier tiers qui décide ce que
+l'équipe paie en inférence, et c'est une décision d'exploitant. La déclaration
+est conservée sur la page, où une personne peut la lire et configurer une
+route ; elle n'atteint jamais le routeur seule. C'est l'argument de la portée
+`tool` appliqué à un second canal : une déclaration écrite par quelqu'un
+d'autre est un canal d'instructions, pas un fait.
+
 ### Vérifier un client, depuis le serveur
 
 Un kit client est une affirmation ; `POST /v1/budget` est la façon de la
@@ -1505,7 +1572,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 857 tests, `ruff` propre | ✅ |
+| 872 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
