@@ -217,8 +217,10 @@ BODY = (
             Les passerelles routent. Les garde-fous inspectent. Aucun ne compte.
           </p>
           <p class="mt-4 leading-relaxed text-neutral-700 dark:text-neutral-300">
-            ai-bunker est l'intersection — et le coin de la carte où les trois se rejoignent
-            était vide au moment du relevé.
+            ai-bunker est l'intersection, et ce coin de la carte reste peu peuplé. Moins
+            vide qu'en 2025 cependant : un budget de jetons à la passerelle est désormais
+            un motif que d'autres décrivent. Ce qui reste étroit, c'est de savoir quel
+            tokeniseur fait le comptage.
           </p>
           <p class="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
             Chaque chiffre de ce site a été mesuré. Là où une valeur est une estimation, elle le

@@ -51,7 +51,7 @@ BODY = r"""
              it would make it invisible. A bright card on a dark page is the
              lesser defect, and it is a choice rather than an oversight. -->
           <img src="img/landscape.png" width="1800" height="1391"
-            alt="A positioning map produced by principal component analysis. The horizontal axis runs from Resourceful on the left to Disciplined on the right; the vertical from Protected at the bottom to Managed at the top. LiteLLM, Kong AI Gateway and Portkey cluster on the left. NeMo Guardrails, Guardrails AI and LLM Guard sit centre and lower right, with Open Policy Agent and client-side harness config below them. ai-bunker sits alone in the top right."
+            alt="A positioning map produced by principal component analysis. The horizontal axis runs from Resourceful on the left to Vigilant on the right; the vertical from Secure at the bottom to Disciplined at the top. LiteLLM, Kong AI Gateway, Portkey, Bifrost, NeMo Guardrails, Guardrails AI and LLM Guard cluster on the left and centre. ToolHive and the Docker Model Context Protocol (MCP) Gateway sit at the lower right, with agent-scan, Open Policy Agent and client-side harness config near the centre right. ai-bunker sits alone in the top right."
             class="w-full rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800">
           <figcaption class="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
             Read it as a shape, not a scoreboard. Produced by

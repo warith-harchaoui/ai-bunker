@@ -12,11 +12,16 @@ below: AI is artificial intelligence, and an LLM is a large language model.
 
 ## The claim, in one paragraph
 
-Gateways (LiteLLM, Kong, Portkey) route requests but do not inspect them: a tool
-result full of secrets and a `rm -rf ~` pass through as ordinary bytes. Guardrail
-libraries (NeMo Guardrails, Guardrails AI, LLM Guard) inspect content but are
-libraries, so an agent that does not call them is unprotected. Neither counts the
-context budget. ai-bunker occupies the intersection.
+Gateways (LiteLLM, Kong, Portkey, Bifrost) route requests and mostly do not inspect
+them: a tool result full of secrets and a `rm -rf ~` pass through as ordinary bytes.
+Guardrail libraries (NeMo Guardrails, Guardrails AI, LLM Guard) inspect content but are
+libraries, so an agent that does not call them is unprotected. The Model Context
+Protocol tooling (ToolHive, Docker MCP Gateway, agent-scan) secures the tool servers
+rather than the conversation. ai-bunker is the intersection of the first three, in one
+process, in the request path. Re-surveyed 2026-10-20: a token budget at the gateway is
+now a described pattern elsewhere, so the narrow claim is what the count is made of --
+the serving engine's own tokenizer rather than an estimate, itemised by owner, with a
+refusal that names the component responsible.
 
 ## Pages
 

@@ -162,6 +162,10 @@ TERMS: dict[str, dict[str, list[str]]] = {
     "OFL": {"en": ["Open Font License"], "fr": ["Open Font License"]},
     "OPA": {"en": ["Open Policy Agent"], "fr": ["Open Policy Agent"]},
     "OTLP": {"en": ["OpenTelemetry Protocol"], "fr": ["OpenTelemetry Protocol"]},
+    "OWASP": {
+        "en": ["Open Worldwide Application Security Project"],
+        "fr": ["Open Worldwide Application Security Project"],
+    },
     "PCA": {"en": ["principal component analysis"]},
     "PII": {
         "en": ["personally identifiable information"],
@@ -224,6 +228,8 @@ NAMES = {
     "LANDSCAPE",
     "LICENSE",
     "LiteLLM",
+    "ToolHive",
+    "Bifrost",
     "MacBook",
     "NVIDIA",
     "NeMo",

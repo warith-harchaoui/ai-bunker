@@ -12,26 +12,31 @@ Un outil conçu pour un autre travail n'est pas critiqué ; la note reflète l'a
 **ce** créneau. Plusieurs des entrées ci-dessous sont excellentes dans le leur, et trois
 d'entre elles battent ce projet sur une colonne du tableau.
 
-Deux sigles traversent les noms du tableau et la prose qui suit : **AI** est
-l'anglais pour intelligence artificielle, et un **LLM** est un grand modèle de
-langue — le genre de modèle devant lequel se tiennent tous les outils cités ici.
+Trois sigles traversent les noms du tableau et la prose qui suit : **AI** est l'anglais
+pour intelligence artificielle, un **LLM** est un grand modèle de langue — le genre de
+modèle devant lequel se tiennent tous les outils cités ici — et **MCP** est le Model
+Context Protocol, la norme par laquelle un agent découvre et appelle des outils.
 
-Relevé le 19/10/2026.
+Relevé le 19/10/2026, re-relevé le 20/10/2026.
 
 ## En un coup d'œil
 
 <!-- TABLE:START -->
-| Couche de service | Rien ne quitte le réseau | Filtre ce que l'agent lit | Refuse ce que l'agent exécute | Compte le budget côté serveur | Sert les standards d'équipe | Règles livrées avec leurs tests | N'importe quel client OpenAI | Largeur de fournisseurs |
-| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **ai-bunker** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
-| LiteLLM | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Portkey | ⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Kong AI Gateway | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| NeMo Guardrails | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| Guardrails AI | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| LLM Guard | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
-| Open Policy Agent | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ |
-| Configuration du harnais client | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐ | ⭐ | ⭐⭐ |
+| Couche de service | Rien ne quitte le réseau | Filtre ce que l'agent lit | Filtre les déclarations d'outils | Refuse ce que l'agent exécute | Isole l'exécution des outils | Compte le budget côté serveur | Sert les standards d'équipe | Règles livrées avec tests | Tout client OpenAI | Largeur de fournisseurs |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **ai-bunker** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
+| LiteLLM | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Bifrost | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| Portkey | ⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Kong AI Gateway | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| NeMo Guardrails | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
+| Guardrails AI | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
+| LLM Guard | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
+| agent-scan (ex mcp-scan) | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐ | ⭐ |
+| ToolHive | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐ | ⭐ | ⭐ |
+| Docker MCP Gateway | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ |
+| Open Policy Agent | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ |
+| Configuration côté client | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐ | ⭐ | ⭐⭐ |
 <!-- TABLE:END -->
 
 ## Carte de positionnement
@@ -43,7 +48,9 @@ principales (ACP) (voir [`standpoint`](https://github.com/warith-harchaoui/stand
 ![Carte de positionnement](https://raw.githubusercontent.com/warith-harchaoui/ai-bunker/main/assets/landscape.png)
 
 À lire comme une forme, pas comme un classement. Les axes se lisent **Horizontal —
-Ressource ↔ Discipline** et **Vertical — Protégé ↔ Piloté**.
+Ressource ↔ Vigilance** et **Vertical — Sécurité ↔ Discipline**, et ce ne sont pas des
+étiquettes fixes : ce sont ce en quoi les critères se décomposent, donc ajouter les deux
+colonnes ci-dessus les a fait tourner. Ensemble ils portent environ 60 % du tableau.
 <!-- FIGURE:END -->
 
 ## Ce que la carte montre vraiment
@@ -62,14 +69,34 @@ injection, conformité de schéma — et plusieurs le font mieux que ce projet. 
 sont pas : des passerelles. Ce sont des bibliothèques que votre application appelle, donc
 un agent qui ne les appelle pas n'est pas protégé, et changer de harnais les perd.
 
-**En bas à droite — la politique, hors du chemin.** Open Policy Agent écrit et teste des
-politiques mieux que tout le reste ici, et n'est pas sur le trajet de la requête. Une
-configuration de harnais client est sur le trajet, et c'est un fichier sur un portable.
+**En bas à droite — la couche Model Context Protocol.** ToolHive et la Docker MCP
+Gateway font tourner chaque serveur d'outils dans son propre conteneur, injectent les
+secrets au moment de l'appel, et tiennent un inventaire pour que personne n'exploite un
+serveur dont l'équipe sécurité n'a jamais entendu parler — ce que l'Open Worldwide
+Application Security Project (OWASP), dans son MCP Top 10, appelle un serveur *fantôme*.
+`agent-scan` (l'ancien `mcp-scan`, désormais chez Snyk) lit les descriptions d'outils et
+repère celles qui sont empoisonnées, détecte les **rug pulls** en hachant chaque
+description et en remarquant qu'elle change, et repère l'éclipse d'outil en comparant les
+descriptions d'un serveur à l'autre. C'est la grappe dont ce projet a le plus à
+apprendre, et celle qu'il recoupe le moins : eux sécurisent les *serveurs* d'outils, lui
+sécurise la *conversation*.
 
-**Le haut à droite est vide, sauf ce projet.** Personne d'autre ne combine la position de
-la passerelle (chaque requête, chaque client, sans échappatoire) avec l'inspection du
-moteur de règles et un budget que le serveur compte. C'est une affirmation sur la
-couverture, pas sur la qualité.
+**En bas à droite aussi — la politique, hors du chemin.** Open Policy Agent écrit et
+teste des politiques mieux que tout le reste ici, et n'est pas sur le trajet de la
+requête. Une configuration de harnais client est sur le trajet, et c'est un fichier sur
+un portable.
+
+**Le haut à droite est peu peuplé, et moins vide qu'avant.** La combinaison sur laquelle
+ce projet se tient — la position de la passerelle (chaque requête, chaque client, sans
+échappatoire), plus l'inspection du moteur de règles, plus un budget que le serveur
+compte — n'est toujours assemblée nulle part ailleurs dans un seul processus. Mais le
+domaine a bougé pendant qu'on écrivait, et la version honnête de l'affirmation est plus
+étroite qu'en 2025 : les budgets de jetons à la passerelle sont désormais un motif
+décrit, avec des limites de contexte par route et de la limitation de débit par budget
+dans plusieurs produits. Ce qui reste distinctif, c'est *quel* comptage est utilisé et
+*à quoi* il sert — le tokeniseur du moteur de service lui-même plutôt qu'une estimation,
+le plancher détaillé **par propriétaire**, et un refus qui nomme le composant
+responsable. C'est une affirmation sur la couverture, pas sur la qualité.
 
 ## Positionnement
 
@@ -111,6 +138,19 @@ et aucun moyen d'utiliser le modèle sans elle.
 - **Expressivité et test des politiques : OPA.** Rego exprime des conditions qu'une regex
   ne peut pas, et son outillage de test avec couverture est meilleur que
   `rules --check`. L'idée qu'une politique porte ses propres tests vient de là.
+- **Isolation : ToolHive et la Docker MCP Gateway, totalement.** Ils font tourner
+  chaque serveur d'outils dans un conteneur aux privilèges restreints et injectent les
+  secrets au moment de l'appel. Ce projet n'isole rien : il décide de ce qui peut
+  s'exécuter, puis rend la commande à un harnais qui l'exécute sur l'hôte. C'est l'écart
+  que le papier du Jour 4 appelle le Pilier 1, et le combler n'est pas le travail d'une
+  passerelle — désigner celui dont c'est le travail, si.
+- **Provenance des outils : `agent-scan`.** Il lit la configuration du client, donc il
+  sait de quel serveur vient chaque outil et peut comparer les descriptions entre
+  origines. Une requête au format OpenAI ne porte pas cette information : ce projet peut
+  signaler une paire en collision et ne peut pas dire laquelle est l'imposteur.
+- **Débit : Bifrost.** Écrit en Go précisément pour sortir de sous le verrou global de
+  l'interpréteur Python, avec du cache sémantique. Ici c'est du Python sur le trajet de
+  la requête, et c'est dit.
 - **Maturité.** C'est un `0.1.0-alpha` à côté de projets qui ont des années de
   production.
 
@@ -132,6 +172,18 @@ Rien de tout cela n'a été inventé ici, et le dire ne coûte rien.
   Les agents de prévention bornent structurellement la croissance du contexte ; ceux du
   remède la laissent croître et compressent. Ce projet est de la prévention, déplacée
   côté serveur — une case que la taxonomie n'a pas.
+- **`agent-scan` : une description d'outil mérite d'être filtrée, et d'être hachée.** La
+  première moitié est arrivée ici sous forme de portée `tool`. La seconde — épingler
+  chaque description et remarquer qu'un serveur en change une en douce après son
+  approbation, le *rug pull* — est la meilleure idée de ce relevé que ce projet n'a pas
+  encore prise, et elle ne demande ni réseau ni connaissance de l'origine. C'est la
+  prochaine chose à construire.
+- **Le cours 5-Day AI Agents de Google, Jour 4.** Il nomme deux techniques
+  d'obscurcissement contre lesquelles ce projet ne s'était jamais testé. Trois sondes sur
+  six passaient devant toutes les règles, et deux devant un `BLOCKER`. La valeur était la
+  liste de contrôle, pas la connaissance : le papier dit que les charges invisibles
+  contournent la *relecture humaine* et ne prétend nulle part qu'elles contournent la
+  reconnaissance de motifs — c'est cette partie-là que les sondes ont trouvée.
 
 ## Fiche par outil
 
@@ -200,6 +252,53 @@ celles qui l'ont le plus amélioré.
 
 Ce qu'il n'est pas : sur le trajet, et conscient des LLM. Il n'a aucune notion de sortie
 d'outil, de budget de tokens ou de prompt système.
+
+### Bifrost
+
+Écrit en Go précisément pour sortir de sous le verrou global de l'interpréteur Python,
+le goulot que partage toute passerelle en Python — celle-ci comprise. Elle parle le
+Model Context Protocol dans les deux sens, à la fois client et serveur, si bien qu'un
+agent se connecte à un seul point d'entrée pendant que Bifrost courtier les outils
+derrière ; et elle livre regex, détection de secrets, modèle-juge et règles de garde-fou
+MCP.
+
+La réserve pertinente ici, c'est l'étagement : les garde-fous de sûreté du contenu sont
+une fonction entreprise, là où Portkey livre les équivalents dans sa passerelle
+open-source. Sur le débit, elle est simplement devant tout ce qui est écrit en Python.
+
+### agent-scan (anciennement mcp-scan)
+
+Invariant Labs l'a construit, Snyk le publie désormais, et il fait ce que fait la portée
+`tool` de ce projet — lire les descriptions d'outils et repérer celles qui sont
+empoisonnées — plus deux choses que ce projet ne peut pas. Il hache chaque description
+et signale un **rug pull** quand un serveur en change une en douce après approbation, et
+il compare les descriptions d'un serveur à l'autre pour trouver l'éclipse d'outil, ce
+qu'il peut faire parce qu'il lit la configuration du client et sait donc d'où vient
+chaque outil.
+
+Un arbitrage mérite d'être nommé, puisque la première colonne de ce projet porte
+là-dessus : par défaut, `agent-scan` envoie les noms et descriptions d'outils à une
+interface de garde-fou hébergée, et le dit — `--local-only` garde tout sur la machine,
+au prix annoncé d'une précision moindre.
+
+### ToolHive
+
+Fait tourner chaque serveur Model Context Protocol dans son propre conteneur aux
+privilèges restreints, avec un registre, des journaux d'audit et une application de
+l'identité, visant précisément la fin des serveurs *fantômes* — ceux que personne n'a
+mis à l'inventaire. Application de bureau, outil en ligne de commande et opérateur
+Kubernetes.
+
+C'est l'illustration la plus nette de l'écart de ce projet : `ai-bunker` décide de ce
+qui peut s'exécuter, puis rend la commande à un harnais qui l'exécute sur l'hôte.
+ToolHive répond à la question que celui-ci ne tente pas.
+
+### Docker MCP Gateway
+
+La même idée avec la distribution de Docker derrière : un conteneur par serveur
+d'outils, les secrets injectés au moment de l'appel plutôt que posés dans un fichier de
+configuration. Plus étroit que ToolHive et, pour une équipe qui fait déjà tourner
+Docker, presque gratuit.
 
 ### Configuration du harnais client
 

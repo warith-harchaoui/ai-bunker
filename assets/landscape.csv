@@ -1,0 +1,14 @@
+Serving layer,Nothing leaves the network,Screens what the agent reads,Screens the tool declarations,Refuses what the agent runs,Isolates tool execution,Counts the budget server-side,Serves team standards,Rules ship with tests,Any OpenAI client,Provider breadth
+ai-bunker,5,5,4,5,1,5,5,5,5,2
+LiteLLM,5,1,1,1,1,2,1,1,5,5
+Bifrost,5,4,3,3,1,2,1,1,5,4
+Portkey,2,4,1,1,1,2,2,2,5,5
+Kong AI Gateway,4,3,1,1,1,1,1,2,4,4
+NeMo Guardrails,4,4,1,2,1,1,3,3,2,3
+Guardrails AI,4,4,1,1,1,1,2,4,2,3
+LLM Guard,4,5,1,1,1,1,1,3,2,2
+agent-scan (ex mcp-scan),3,3,5,2,1,1,1,3,1,1
+ToolHive,5,2,3,4,5,1,2,2,1,1
+Docker MCP Gateway,5,2,2,4,5,1,1,1,1,1
+Open Policy Agent,5,2,2,3,1,1,2,5,1,1
+Client-side harness config,5,2,1,3,1,1,3,1,1,2
