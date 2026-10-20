@@ -57,6 +57,7 @@ class Plan:
     writes: list[tuple[str, str]] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -67,7 +68,94 @@ class Plan:
         lines += [f"  + {path}   ({why})" for path, why in self.writes]
         lines += [f"  = {path}   kept; --force to replace" for path in self.kept]
         lines += [f"  ! {path}   missing from this installation" for path in self.missing]
+        lines += [f"  ~ {note}" for note in self.notes]
         return "\n".join(lines)
+
+
+#: Files that make Claude Code ignore ``AGENTS.md``, in the spellings its own
+#: documentation counts. Quoted, because the rule is not symmetrical and
+#: guessing it wrong is what this check exists to prevent: "By default, Claude
+#: reads AGENTS.md only when you have no CLAUDE.md in your working directory or
+#: above it."
+SHADOWING_NAMES = ("CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md")
+
+#: Where an ``AGENTS.md`` that a repository already relies on actually sits.
+#: Not ``charter/AGENTS.md``: that one is the charter's operating rules, served
+#: by the gateway, and no client reads it as project instructions.
+AGENTS_NAMES = ("AGENTS.md", ".claude/AGENTS.md")
+
+
+def shadowing_claude_files(target: Path) -> list[Path]:
+    """Existing files that already stop Claude Code reading an ``AGENTS.md``.
+
+    Walks upward, because the rule does: a ``CLAUDE.md`` three directories
+    above a repository shadows that repository's ``AGENTS.md``.
+
+    ``~/.claude/CLAUDE.md`` is excluded deliberately. The documentation puts it
+    in the list that does **not** count and that keeps loading alongside
+    ``AGENTS.md``, so including it here would warn every user who has personal
+    instructions -- which is most of them -- about a conflict that does not
+    exist.
+    """
+    home = Path.home().resolve()
+    found: list[Path] = []
+    for directory in [target, *target.parents]:
+        for name in SHADOWING_NAMES:
+            candidate = directory / name
+            if candidate == home / ".claude" / "CLAUDE.md":
+                continue
+            if candidate.is_file():
+                found.append(candidate)
+    return found
+
+
+def shadowing_notes(target: Path, *, writes: list[str], kept: list[str]) -> list[str]:
+    """What an adopt is about to do to this repository's ``AGENTS.md``.
+
+    The hazard runs the opposite way round to the one you expect. This tool
+    does not write a root ``AGENTS.md`` -- see ``plan_adopt`` for why -- but it
+    *does* write a root ``CLAUDE.md`` for the Claude Code kit. So a repository
+    that keeps its instructions in ``AGENTS.md``, as tens of thousands do,
+    adopts ai-bunker and finds that Claude Code has quietly stopped reading
+    the file it has been maintaining. Nothing errors. The instructions simply
+    go dark.
+
+    Reported rather than refused: which file a team keeps its instructions in
+    is their decision, and a tool that declines to install because it
+    disapproves of the layout is a tool people stop running. But an adopt that
+    said nothing would be arranging the failure in silence.
+    """
+    present = [name for name in AGENTS_NAMES if (target / name).is_file()]
+    if not present:
+        return []
+
+    listed = ", ".join(present)
+    notes: list[str] = []
+    already = [p for p in shadowing_claude_files(target) if p.parent != target]
+
+    if "CLAUDE.md" in writes:
+        notes.append(
+            f"{listed} is present, and this adopt writes CLAUDE.md. Claude Code reads "
+            "AGENTS.md only when there is no CLAUDE.md in the working directory or "
+            f"above it, so after this {listed} stops being read by that client. The "
+            "written CLAUDE.md explains what the gateway does to a session; if you "
+            "want to keep one file, merge it into "
+            f"{present[0]} and delete CLAUDE.md, or adopt with --client opencode."
+        )
+    elif "CLAUDE.md" in kept:
+        notes.append(
+            f"{listed} and CLAUDE.md both exist. Claude Code is already reading "
+            f"CLAUDE.md and ignoring {listed}; this adopt does not change that, and "
+            "did not cause it."
+        )
+
+    if already:
+        where = ", ".join(str(p) for p in already)
+        notes.append(
+            f"{listed} is also shadowed from above by {where}. That applies to every "
+            "repository under those directories, not just this one."
+        )
+    return notes
 
 
 def _values(
@@ -181,6 +269,12 @@ def plan_adopt(
             plan.kept.append(relative)
             continue
         plan.writes.append((relative, why))
+
+    plan.notes = shadowing_notes(
+        destination,
+        writes=[relative for relative, _ in plan.writes],
+        kept=plan.kept,
+    )
     return plan
 
 
@@ -282,5 +376,11 @@ def adopt(
             "If the gateway is authenticated, set AI_BUNKER_API_KEY and re-run with "
             "--force."
         )
+
+    # After the writes, not before: the notes describe the state the
+    # repository is now in, and a warning printed ahead of the files it
+    # describes reads as a prediction nobody can check.
+    for note in plan.notes:
+        osh.warning(f"[adopt] {note}")
 
     return plan

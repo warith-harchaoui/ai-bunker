@@ -18,7 +18,15 @@ import json
 import os_helper as osh
 import pytest
 
-from ai_bunker.adopt import CLIENTS, ROOT, adopt, plan_adopt, render
+from ai_bunker.adopt import (
+    CLIENTS,
+    ROOT,
+    adopt,
+    plan_adopt,
+    render,
+    shadowing_claude_files,
+    shadowing_notes,
+)
 from ai_bunker.charter import load_charter
 from ai_bunker.rules import load_rules
 from ai_bunker.rules import test_rules as check_rules
@@ -84,6 +92,100 @@ def test_there_is_no_second_copy_of_the_operating_rules(repo):
     _adopt(repo)
     assert (repo / "charter" / "AGENTS.md").exists()
     assert not (repo / "AGENTS.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# The precedence trap: this tool writes a CLAUDE.md, and Claude Code reads
+# AGENTS.md only when there is no CLAUDE.md at or above the working directory.
+# So adopting into a repository that keeps its instructions in AGENTS.md makes
+# that file go dark, silently, with nothing erroring.
+# ---------------------------------------------------------------------------
+
+
+def test_an_existing_agents_md_is_reported_as_about_to_be_shadowed(repo):
+    (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    plan = plan_adopt(repo)
+    assert plan.notes, "writing CLAUDE.md over a repo with AGENTS.md said nothing"
+    note = " ".join(plan.notes)
+    assert "AGENTS.md" in note and "CLAUDE.md" in note
+    assert "stops being read" in note
+    assert "--client opencode" in note, "it should offer the way out"
+    assert "~" in plan.summary(), "the note must reach the printed summary"
+
+
+def test_a_repo_with_no_agents_md_is_not_warned(repo):
+    """Most repositories. A check that fires on all of them is noise."""
+    assert plan_adopt(repo).notes == []
+
+
+def test_the_opencode_only_kit_writes_no_claude_md_and_says_nothing(repo):
+    (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    plan = plan_adopt(repo, clients=("opencode",))
+    assert "CLAUDE.md" not in [relative for relative, _ in plan.writes]
+    assert plan.notes == [], "no CLAUDE.md is written, so nothing is shadowed"
+
+
+def test_an_existing_claude_md_is_named_as_the_cause_rather_than_this_adopt(repo):
+    """Both files already present: true, but not this tool's doing."""
+    (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    (repo / "CLAUDE.md").write_text("theirs", encoding="utf-8")
+    plan = plan_adopt(repo)
+    assert "CLAUDE.md" in plan.kept
+    note = " ".join(plan.notes)
+    assert "did not cause it" in note
+
+
+def test_a_claude_md_above_the_repository_shadows_it_too(tmp_path):
+    """The rule walks upward, so the check has to as well."""
+    (tmp_path / "CLAUDE.md").write_text("from above", encoding="utf-8")
+    inner = tmp_path / "project"
+    inner.mkdir()
+    (inner / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    note = " ".join(plan_adopt(inner).notes)
+    assert "from above" in note or "shadowed from above" in note
+    assert str(tmp_path / "CLAUDE.md") in note
+
+
+def test_the_users_own_claude_md_is_not_counted(tmp_path, monkeypatch):
+    """`~/.claude/CLAUDE.md` is in the list that does NOT count.
+
+    It keeps loading alongside AGENTS.md, so counting it would warn every user
+    who has personal instructions -- which is most of them -- about a conflict
+    that does not exist.
+    """
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    (home / ".claude" / "CLAUDE.md").write_text("my preferences", encoding="utf-8")
+    monkeypatch.setattr("pathlib.Path.home", classmethod(lambda cls: home))
+
+    project = home / "project"
+    project.mkdir()
+    assert shadowing_claude_files(project) == []
+
+
+def test_a_dot_claude_agents_md_counts_as_one_to_protect(repo):
+    (repo / ".claude").mkdir()
+    (repo / ".claude" / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    assert plan_adopt(repo).notes, ".claude/AGENTS.md is read too and was ignored"
+
+
+def test_the_charters_own_agents_md_is_not_mistaken_for_the_repositorys(repo):
+    """`charter/AGENTS.md` is the operating rules the gateway injects.
+
+    No client reads it as project instructions, so its presence must not
+    trigger a warning about shadowing -- otherwise every adopt warns about the
+    file the adopt itself just wrote.
+    """
+    (repo / "charter").mkdir()
+    (repo / "charter" / "AGENTS.md").write_text("how to work here", encoding="utf-8")
+    assert shadowing_notes(repo, writes=["CLAUDE.md"], kept=[]) == []
+
+
+def test_the_real_run_reports_the_same_notes_as_the_dry_run(repo):
+    """A dry run that disagrees with the run is worse than no dry run."""
+    (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    predicted = plan_adopt(repo).notes
+    assert _adopt(repo).notes == predicted
 
 
 # ---------------------------------------------------------------------------

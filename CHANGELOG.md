@@ -234,6 +234,34 @@ client kits and a dashboard.
   them. The cap now degrades **per pack, largest first**, and a one-page pack
   is no longer described as "1 pages".
 
+### The file that shadows the other one
+
+- **`adopt` now says when it is about to make a repository's `AGENTS.md` go
+  dark.** Claude Code's own documentation: "By default, Claude reads
+  `AGENTS.md` only when you have no `CLAUDE.md` in your working directory or
+  above it." This tool writes a root `CLAUDE.md` for the Claude Code kit, so a
+  repository that keeps its instructions in `AGENTS.md` — as tens of thousands
+  do — adopted ai-bunker and found that client had quietly stopped reading the
+  file it had been maintaining. Nothing errored.
+- The check walks **upward**, because the rule does: a `CLAUDE.md` three
+  directories above a repository shadows that repository's `AGENTS.md`, and
+  that is reported separately because it applies to every repository under
+  those directories.
+- `~/.claude/CLAUDE.md` is **excluded deliberately**. The documentation puts it
+  in the list that does *not* count and keeps loading alongside `AGENTS.md`, so
+  counting it would warn every user who has personal instructions — which is
+  most of them — about a conflict that does not exist.
+- `charter/AGENTS.md` is not mistaken for the repository's own. It is the
+  operating rules the gateway injects, no client reads it as project
+  instructions, and counting it would make every adopt warn about the file the
+  adopt just wrote.
+- **Reported, not refused**, and the note names the way out: merge the kit's
+  `CLAUDE.md` into your `AGENTS.md`, or adopt with `--client opencode`. Which
+  file a team keeps its instructions in is their decision. When both files
+  already exist the note says so and says this adopt did not cause it.
+- The notes are computed in `plan_adopt`, so `--list` and the real run cannot
+  disagree — asserted by a test.
+
 ### Configuration
 
 - **A duplicated top-level block is now reported.** YAML keeps the last one
