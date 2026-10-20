@@ -59,7 +59,7 @@ import os_helper as osh
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from ai_bunker import __version__
+from ai_bunker import __version__, i18n
 from ai_bunker.a2a import agent_card, handle_message_send
 from ai_bunker.breaker import SESSION_HEADER, Breaker, session_of
 from ai_bunker.budget import Counter
@@ -473,6 +473,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         closed = state.breaker.reset(session or None)
         osh.info(f"[gateway] breaker reset by operator: {closed} session(s) closed")
         return {"closed": closed, "open": state.breaker.status()}
+
+    @app.get("/gui/i18n", include_in_schema=False)
+    async def dashboard_messages(locale: str = "") -> dict[str, Any]:
+        """The dashboard's own words, from the same catalogue the rules use.
+
+        Unauthenticated, like the page that fetches it and for the same
+        reason: there are no secrets in a list of column headings, and gating
+        it would leave an operator looking at a page labelled `gui.stat.floor`
+        until they pasted a key.
+
+        Only the `gui.` keys are served. The rest of the catalogue is what the
+        gateway says to agents, and a dashboard has no business shipping it to
+        a browser.
+        """
+        state: State = app.state.bunker
+        chosen = i18n.negotiate(configured=locale) if locale else state.settings.language
+        chosen = i18n.translator(chosen).locale
+        catalogue = i18n.translator(chosen)
+        base = i18n._load(chosen)
+        fallback = i18n._load(i18n.DEFAULT_LOCALE)
+        messages = {
+            key.removeprefix("gui."): base.get(key, fallback[key])
+            for key in fallback
+            if key.startswith("gui.")
+        }
+        return {"locale": catalogue.locale, "messages": messages}
 
     # -- dashboard -------------------------------------------------------
 

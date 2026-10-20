@@ -206,11 +206,11 @@ td.dim { color: var(--label-3); }
 
   <!-- Tile 1: the question this whole project exists to answer. -->
   <section class="card lead" aria-labelledby="budget-h">
-    <h2 id="budget-h">How much room does a session actually have?</h2>
+    <h2 id="budget-h" data-i18n="budget.heading">How much room does a session actually have?</h2>
     <p class="sub">
-      The floor is paid on every request and compaction cannot reduce it.
-      What is left is the only space the conversation has.
-      <span class="polarity">↑ more conversation space is better</span>
+      <span data-i18n="budget.sub">The floor is paid on every request and compaction
+      cannot reduce it. What is left is the only space the conversation has.</span>
+      <span class="polarity" data-i18n="budget.polarity">↑ more conversation space is better</span>
     </p>
 
     <div class="strip" id="strip" role="img" aria-labelledby="strip-desc"></div>
@@ -218,7 +218,7 @@ td.dim { color: var(--label-3); }
     <p id="strip-desc" class="sr"></p>
 
     <p class="sub" style="margin:0 0 6px">
-      What the floor is made of <span id="floor-scope" class="polarity"></span>
+      <span data-i18n="budget.made_of">What the floor is made of</span> <span id="floor-scope" class="polarity"></span>
     </p>
     <div class="bar" id="bar" role="img" aria-labelledby="bar-desc"></div>
     <p id="bar-desc" class="sr"></p>
@@ -227,18 +227,18 @@ td.dim { color: var(--label-3); }
     <div class="grid two" style="margin-top:20px">
       <div>
         <table>
-          <caption class="sr">Floor components by owner</caption>
-          <thead><tr><th>Component</th><th>Owner</th><th class="num">Tokens</th><th class="num">Share</th></tr></thead>
+          <caption class="sr" data-i18n="budget.caption">Floor components by owner</caption>
+          <thead><tr><th data-i18n="column.component">Component</th><th data-i18n="column.owner">Owner</th><th class="num" data-i18n="column.tokens">Tokens</th><th class="num" data-i18n="column.share">Share</th></tr></thead>
           <tbody id="items"><tr><td colspan="4"><span class="sk" style="display:block"></span></td></tr></tbody>
         </table>
       </div>
       <div>
-        <div class="stat"><span>Served by the engine</span><b id="served">—</b></div>
-        <div class="stat"><span>Declared to clients</span><b id="declared">—</b></div>
-        <div class="stat"><span>Compaction margin</span><b id="reserve">—</b></div>
-        <div class="stat"><span>Floor</span><b id="floor">—</b></div>
-        <div class="stat"><span><strong>Conversation space</strong></span><b id="working">—</b></div>
-        <div class="stat"><span>Counted by</span><b id="backend">—</b></div>
+        <div class="stat"><span data-i18n="stat.served">Served by the engine</span><b id="served">—</b></div>
+        <div class="stat"><span data-i18n="stat.declared">Declared to clients</span><b id="declared">—</b></div>
+        <div class="stat"><span data-i18n="stat.reserve">Compaction margin</span><b id="reserve">—</b></div>
+        <div class="stat"><span data-i18n="stat.floor">Floor</span><b id="floor">—</b></div>
+        <div class="stat"><span><strong data-i18n="stat.working">Conversation space</strong></span><b id="working">—</b></div>
+        <div class="stat"><span data-i18n="stat.backend">Counted by</span><b id="backend">—</b></div>
       </div>
     </div>
 
@@ -246,19 +246,19 @@ td.dim { color: var(--label-3); }
 
     <details style="margin-top:18px">
       <summary style="cursor:pointer;font-size:14px;color:var(--label-2)">
-        Measure a captured request from your own client
+        <span data-i18n="measure.summary">Measure a captured request from your own client</span>
       </summary>
-      <p class="note">
+      <p class="note" data-i18n="measure.note">
         A client kit is a claim. Paste what your harness actually sends and the
         floor is itemised by owner, so a misconfigured client shows up as a
         component rather than as a vague slowness.
       </p>
-      <label class="sr" for="req">Captured request body, as JSON</label>
+      <label class="sr" for="req" data-i18n="measure.label">Captured request body, as JSON</label>
       <textarea id="req" spellcheck="false"
         placeholder='{"model": "devstral", "messages": [...], "tools": [...]}'></textarea>
       <div class="row">
-        <button class="primary" id="measure">Measure it</button>
-        <button id="reset-budget">Back to an empty session</button>
+        <button class="primary" id="measure" data-i18n="measure.submit">Measure it</button>
+        <button id="reset-budget" data-i18n="measure.reset">Back to an empty session</button>
       </div>
     </details>
   </section>
@@ -266,38 +266,39 @@ td.dim { color: var(--label-3); }
   <div class="grid two">
     <!-- Tile 2 -->
     <section class="card stretch" aria-labelledby="charter-h">
-      <h2 id="charter-h">What is in the charter, and what does it cost?</h2>
+      <h2 id="charter-h" data-i18n="charter.heading">What is in the charter, and what does it cost?</h2>
       <p class="sub">
-        Only the index is in the prompt. A page costs nothing until it is opened.
-        <span class="polarity">↓ a smaller index is better</span>
+        <span data-i18n="charter.sub">Only the index is in the prompt. A page costs
+        nothing until it is opened.</span>
+        <span class="polarity" data-i18n="charter.polarity">↓ a smaller index is better</span>
       </p>
-      <div class="stat"><span>Fingerprint</span><b class="mono" id="fp">—</b></div>
-      <div class="stat"><span>Packs / pages</span><b id="packs">—</b></div>
-      <div class="stat"><span>Index, paid every request</span><b id="idx-cost">—</b></div>
-      <div class="stat"><span>Pages, read on demand</span><b id="pages-cost">—</b></div>
+      <div class="stat"><span data-i18n="stat.fingerprint">Fingerprint</span><b class="mono" id="fp">—</b></div>
+      <div class="stat"><span data-i18n="stat.packs">Packs / pages</span><b id="packs">—</b></div>
+      <div class="stat"><span data-i18n="stat.index_cost">Index, paid every request</span><b id="idx-cost">—</b></div>
+      <div class="stat"><span data-i18n="stat.pages_cost">Pages, read on demand</span><b id="pages-cost">—</b></div>
 
-      <p class="sub" style="margin:16px 0 0">Open one page</p>
+      <p class="sub" style="margin:16px 0 0" data-i18n="charter.open_page">Open one page</p>
       <div class="packs" id="pages"></div>
       <pre class="page" id="page" hidden></pre>
     </section>
 
     <!-- Tile 3 -->
     <section class="card stretch" aria-labelledby="index-h">
-      <h2 id="index-h">What does the model actually see?</h2>
-      <p class="sub">The blocks injected into every request, verbatim.</p>
+      <h2 id="index-h" data-i18n="index.heading">What does the model actually see?</h2>
+      <p class="sub" data-i18n="index.sub">The blocks injected into every request, verbatim.</p>
       <pre class="page" id="blocks"></pre>
     </section>
   </div>
 
   <!-- Tile 4 -->
   <section class="card" aria-labelledby="log-h">
-    <h2 id="log-h">What has the gateway redacted or refused?</h2>
-    <p class="sub">
+    <h2 id="log-h" data-i18n="log.heading">What has the gateway redacted or refused?</h2>
+    <p class="sub" data-i18n="log.sub">
       Every rule that fired, with the charter it ran under — and never the text it matched.
     </p>
     <table>
-      <caption class="sr">Decision log</caption>
-      <thead><tr><th>When</th><th>Rule</th><th>Scope</th><th>Outcome</th><th class="num">Hits</th></tr></thead>
+      <caption class="sr" data-i18n="log.caption">Decision log</caption>
+      <thead><tr><th data-i18n="column.when">When</th><th data-i18n="column.rule">Rule</th><th data-i18n="column.scope">Scope</th><th data-i18n="column.outcome">Outcome</th><th class="num" data-i18n="column.hits">Hits</th></tr></thead>
       <tbody id="log"></tbody>
     </table>
     <p class="note" id="log-note"></p>
@@ -307,7 +308,56 @@ td.dim { color: var(--label-3); }
 
 <script type="module">
 const $ = (id) => document.getElementById(id);
-const n = (v) => (typeof v === "number" ? v.toLocaleString("en-US") : "—");
+
+// --- words -----------------------------------------------------------------
+// Fetched from the gateway rather than duplicated here, so the page and the
+// refusals an agent receives come from one catalogue. The English strings in
+// the markup are the fallback: if this fetch fails the page is still readable,
+// which is the whole reason they are written into the HTML rather than
+// substituted into an empty shell.
+//
+// Locale choice is the OPPOSITE of the agent-facing rule, deliberately. There,
+// the deployment's configuration beats the request, because the language an
+// agent is instructed in is the operator's decision. Here the reader is the
+// operator, in their own browser, so their browser wins -- and `?lang=` beats
+// both, because somebody debugging a French deployment needs to see it.
+let MESSAGES = {};
+let LOCALE = "en";
+
+const t = (key, params) => {
+  let s = MESSAGES[key];
+  if (s === undefined) return key;
+  if (params) {
+    for (const [name, value] of Object.entries(params)) {
+      s = s.replaceAll(`{${name}}`, String(value));
+    }
+  }
+  return s;
+};
+
+// Numbers follow the locale too. A French operator reading "24,521" sees a
+// decimal, not twenty-four thousand, which is the oldest mistake in the trade.
+const n = (v) => (typeof v === "number" ? v.toLocaleString(LOCALE) : "—");
+
+async function loadMessages() {
+  const asked = new URLSearchParams(location.search).get("lang") || "";
+  const wanted = asked || (navigator.language || "").split("-")[0] || "";
+  try {
+    const r = await fetch(`/gui/i18n${wanted ? `?locale=${encodeURIComponent(wanted)}` : ""}`);
+    if (!r.ok) return;
+    const body = await r.json();
+    MESSAGES = body.messages || {};
+    LOCALE = body.locale || "en";
+    document.documentElement.lang = LOCALE;
+    for (const el of document.querySelectorAll("[data-i18n]")) {
+      const s = MESSAGES[el.dataset.i18n];
+      if (s) el.textContent = s;
+    }
+  } catch (err) {
+    // A dashboard that fails to load its own labels still shows the English
+    // ones. Nothing here is worth an error box.
+  }
+}
 
 // The key is in the URL when the operator opened this page from a gateway that
 // wants one. Keeping it out of localStorage is deliberate: a dashboard is not
@@ -317,7 +367,7 @@ const headers = KEY ? { Authorization: `Bearer ${KEY}` } : {};
 
 async function get(path) {
   const r = await fetch(path, { headers });
-  if (!r.ok) throw new Error(`${path} → HTTP ${r.status}`);
+  if (!r.ok) throw new Error(t("error.http", { path, status: r.status }));
   return r.json();
 }
 async function post(path, body) {
@@ -326,7 +376,7 @@ async function post(path, body) {
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`${path} → HTTP ${r.status}`);
+  if (!r.ok) throw new Error(t("error.http", { path, status: r.status }));
   return r.json();
 }
 
@@ -342,14 +392,15 @@ async function loadHealth() {
   $("version").textContent = `v${h.version}`;
   const c = $("chips");
   c.replaceChildren(
-    chip(h.sovereign ? "sovereign" : "a route leaves this network", h.sovereign ? "good" : "warn"),
-    chip(h.authenticated ? "authenticated" : "open to anyone who can reach it",
+    chip(t(h.sovereign ? "chip.sovereign" : "chip.route_leaves"), h.sovereign ? "good" : "warn"),
+    chip(t(h.authenticated ? "chip.authenticated" : "chip.open"),
          h.authenticated ? "good" : "warn"),
-    chip(`${h.rules.output} output rules`),
-    chip(`${h.rules.command} command rules`),
+    chip(t("chip.output_rules", { count: h.rules.output })),
+    chip(t("chip.command_rules", { count: h.rules.command })),
   );
+  if (h.rules.tool) c.append(chip(t("chip.tool_rules", { count: h.rules.tool })));
   for (const [name, on] of Object.entries(h.enforcement)) {
-    if (!on) c.append(chip(`${name} enforcement off`, "bad"));
+    if (!on) c.append(chip(t("chip.enforcement_off", { name }), "bad"));
   }
   return h;
 }
@@ -373,8 +424,8 @@ function renderIndexCost() {
         .reduce((a, i) => a + i.tokens, 0)
     : null;
   $("idx-cost").textContent = ours
-    ? `${n(injectedChars)} chars = ${n(ours)} tokens`
-    : `${n(injectedChars)} chars ≈ ${n(Math.round(injectedChars / CHARS_PER_TOKEN))} tokens`;
+    ? t("index.exact", { chars: n(injectedChars), tokens: n(ours) })
+    : t("index.estimate", { chars: n(injectedChars), tokens: n(Math.round(injectedChars / CHARS_PER_TOKEN)) });
 }
 
 function renderBudget(b) {
@@ -388,15 +439,18 @@ function renderBudget(b) {
   used.className = "seg";
   used.dataset.owner = "client";
   used.style.width = `${Math.max((b.floor_tokens / window_) * 100, 0.6)}%`;
-  used.title = `floor — ${n(b.floor_tokens)} tokens`;
+  used.title = t("strip.floor_title", { tokens: n(b.floor_tokens) });
   strip.append(used);
   const share = (b.floor_tokens / window_) * 100;
-  $("strip-left").textContent =
-    `floor ${n(b.floor_tokens)} — ${share < 1 ? "under 1" : Math.round(share)}% of the window`;
-  $("strip-right").textContent = `${n(Math.max(b.working_tokens, 0))} left to work with`;
-  $("strip-desc").textContent =
-    `The floor uses ${share.toFixed(1)}% of the declared window; ` +
-    `${n(b.working_tokens)} tokens remain for the conversation.`;
+  $("strip-left").textContent = t("strip.left", {
+    tokens: n(b.floor_tokens),
+    share: share < 1 ? t("strip.under_one") : Math.round(share),
+  });
+  $("strip-right").textContent = t("strip.right", { tokens: n(Math.max(b.working_tokens, 0)) });
+  $("strip-desc").textContent = t("strip.description", {
+    share: share.toFixed(1),
+    tokens: n(b.working_tokens),
+  });
 
   // The floor bar, at FLOOR scale: who is eating it? Drawn against the floor
   // rather than the window because at 607 against 193,108 every component
@@ -425,7 +479,7 @@ function renderBudget(b) {
     seg.dataset.owner = p.owner;
     seg.style.width = `${(p.tokens / floor) * 100}%`;
     seg.style.opacity = String((p.shade = shade(p.owner)));
-    seg.title = `${p.name} — ${n(p.tokens)} tokens (${p.owner})`;
+    seg.title = t("strip.segment", { name: p.name, tokens: n(p.tokens), owner: p.owner });
     bar.append(seg);
   }
   $("bar-desc").textContent = parts
@@ -449,17 +503,16 @@ function renderBudget(b) {
     // The swatch carries the same weight as its segment, or the legend names
     // two blocks a reader cannot tell apart.
     if (opacity != null) sw.style.opacity = String(opacity);
-    el.append(sw, document.createTextNode(
-      `${label} — ${n(sum)} (${Math.round((sum / floor) * 100)}%)`));
+    el.append(sw, document.createTextNode(t("strip.legend", {
+      label, tokens: n(sum), share: Math.round((sum / floor) * 100),
+    })));
     legend.append(el);
   }
 
   // An empty probe has no tool schemas and no client prompt, so the floor is
   // entirely ours. That is honest and uninformative: say which measurement is
   // on screen rather than letting it read as a claim about real sessions.
-  $("floor-scope").textContent = owners.has("client")
-    ? ""
-    : "— an empty session; paste a captured request below to see what your client adds";
+  $("floor-scope").textContent = owners.has("client") ? "" : t("budget.client_present");
 
   const rows = b.items.map((i) => {
     const tr = document.createElement("tr");
@@ -484,7 +537,7 @@ function renderBudget(b) {
   $("reserve").textContent = n(b.compaction_reserve);
   $("floor").textContent = n(b.floor_tokens);
   $("working").textContent = n(b.working_tokens);
-  $("backend").textContent = b.exact ? `${b.backend} (exact)` : `${b.backend} (estimate)`;
+  $("backend").textContent = t(b.exact ? "backend.exact" : "backend.estimate", { backend: b.backend });
 
   const w = $("budget-warnings");
   w.replaceChildren();
@@ -507,7 +560,7 @@ async function loadBudget(body) {
   } catch (err) {
     $("budget-warnings").replaceChildren(
       Object.assign(document.createElement("div"),
-        { className: "warnbox", textContent: String(err) }));
+        { className: "warnbox", textContent: t("budget.warnings_failed", { error: err }) }));
   }
 }
 
@@ -520,12 +573,12 @@ async function loadCharter() {
   const c = await get("/v1/charter");
   $("fp").textContent = c.fingerprint.slice(0, 16);
   const pageCount = Object.values(c.packs).reduce((a, v) => a + v.length, 0);
-  $("packs").textContent = `${Object.keys(c.packs).length} / ${pageCount}`;
+  $("packs").textContent = t("charter.counts", { packs: Object.keys(c.packs).length, pages: pageCount });
   $("blocks").textContent = [c.operating_rules, c.index].filter(Boolean).join("\n\n");
 
   injectedChars = (c.operating_rules || "").length + (c.index || "").length;
   renderIndexCost();
-  $("pages-cost").textContent = `${pageCount} page(s), 0 chars until one is opened`;
+  $("pages-cost").textContent = t("charter.pages_idle", { pages: pageCount });
 
   const holder = $("pages");
   holder.replaceChildren();
@@ -539,12 +592,12 @@ async function loadCharter() {
       b.addEventListener("click", async () => {
         const target = $("page");
         target.hidden = false;
-        target.textContent = "…";
+        target.textContent = t("charter.loading");
         try {
           const p = await get(`/v1/charter/${ref}`);
           target.textContent = p.content;
           $("pages-cost").textContent =
-            `${n(p.content.length)} chars — and only because it was asked for`;
+            t("charter.page_cost", { chars: n(p.content.length) });
         } catch (err) { target.textContent = String(err); }
       });
       holder.append(b);
@@ -560,8 +613,8 @@ async function loadLog() {
     const d = await get("/v1/decisions?limit=40");
     if (!d.decisions.length) {
       body.replaceChildren(Object.assign(document.createElement("tr"), {
-        innerHTML: '<td colspan="5" class="empty">Nothing has fired yet.</td>' }));
-      note.textContent = d.path ? `Reading ${d.path}.` : "";
+        innerHTML: `<td colspan="5" class="empty">${t("log.empty")}</td>` }));
+      note.textContent = d.path ? t("log.reading", { path: d.path }) : "";
       return;
     }
     // The date repeats on every row and the time does not; showing the whole
@@ -591,10 +644,13 @@ async function loadLog() {
     const refused = d.decisions.filter((r) => r.outcome === "refused").length;
     const withheld = d.decisions.filter((r) => r.outcome === "withheld").length;
     const date = (d.decisions[0]?.at || "").split("-")[0];
-    note.textContent =
-      `${d.total} decision(s) in ${d.path}${date ? `, latest ${date}` : ""}. ` +
-      `${refused} command(s) refused, ${withheld} tool(s) withheld. ` +
-      `The matched text is never written.`;
+    note.textContent = t("log.summary", {
+      total: d.total,
+      path: d.path,
+      when: date ? t("log.latest", { date }) : "",
+      refused,
+      withheld,
+    });
   } catch (err) {
     body.replaceChildren(Object.assign(document.createElement("tr"), {
       innerHTML: `<td colspan="5" class="empty">${err}</td>` }));
@@ -609,13 +665,17 @@ $("measure").addEventListener("click", async () => {
   } catch {
     $("budget-warnings").replaceChildren(Object.assign(document.createElement("div"), {
       className: "warnbox",
-      textContent: "That is not valid JSON. Paste the request body your client sends, braces included.",
+      textContent: t("measure.invalid"),
     }));
   }
 });
 $("reset-budget").addEventListener("click", () => { $("req").value = ""; loadBudget(); });
 
 async function boot() {
+  // First, because every render below asks `t()` for its words. The static
+  // markup already carries the English, so a failure here degrades to that
+  // rather than to an empty page.
+  await loadMessages();
   const h = await loadHealth().catch(() => null);
   // Pick a model the gateway actually routes, so its tokenizer can answer and
   // the budget shown here is the server's real count rather than an estimate.

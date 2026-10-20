@@ -692,12 +692,27 @@ fichiers, et un catalogue binaire mettrait une étape de compilation entre un
 exploitant et une phrase corrigée. Un catalogue qui se lit dans un diff vaut
 plus pour ce projet qu'un catalogue qu'un outillage standard sait traiter.
 
-**Trois choses ne sont volontairement pas traduites.** Les lignes de journal,
+**Deux choses ne sont volontairement pas traduites.** Les lignes de journal,
 parce qu'un journal qui change de langue avec un fichier de configuration est
-un journal que personne ne peut chercher. Les identifiants de règles, les clés
-de configuration et les noms de commandes, parce que ce sont des noms. Et le
-tableau de bord — il devrait être traduit, c'est un chantier à part, nommé ici
-plutôt qu'à moitié fait.
+un journal que personne ne peut chercher. Et les identifiants de règles, les
+clés de configuration et les noms de commandes, parce que ce sont des noms.
+
+Le tableau de bord suit, avec la règle inversée. Ses chaînes vivent dans le
+même catalogue — récupérées depuis `/gui/i18n`, pour que la page et les refus
+reçus par un agent aient une seule source plutôt que deux copies qui divergent.
+Mais le lecteur, ici, c'est l'exploitant, dans son propre navigateur : **son
+navigateur gagne**. `?lang=` d'abord, puis `navigator.language`, puis le
+réglage de la passerelle. L'asymétrie est volontaire. La configuration décide
+de ce que lit le *modèle*, parce que c'est une décision sur ses agents ; le
+navigateur décide de ce que lit l'*exploitant*, parce que c'est une préférence
+sur soi-même.
+
+L'anglais reste écrit dans le balisage comme repli — et c'est pour cela que
+c'en est un plutôt qu'une coquille vide : si la récupération échoue, la page
+reste lisible. Et les nombres sont formatés dans la langue choisie, car
+`toLocaleString("en-US")` affiche `24,521` à un exploitant français et veut
+dire vingt-quatre mille — ce qui se lit comme une décimale, et c'est la plus
+vieille erreur du métier.
 
 **Le défaut reste l'anglais, et c'est une décision, pas un oubli.** Un refus
 est lu par un *modèle* avant d'atteindre une personne, et en changer la langue
@@ -1360,7 +1375,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 791 tests, `ruff` propre | ✅ |
+| 800 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

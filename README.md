@@ -649,11 +649,25 @@ binary catalogue would put a compilation step between an operator and a
 corrected sentence. A catalogue that can be read in a diff is worth more to
 this project than one a standard toolchain can process.
 
-**Three things are deliberately not translated.** Log lines, because a log
-that changes language with a configuration file is a log nobody can grep. Rule
-identifiers, configuration keys and command names, because they are names. And
-the dashboard — it should be localised and it is a separate piece of work,
-named here rather than half-done.
+**Two things are deliberately not translated.** Log lines, because a log that
+changes language with a configuration file is a log nobody can grep. And rule
+identifiers, configuration keys and command names, because they are names.
+
+The dashboard follows, with the rule inverted. Its strings live in the same
+catalogue — fetched from `/gui/i18n`, so the page and the refusals an agent
+receives have one source rather than two copies that drift. But the reader
+here is the operator, in their own browser, so **their browser wins**:
+`?lang=` first, then `navigator.language`, then the gateway's setting. The
+asymmetry is the point. Configuration decides what the *model* reads, because
+that is a decision about one's agents; the browser decides what the *operator*
+reads, because that is a preference about oneself.
+
+The English stays written into the markup as the fallback, which is why it is
+a fallback rather than an empty shell: if the fetch fails the page is still
+readable. And numbers are formatted in the chosen locale, because
+`toLocaleString("en-US")` shows a French operator `24,521` and means
+twenty-four thousand — which reads as a decimal, and is the oldest mistake in
+the trade.
 
 **The default stays English, and that is a decision rather than an oversight.**
 A refusal is read by a *model* before it reaches a person, and changing its
@@ -1279,7 +1293,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 791 tests, `ruff` clean | ✅ |
+| 800 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

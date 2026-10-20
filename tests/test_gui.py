@@ -13,6 +13,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -198,3 +199,142 @@ def test_the_a11y_linter_states_its_own_limits():
     source = A11Y.read_text(encoding="utf-8")
     assert "Static only" in source
     assert "axe-core" in source and "Lighthouse" in source
+
+
+# ---------------------------------------------------------------------------
+# The dashboard's words come from the same catalogue as everything else.
+# ---------------------------------------------------------------------------
+
+
+def _page() -> str:
+    return GUI.read_text(encoding="utf-8")
+
+
+def _marked_keys() -> set[str]:
+    """Every `data-i18n` on the page."""
+    return set(re.findall(r'data-i18n="([^"]+)"', _page()))
+
+
+def _called_keys() -> set[str]:
+    """Every key the script asks `t()` for.
+
+    Scans the argument list of each `t(` call rather than matching the first
+    literal after it, because two shapes in this page defeat the simpler
+    pattern: a computed key, `t(cond ? "a" : "b")`, hides both literals behind
+    a ternary, and a plain substring match for `t(` also finds the tail of
+    `createElement(` and reports `div` as a missing translation.
+    """
+    page = _page()
+    keys: set[str] = set()
+    for match in re.finditer(r"(?<![\w.$])t\(", page):
+        depth, i = 0, match.end() - 1
+        while i < len(page):
+            if page[i] == "(":
+                depth += 1
+            elif page[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        keys |= set(re.findall(r'"([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)"', page[match.end() : i]))
+    return keys
+
+
+def _catalogue(locale: str) -> dict[str, str]:
+    from ai_bunker.i18n import _load
+
+    return {
+        key.removeprefix("gui."): value
+        for key, value in _load(locale).items()
+        if key.startswith("gui.")
+    }
+
+
+@pytest.mark.parametrize("locale", ["en", "fr"])
+def test_every_key_the_page_uses_exists(locale):
+    """A missing key renders as `stat.floor` on somebody's screen."""
+    known = set(_catalogue(locale))
+    unknown = (_marked_keys() | _called_keys()) - known
+    assert unknown == set(), f"{locale} catalogue has no: {sorted(unknown)}"
+
+
+def test_every_key_in_the_catalogue_is_used():
+    """The other direction, which is how a catalogue starts describing a page
+    that no longer exists: a string nobody shows and a label nobody translated
+    are the same bug seen from two sides."""
+    unused = set(_catalogue("en")) - _marked_keys() - _called_keys()
+    assert unused == set(), f"nothing on the page uses: {sorted(unused)}"
+
+
+def test_the_english_is_still_written_into_the_markup():
+    """The fallback, and the reason it is a fallback: if the catalogue fetch
+    fails the page is still readable, rather than a grid of empty boxes."""
+    page = _page()
+    for key, fragment in (
+        ("budget.heading", "How much room does a session actually have?"),
+        ("column.owner", ">Owner<"),
+        ("log.caption", "Decision log"),
+    ):
+        assert f'data-i18n="{key}"' in page
+        assert fragment in page
+
+
+def test_numbers_are_formatted_in_the_chosen_locale():
+    """`toLocaleString("en-US")` shows a French operator "24,521" and means
+    twenty-four thousand. That reads as a decimal, and it is the oldest
+    mistake in the trade."""
+    page = _page()
+    assert 'toLocaleString("en-US")' not in page
+    assert "toLocaleString(LOCALE)" in page
+
+
+def test_the_page_fetches_its_words_from_the_gateway():
+    """Rather than carrying a second copy of them. One catalogue backs both the
+    dashboard and what an agent is told."""
+    page = _page()
+    assert "/gui/i18n" in page
+    assert "loadMessages" in page
+
+
+def test_the_catalogue_endpoint_serves_only_the_dashboard_keys():
+    """The rest of the catalogue is what the gateway says to agents, and a
+    browser has no business being shipped it."""
+    from fastapi.testclient import TestClient
+
+    from ai_bunker.config import Settings
+    from ai_bunker.gateway import create_app
+
+    client = TestClient(create_app(Settings(charter_dir="charter", rules_dir="charter/rules")))
+    body = client.get("/gui/i18n").json()
+    assert body["locale"] == "en"
+    assert body["messages"], "no messages served"
+    assert not any(k.startswith(("rules.", "deps.", "breaker.")) for k in body["messages"])
+
+
+def test_the_dashboard_locale_can_be_overridden_per_reader():
+    """The opposite of the agent-facing rule, deliberately: the reader here is
+    the operator in their own browser, so their choice wins."""
+    from fastapi.testclient import TestClient
+
+    from ai_bunker.config import Settings
+    from ai_bunker.gateway import create_app
+
+    client = TestClient(
+        create_app(Settings(charter_dir="charter", rules_dir="charter/rules", language="en"))
+    )
+    assert client.get("/gui/i18n?locale=fr").json()["locale"] == "fr"
+    assert "lang" in _page(), "the page never reads a ?lang= override"
+
+
+def test_the_catalogue_endpoint_needs_no_key():
+    """Like the page that fetches it: gating a list of column headings would
+    leave an operator staring at `gui.stat.floor` until they pasted a key."""
+    from fastapi.testclient import TestClient
+
+    from ai_bunker.config import Settings
+    from ai_bunker.gateway import create_app
+
+    client = TestClient(
+        create_app(Settings(api_key="secret", charter_dir="charter", rules_dir="charter/rules"))
+    )
+    assert client.get("/gui/i18n").status_code == 200

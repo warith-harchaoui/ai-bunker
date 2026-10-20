@@ -89,3 +89,105 @@ text:
     chasse. Le texte a été laissé exactement tel qu'il est arrivé, car réécrire un
     caractère qu'un lecteur voit changerait ce qu'il dit — mais les règles ont été
     appliquées à la lecture non déguisée.
+
+# Le tableau de bord. Seules les clés sous `gui.` sont récupérées par la page,
+# et `tests/test_gui.py` vérifie dans les deux sens : chaque `data-i18n` de la
+# page se résout ici, et chaque clé d'ici est utilisée par la page.
+gui:
+  budget:
+    heading: De combien de place dispose vraiment une session ?
+    sub: >-
+      Le plancher est payé à chaque requête et la compaction ne peut pas le
+      réduire. Ce qui reste est le seul espace dont dispose la conversation.
+    polarity: ↑ plus d'espace de conversation, c'est mieux
+    made_of: De quoi le plancher est fait
+    caption: Composants du plancher, par propriétaire
+    client_present: >-
+      — une session vide ; collez une requête capturée ci-dessous pour voir ce que
+      votre client ajoute
+    warnings_failed: "Le budget n'a pas pu être mesuré : {error}"
+  column:
+    component: Composant
+    owner: Propriétaire
+    tokens: Tokens
+    share: Part
+    when: Quand
+    rule: Règle
+    scope: Portée
+    outcome: Issue
+    hits: Occurrences
+  stat:
+    served: Servi par le moteur
+    declared: Déclaré aux clients
+    reserve: Marge de compaction
+    floor: Plancher
+    working: Espace de conversation
+    backend: Compté par
+    fingerprint: Empreinte
+    packs: Paquets / pages
+    index_cost: Index, payé à chaque requête
+    pages_cost: Pages, lues à la demande
+  strip:
+    floor_title: plancher — {tokens} tokens
+    left: "plancher {tokens} — {share} % de la fenêtre"
+    under_one: moins de 1
+    right: "{tokens} pour travailler"
+    description: >-
+      Le plancher occupe {share} % de la fenêtre déclarée ; il reste {tokens}
+      tokens pour la conversation.
+    segment: "{name} — {tokens} tokens ({owner})"
+    legend: "{label} — {tokens} ({share} %)"
+  backend:
+    exact: "{backend} (exact)"
+    estimate: "{backend} (estimation)"
+  measure:
+    summary: Mesurer une requête capturée depuis votre propre client
+    note: >-
+      Un kit client est une affirmation. Collez ce que votre harnais envoie
+      réellement et le plancher est détaillé par propriétaire : un client mal
+      configuré apparaît comme un composant plutôt que comme une lenteur vague.
+    label: Corps de requête capturé, en JavaScript Object Notation
+    submit: Mesurer
+    reset: Revenir à une session vide
+    invalid: >-
+      Ce n'est pas du JavaScript Object Notation valide. Collez le corps de requête
+      que votre client envoie, accolades comprises.
+  charter:
+    heading: Que contient la charte, et combien coûte-t-elle ?
+    sub: >-
+      Seul l'index est dans le prompt. Une page ne coûte rien tant qu'elle n'est
+      pas ouverte.
+    polarity: ↓ un index plus petit, c'est mieux
+    open_page: Ouvrir une page
+    counts: "{packs} / {pages}"
+    pages_idle: "{pages} page(s), 0 caractère tant qu'aucune n'est ouverte"
+    page_cost: "{chars} caractères — et seulement parce qu'elle a été demandée"
+    loading: …
+  index:
+    heading: Que voit réellement le modèle ?
+    sub: Les blocs injectés dans chaque requête, mot pour mot.
+    exact: "{chars} caractères = {tokens} tokens"
+    estimate: "{chars} caractères ≈ {tokens} tokens"
+  log:
+    heading: Qu'est-ce que la passerelle a censuré ou refusé ?
+    sub: >-
+      Chaque règle qui s'est déclenchée, avec la charte sous laquelle elle
+      tournait — et jamais le texte qu'elle a reconnu.
+    caption: Journal de décision
+    empty: Rien ne s'est encore déclenché.
+    reading: Lecture de {path}.
+    summary: >-
+      {total} décision(s) dans {path}{when}. {refused} commande(s) refusée(s),
+      {withheld} outil(s) retiré(s). Le texte reconnu n'est jamais écrit.
+    latest: ", la plus récente {date}"
+  chip:
+    sovereign: souverain
+    route_leaves: une route quitte ce réseau
+    authenticated: authentifié
+    open: ouvert à quiconque peut l'atteindre
+    output_rules: "{count} règles de sortie"
+    command_rules: "{count} règles de commande"
+    tool_rules: "{count} règles d'outil"
+    enforcement_off: "{name} : application désactivée"
+  error:
+    http: "{path} → HTTP {status}"

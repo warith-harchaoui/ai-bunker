@@ -80,3 +80,104 @@ text:
     with Cyrillic, Greek, mathematical or fullwidth code points. The text was left
     exactly as it arrived, because rewriting a character a reader can see would change
     what it says -- but the rules were matched against the undisguised reading.
+
+# The dashboard. Keys under `gui.` are the only ones the page fetches, and
+# `tests/test_gui.py` checks in both directions: every `data-i18n` on the page
+# resolves here, and every key here is used by the page. A string nobody shows
+# and a label nobody translated are the same bug seen from two sides.
+gui:
+  budget:
+    heading: How much room does a session actually have?
+    sub: >-
+      The floor is paid on every request and compaction cannot reduce it. What is
+      left is the only space the conversation has.
+    polarity: ↑ more conversation space is better
+    made_of: What the floor is made of
+    caption: Floor components by owner
+    client_present: >-
+      — an empty session; paste a captured request below to see what your client
+      adds
+    warnings_failed: "The budget could not be measured: {error}"
+  column:
+    component: Component
+    owner: Owner
+    tokens: Tokens
+    share: Share
+    when: When
+    rule: Rule
+    scope: Scope
+    outcome: Outcome
+    hits: Hits
+  stat:
+    served: Served by the engine
+    declared: Declared to clients
+    reserve: Compaction margin
+    floor: Floor
+    working: Conversation space
+    backend: Counted by
+    fingerprint: Fingerprint
+    packs: Packs / pages
+    index_cost: Index, paid every request
+    pages_cost: Pages, read on demand
+  strip:
+    floor_title: floor — {tokens} tokens
+    left: "floor {tokens} — {share}% of the window"
+    under_one: under 1
+    right: "{tokens} left to work with"
+    description: >-
+      The floor uses {share}% of the declared window; {tokens} tokens remain for
+      the conversation.
+    segment: "{name} — {tokens} tokens ({owner})"
+    legend: "{label} — {tokens} ({share}%)"
+  backend:
+    exact: "{backend} (exact)"
+    estimate: "{backend} (estimate)"
+  measure:
+    summary: Measure a captured request from your own client
+    note: >-
+      A client kit is a claim. Paste what your harness actually sends and the floor
+      is itemised by owner, so a misconfigured client shows up as a component
+      rather than as a vague slowness.
+    label: Captured request body, as JSON
+    submit: Measure it
+    reset: Back to an empty session
+    invalid: >-
+      That is not valid JSON. Paste the request body your client sends, braces
+      included.
+  charter:
+    heading: What is in the charter, and what does it cost?
+    sub: Only the index is in the prompt. A page costs nothing until it is opened.
+    polarity: ↓ a smaller index is better
+    open_page: Open one page
+    counts: "{packs} / {pages}"
+    pages_idle: "{pages} page(s), 0 chars until one is opened"
+    page_cost: "{chars} chars — and only because it was asked for"
+    loading: …
+  index:
+    heading: What does the model actually see?
+    sub: The blocks injected into every request, verbatim.
+    exact: "{chars} chars = {tokens} tokens"
+    estimate: "{chars} chars ≈ {tokens} tokens"
+  log:
+    heading: What has the gateway redacted or refused?
+    sub: >-
+      Every rule that fired, with the charter it ran under — and never the text it
+      matched.
+    caption: Decision log
+    empty: Nothing has fired yet.
+    reading: Reading {path}.
+    summary: >-
+      {total} decision(s) in {path}{when}. {refused} command(s) refused, {withheld}
+      tool(s) withheld. The matched text is never written.
+    latest: ", latest {date}"
+  chip:
+    sovereign: sovereign
+    route_leaves: a route leaves this network
+    authenticated: authenticated
+    open: open to anyone who can reach it
+    output_rules: "{count} output rules"
+    command_rules: "{count} command rules"
+    tool_rules: "{count} tool rules"
+    enforcement_off: "{name} enforcement off"
+  error:
+    http: "{path} → HTTP {status}"

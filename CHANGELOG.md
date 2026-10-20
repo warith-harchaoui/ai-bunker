@@ -57,9 +57,19 @@ client kits and a dashboard.
   reads — so a deployment opts in. With nothing configured the request's
   `Accept-Language` is read; with something configured it wins, because the
   language an agent is instructed in belongs to the operator.
+- **The dashboard too**, with the rule inverted: its 69 strings come from the
+  same catalogue over `/gui/i18n`, but the reader is the operator in their own
+  browser, so `?lang=` then `navigator.language` then the gateway's setting.
+  Configuration decides what the model reads; the browser decides what the
+  operator reads. Numbers are formatted in the chosen locale, because
+  `toLocaleString("en-US")` shows a French operator `24,521` and means
+  twenty-four thousand.
+- The English stays in the markup as the fallback, so a failed catalogue fetch
+  degrades to a readable page rather than to empty boxes. `tests/test_gui.py`
+  checks both directions: every `data-i18n` resolves, and every key is used.
 - Not translated on purpose: log lines (a log that changes language is a log
-  nobody can grep), identifiers and configuration keys (they are names), and
-  the dashboard (a separate piece of work, named rather than half-done).
+  nobody can grep) and identifiers, configuration keys and command names
+  (they are names).
 - `ai-bunker doctor` reports whether the catalogue in use is complete. The
   test suite refuses a missing key, an extra key, a positional placeholder, a
   plural with one form, and a message whose placeholders disagree with the
