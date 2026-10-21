@@ -132,6 +132,11 @@ gui:
   theme:
     to_dark: Switch to dark theme
     to_light: Switch to light theme
+  lang:
+    # Deliberately not a translation of its French twin: each catalogue
+    # carries the OTHER language's invitation, because a switcher labelled
+    # in a language you cannot read is useless to whoever needs it.
+    switch: Passer au français
   strip:
     floor_title: floor — {tokens} tokens
     left: "floor {tokens} — {share}% of the window"

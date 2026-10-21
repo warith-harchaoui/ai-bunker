@@ -228,6 +228,8 @@ td.dim { color: var(--label-3); }
     <div class="chips" id="chips" aria-live="polite">
       <span class="chip"><span class="sk" style="display:inline-block;width:70px"></span></span>
     </div>
+    <button class="theme-toggle" id="lang-toggle" type="button"
+            aria-label="Passer au français" lang="en">🇬🇧</button>
     <button class="theme-toggle" id="theme-toggle" type="button"
             aria-label="Switch to dark theme" aria-pressed="false">🌞</button>
   </div>
@@ -370,9 +372,9 @@ const t = (key, params) => {
 // decimal, not twenty-four thousand, which is the oldest mistake in the trade.
 const n = (v) => (typeof v === "number" ? v.toLocaleString(LOCALE) : "—");
 
-async function loadMessages() {
-  const asked = new URLSearchParams(location.search).get("lang") || "";
-  const wanted = asked || (navigator.language || "").split("-")[0] || "";
+async function loadMessages(explicit) {
+  const asked = explicit || new URLSearchParams(location.search).get("lang") || "";
+  const wanted = asked || storedLang() || (navigator.language || "").split("-")[0] || "";
   try {
     const r = await fetch(`/gui/i18n${wanted ? `?locale=${encodeURIComponent(wanted)}` : ""}`);
     if (!r.ok) return;
@@ -380,6 +382,7 @@ async function loadMessages() {
     MESSAGES = body.messages || {};
     LOCALE = body.locale || "en";
     document.documentElement.lang = LOCALE;
+    paintLang();
     for (const el of document.querySelectorAll("[data-i18n]")) {
       const s = MESSAGES[el.dataset.i18n];
       if (s) el.textContent = s;
@@ -703,6 +706,66 @@ $("measure").addEventListener("click", async () => {
 $("reset-budget").addEventListener("click", () => { $("req").value = ""; loadBudget(); });
 
 // ---------------------------------------------------------------------------
+// Which language, and who decides.
+//
+// D132, and the toggle is what makes it visible. For the *agent* the
+// deployment decides: the language a model is instructed in is the operator's
+// call, not a per-request flag, and instruction-following is not uniformly
+// strong across languages. For *this page* the reader is the operator looking
+// at their own screen, so the order is inverted and their choice wins:
+// `?lang=` beats a stored click, a stored click beats `navigator.language`,
+// and that beats the deployment's setting.
+//
+// Flags are countries rather than languages, which is the usual argument
+// against them. Kept because this dashboard offers exactly two locales whose
+// flags are unambiguous, and because the accessible name carries the language
+// itself -- the glyph is a landmark, the label is the meaning.
+// ---------------------------------------------------------------------------
+const LANG_STORE = "ai-bunker-lang";
+const LANG_FLAG = { en: "\u{1F1EC}\u{1F1E7}", fr: "\u{1F1EB}\u{1F1F7}" };
+
+function storedLang() {
+  try {
+    const value = localStorage.getItem(LANG_STORE);
+    return value in LANG_FLAG ? value : "";
+  } catch (e) {
+    return "";
+  }
+}
+
+function paintLang() {
+  const button = $("lang-toggle");
+  const other = LOCALE === "fr" ? "en" : "fr";
+  // The flag of the language being *read*, like the sun on a light page: the
+  // glyph reports the state, the label says where the click goes.
+  button.textContent = LANG_FLAG[LOCALE] || LANG_FLAG.en;
+  // `lang.switch` is the one entry that is deliberately NOT a translation of
+  // its English twin: each catalogue holds the *other* language's invitation,
+  // so the English page offers "Passer au français" and the French one offers
+  // "Switch to English". A switcher labelled in a language you cannot read is
+  // useless to the only person who needs it.
+  button.setAttribute("aria-label", t("lang.switch"));
+  // And the label is in `other`, not in LOCALE, so a screen reader does not
+  // pronounce French with an English voice.
+  button.setAttribute("lang", other);
+}
+
+$("lang-toggle").addEventListener("click", async () => {
+  const next = LOCALE === "fr" ? "en" : "fr";
+  try { localStorage.setItem(LANG_STORE, next); } catch (e) { /* private mode */ }
+  // `?lang=` outranks a stored choice, so a page opened with one would appear
+  // to ignore the click. Rewriting it keeps the address bar honest about what
+  // is being shown, and survives a reload.
+  const url = new URL(location.href);
+  if (url.searchParams.has("lang")) {
+    url.searchParams.set("lang", next);
+    history.replaceState(null, "", url);
+  }
+  await loadMessages(next);
+  await redraw();
+});
+
+// ---------------------------------------------------------------------------
 // Light / dark, and who decides.
 //
 // Same rule as the language, and for the same reason (D132): the reader here
@@ -744,6 +807,19 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pai
 
 paintTheme();
 
+// Everything below the status bar is drawn with `t()`, so a new catalogue
+// means drawing it again. Shared with boot rather than duplicated: a toggle
+// that refreshed a different set of tiles than the first paint would show two
+// languages at once.
+async function redraw() {
+  await Promise.all([
+    loadHealth().catch(() => {}),
+    loadBudget().catch(() => {}),
+    loadCharter().catch(() => {}),
+    loadLog().catch(() => {}),
+  ]);
+}
+
 async function boot() {
   // First, because every render below asks `t()` for its words. The static
   // markup already carries the English, so a failure here degrades to that
@@ -758,6 +834,7 @@ async function boot() {
     probeModel = (models.data.find((m) => m.kind === "model") || models.data[0] || {}).id || "";
   } catch { /* an unroutable gateway will say so in the budget tile */ }
   await Promise.all([loadBudget(), loadCharter().catch(() => {}), loadLog()]);
+  paintLang();
   if (h) setInterval(loadLog, 10000);
 }
 boot();

@@ -87,8 +87,9 @@ def test_the_api_key_is_never_persisted():
     """A dashboard is not a place to store a credential.
 
     This used to ban browser storage outright, which was the right shape while
-    the page stored nothing. The theme toggle has to remember a choice, so the
-    blanket ban would now have to be deleted to let it through -- and a gate
+    the page stored nothing. The theme and language toggles each have to
+    remember a choice, so the blanket ban would have to be deleted to let them
+    through -- and a gate
     deleted to unblock a feature stops guarding the thing it was written for.
     So it is narrowed instead of dropped: storage is allowed, but only under a
     named key, and the credential may never reach it. That is the property the
@@ -109,10 +110,12 @@ def test_the_api_key_is_never_persisted():
     calls = re.findall(r"localStorage\.(getItem|setItem|removeItem)\(([^)]*)\)", source)
     assert calls, "the theme preference is no longer persisted"
     for method, args in calls:
-        assert "KEY" not in args.replace("THEME_STORE", ""), (
+        assert "KEY" not in args.replace("THEME_STORE", "").replace("LANG_STORE", ""), (
             f"localStorage.{method}({args}) may be reached by the API key"
         )
-        named = re.match(r'\s*(?:"ai-bunker-theme"|THEME_STORE)\s*(?:,|$)', args)
+        named = re.match(
+            r'\s*(?:"ai-bunker-(?:theme|lang)"|THEME_STORE|LANG_STORE)\s*(?:,|$)', args
+        )
         assert named, f"storage under an unexpected key: localStorage.{method}({args})"
 
     assert "URLSearchParams" in source, "the key comes from the URL, per request"
@@ -188,6 +191,71 @@ def test_the_toggle_reads_the_same_catalogue_as_the_rest():
         assert "theme.to_dark" in catalogue
         assert "theme.to_light" in catalogue
     assert _catalogue("fr")["theme.to_dark"] != _catalogue("en")["theme.to_dark"]
+
+
+# ---------------------------------------------------------------------------
+# The language toggle.
+# ---------------------------------------------------------------------------
+
+
+def test_the_language_toggle_exists_with_both_flags():
+    page = _page()
+    assert 'id="lang-toggle"' in page
+    assert "\\u{1F1EC}\\u{1F1E7}" in page and "\\u{1F1EB}\\u{1F1F7}" in page
+
+
+def test_the_switcher_is_labelled_in_the_language_it_offers():
+    """The one entry that is deliberately not a translation of its twin. A
+    button reading "Switch to French" is useless to the only person who needs
+    it: someone who does not read English. So each catalogue carries the
+    *other* language's invitation."""
+    assert _catalogue("en")["lang.switch"] == "Passer au français"
+    assert _catalogue("fr")["lang.switch"] == "Switch to English"
+
+
+def test_the_switcher_declares_the_language_of_its_own_label():
+    """Since the label is in the other language, `lang` on the button has to be
+    the other language too, or a screen reader pronounces French with an
+    English voice."""
+    page = _page()
+    assert 'const other = LOCALE === "fr" ? "en" : "fr"' in page
+    assert 'button.setAttribute("lang", other)' in page
+
+
+def test_the_reader_outranks_the_deployment_on_this_page():
+    """D132, inverted here and on purpose. For an agent the deployment decides
+    the language, because instruction-following is not uniformly strong across
+    languages and that is not a per-request choice. For this page the reader is
+    the operator looking at their own screen, so the order runs the other way:
+    an explicit `?lang=`, then a stored click, then the browser."""
+    page = _page()
+    line = next(ln for ln in page.splitlines() if "const wanted = asked ||" in ln)
+    assert "storedLang()" in line
+    assert line.index("storedLang()") < line.index("navigator.language")
+    explicit = next(ln for ln in page.splitlines() if "const asked = explicit" in ln)
+    assert "explicit ||" in explicit
+
+
+def test_switching_language_redraws_the_same_tiles_as_the_first_paint():
+    """A toggle that refreshed a different set of tiles than boot would leave
+    two languages on screen at once, so both go through one `redraw()`."""
+    page = _page()
+    assert "async function redraw()" in page
+    assert page.count("await redraw()") >= 1
+    start = page.index("async function redraw()")
+    # To the closing brace in column zero, not the first `}` -- that one is the
+    # end of an arrow function inside the call.
+    body = page[start : page.index("\n}", start)]
+    for loader in ("loadHealth", "loadBudget", "loadCharter", "loadLog"):
+        assert loader in body, f"{loader} is not redrawn"
+
+
+def test_the_click_keeps_the_address_bar_honest():
+    """`?lang=` outranks a stored choice, so a page opened with one would
+    appear to ignore the click unless it is rewritten too."""
+    page = _page()
+    assert 'url.searchParams.has("lang")' in page
+    assert "history.replaceState" in page
 
 
 # ---------------------------------------------------------------------------

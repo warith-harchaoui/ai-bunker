@@ -141,6 +141,10 @@ gui:
   theme:
     to_dark: Passer au thème sombre
     to_light: Passer au thème clair
+  lang:
+    # Volontairement pas une traduction de son jumeau anglais : chaque
+    # catalogue porte l'invitation de l'AUTRE langue.
+    switch: Switch to English
   strip:
     floor_title: plancher — {tokens} tokens
     left: "plancher {tokens} — {share} % de la fenêtre"
