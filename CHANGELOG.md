@@ -116,6 +116,57 @@ client kits and a dashboard.
   is ~16% longer than English, and this is the block paid every request.
 - `ai-bunker charter --index --lang fr` prints what such a deployment injects.
 
+### The charter's own pages, in both languages
+
+- **`AGENTS.md` and all five pack pages now ship a French sibling**, so a
+  `language: fr` deployment serves no English at all — not the operating rules
+  injected into every request, not the index, not a page an agent opens.
+- **A translation sits beside its original**: `10_style.md` and
+  `10_style.fr.md`, `AGENTS.md` and `AGENTS.fr.md`. Chosen over a parallel
+  `packs.fr/` tree because a translation next to its original is reviewed in
+  the same diff and noticed when the original moves; a parallel tree is how
+  half a charter ends up describing a page renamed a year ago.
+- **A page keeps exactly one reference in every language.** `read_page(charter,
+  "python/10_style.md")` answers in the charter's language, and the index never
+  names a `.fr.md`. The two alternatives were both worse: listing the
+  translated filename teaches an agent a path that resolves in one language
+  only, and listing both doubles the cost of the single block paid on every
+  request. A translation is therefore **not a page** — it is reached through
+  the page it translates, and the page list is identical in every locale.
+- **The base file is the fallback for every locale**, so a partially translated
+  charter stays usable instead of acquiring holes. Which makes the honest
+  report the important half: `load_charter` warns once, with the list, naming
+  the pages served in the wrong language, and `ai-bunker charter --json` has an
+  `untranslated` array. A translation falling behind is the normal failure mode
+  of any translation.
+- No special case for the default locale: a deployment whose base pages are
+  French can ship `10_style.en.md` and get the same behaviour in the other
+  direction.
+- **A translation of nothing is reported, not silently dropped.**
+  `orphan.fr.md` with no `orphan.md` is reachable by nobody, and leaving
+  somebody's written standards on disk and out of the charter without saying so
+  is the failure this warning exists for.
+- Only locales that **have a catalogue** count as locales in a filename.
+  Reading any two-letter segment as a language would make `api.v2.md` a
+  translation of `api.md` for a language called `v2`, and a page would vanish
+  from the index to pay for the cleverness.
+- The page budget and the fingerprint measure **the file actually served** — a
+  translation is not the same length as its original. So editing a French page
+  moves the French fingerprint and leaves the English one untouched, which is
+  what keeps an English deployment from getting a cold prefix cache out of
+  somebody else's translation work.
+- **`adopt` copies them.** `charter/packs` was already a tree copy and brought
+  its translations along; the operating rules are copied by name, so theirs had
+  to be named too. Without it an adopted copy served French pages under English
+  operating rules — and reported a translation the adopt had left behind, which
+  is the kind of warning that gets blamed on the charter rather than on the
+  tool that copied it.
+- Measured cost of the French charter: the floor goes from **607 to 723
+  tokens** per request (+19%), and the pages from 2,608 to 3,179 characters.
+  `ai-bunker charter --lang fr` prints both, and now prints the language above
+  the fingerprint — two digests with no visible reason read as a charter that
+  changed on disk.
+
 ### Dependency versions
 
 - **A version the project does not declare is refused** (`deps.version_mismatch`).

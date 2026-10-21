@@ -30,6 +30,8 @@ from pathlib import Path
 
 import os_helper as osh
 
+from .i18n import available
+
 #: Repository root of this installation, so an adopt can find its own templates.
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -256,6 +258,16 @@ def plan_adopt(
             ("charter/packs", "charter/packs", "the standards pages, read on demand"),
             ("charter/rules", "charter/rules", "the rules, with their own evidence"),
         ]
+        # The operating rules are copied by name; `charter/packs` is copied as
+        # a tree and brings its own translations along. So these have to be
+        # named too, or an adopted copy of a French charter would serve French
+        # pages under English operating rules -- and `load_charter` would warn
+        # about a translation the adopt had simply left behind.
+        items += [
+            (f"charter/AGENTS.{code}.md", f"charter/AGENTS.{code}.md", f"the same, in {code}")
+            for code in available()
+            if (base / f"charter/AGENTS.{code}.md").is_file()
+        ]
     for client in clients:
         if client == "opencode":
             items += [
@@ -379,6 +391,7 @@ def adopt(
         "charter/AGENTS.md": "charter/AGENTS.md",
         "charter/packs": "charter/packs",
         "charter/rules": "charter/rules",
+        **{f"charter/AGENTS.{code}.md": f"charter/AGENTS.{code}.md" for code in available()},
         "opencode.json": "clients/opencode/opencode.json",
         ".opencode/plugins/bounded-reads.js": "clients/opencode/.opencode/plugins/bounded-reads.js",
         ".claude/settings.ai-bunker.json": "clients/claude-code/settings.json",

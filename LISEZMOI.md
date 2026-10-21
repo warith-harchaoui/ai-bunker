@@ -859,6 +859,61 @@ langues sont vérifiées comme se réduisant à deux empreintes. Même prompt, m
 empreinte — une empreinte doit tenir dans les deux sens ou elle ne veut rien
 dire.
 
+### Et les pages elles-mêmes
+
+L'échafaudage en français alors que les standards qu'il désigne sont en anglais,
+c'est un travail à moitié fait. `AGENTS.md` et les cinq pages de packs livrent
+désormais un fichier jumeau :
+
+```text
+charter/AGENTS.md          charter/AGENTS.fr.md
+packs/python/10_style.md   packs/python/10_style.fr.md
+```
+
+À côté de l'original plutôt que dans un arbre parallèle `packs.fr/`, parce
+qu'une traduction posée contre ce qu'elle traduit est relue dans le même diff
+et remarquée quand l'original bouge. Un arbre parallèle, c'est ainsi que la
+moitié d'une charte finit par décrire une page renommée il y a un an.
+
+**Une page garde une seule référence dans toutes les langues.**
+`read_page(charter, "python/10_style.md")` répond dans la langue de la charte,
+et l'index ne nomme jamais un `.fr.md`. Les deux solutions inverses sont pires :
+nommer le fichier traduit apprend à l'agent un chemin qui ne résout que dans
+une langue, et nommer les deux double le coût du seul bloc payé à chaque
+requête. Une traduction n'est donc **pas une page** : on l'atteint par la page
+qu'elle traduit, et la liste des pages est identique dans chaque locale. Ce qui
+change, c'est le fichier servi.
+
+Le fichier de base est le repli pour toutes les langues, donc une charte à
+moitié traduite reste utilisable au lieu de se trouer — ce qui fait du rapport
+la moitié importante :
+
+```text
+$ ai-bunker charter --lang fr
+language     fr
+fingerprint  5c9ea71b30522ed44f469581a8c525c05fb04f0c
+pages        5
+floor cost   723 tokens  (operating rules + index, every request)
+```
+
+Une traduction qui prend du retard est le mode de défaillance normal d'une
+traduction : `load_charter` avertit une fois, avec la liste, en nommant les
+pages servies dans la mauvaise langue, et `--json` porte un tableau
+`untranslated`. Un `.fr.md` dont l'original n'existe pas est signalé aussi : il
+n'est atteignable par personne, et laisser les standards écrits de quelqu'un sur
+le disque et hors de la charte sans le dire est précisément la défaillance que
+cet avertissement existe pour attraper.
+
+Seules les locales qui **ont un catalogue** comptent dans un nom de fichier —
+lire n'importe quel segment de deux lettres comme une langue ferait de
+`api.v2.md` une traduction d'`api.md` pour une langue nommée `v2`, et une page
+disparaîtrait de l'index pour payer l'astuce.
+
+La charte française coûte ce qu'elle coûte, et le chiffre est au-dessus : le
+plancher passe de 607 à 723 jetons par requête, 19 % de plus, parce que le
+français est plus long que l'anglais. C'est le prix de standards lisibles par
+l'équipe qui les a écrits, énoncé plutôt que caché.
+
 ### L'outil qui a été approuvé, puis a changé
 
 Filtrer une déclaration d'outil attrape ce qu'elle **dit**. Cela n'attrape pas
@@ -1844,7 +1899,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1024 tests, `ruff` propre | ✅ |
+| 1037 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

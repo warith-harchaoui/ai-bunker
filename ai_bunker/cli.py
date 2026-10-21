@@ -289,9 +289,11 @@ def cmd_charter(args) -> int:
             json.dumps(
                 {
                     "root": str(charter.root),
+                    "locale": charter.locale,
                     "fingerprint": charter.fingerprint,
                     "operating_rules_chars": len(charter.operating_rules),
                     "packs": {k: [p.name for p in v] for k, v in charter.packs.items()},
+                    "untranslated": [p.ref for p in charter.pages if not p.translated],
                     "warnings": charter.warnings,
                 },
                 indent=2,
@@ -303,6 +305,10 @@ def cmd_charter(args) -> int:
     blocks = system_blocks(charter)
     cost = sum(counter.count(b) for b in blocks)
     print(f"charter      {charter.root}")
+    # Before the fingerprint, because the fingerprint now depends on it: two
+    # runs of this command showing two digests should say why on the line above
+    # rather than look like a charter that changed on disk.
+    print(f"language     {charter.locale}")
     print(f"fingerprint  {charter.fingerprint}")
     print(f"packs        {len(charter.packs)}  ({', '.join(charter.packs)})")
     print(f"pages        {len(charter.pages)}")

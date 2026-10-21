@@ -74,6 +74,23 @@ def test_the_adopted_charter_is_identical_to_its_source(repo):
     assert load_charter(repo / "charter").fingerprint == load_charter(ROOT / "charter").fingerprint
 
 
+def test_the_adopted_charter_is_identical_in_every_language(repo):
+    """`charter/packs` is copied as a tree and brings its translations along;
+    the operating rules are copied by name, so theirs had to be named too.
+
+    Without that, an adopted copy served French pages under English operating
+    rules -- and `load_charter` would have reported a translation the adopt
+    had simply left behind, which is the sort of warning that gets blamed on
+    the charter rather than on the tool that copied it.
+    """
+    _adopt(repo)
+    for locale in ("en", "fr"):
+        adopted = load_charter(repo / "charter", locale=locale)
+        shipped = load_charter(ROOT / "charter", locale=locale)
+        assert adopted.fingerprint == shipped.fingerprint, locale
+        assert adopted.warnings == [], (locale, adopted.warnings)
+
+
 def test_the_adopted_charter_loads_as_a_charter(repo):
     _adopt(repo)
     charter = load_charter(repo / "charter")

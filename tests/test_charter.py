@@ -471,3 +471,181 @@ def test_our_own_contribution_is_small(shipped):
     counter = Counter(allow_ratio=True)
     cost = sum(counter.count(b) for b in system_blocks(shipped))
     assert cost < 0.05 * 26_000, f"{cost} tokens is more than 5% of a 26k window"
+
+
+# ---------------------------------------------------------------------------
+# The charter's own pages, per locale. A translation sits beside its original
+# and is reached through it, so a page keeps ONE reference in every language.
+# ---------------------------------------------------------------------------
+
+
+def _bilingual(tmp_path):
+    """A charter with one translated page, one untranslated, and rules in both."""
+    (tmp_path / "AGENTS.md").write_text("# How to work\nRead in slices.\n", encoding="utf-8")
+    (tmp_path / "AGENTS.fr.md").write_text(
+        "# Comment travailler\nLisez par tranches.\n", encoding="utf-8"
+    )
+    d = tmp_path / PACKS_DIR / "python"
+    d.mkdir(parents=True)
+    (d / "10_style.md").write_text("# Python style\nruff decides.\n", encoding="utf-8")
+    (d / "10_style.fr.md").write_text("# Style Python\nruff décide.\n", encoding="utf-8")
+    (d / "tests.md").write_text("# Python tests\npytest only.\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_one_reference_resolves_in_either_language(tmp_path):
+    """The hard point of this feature, and the reason translations are
+    siblings rather than a parallel tree.
+
+    `read_page` must answer the same question whatever the charter's locale.
+    An index that named `10_style.fr.md` would teach an agent a path that
+    resolves in one language only; an index that named both would cost double,
+    on the one block paid for on every request.
+    """
+    root = _bilingual(tmp_path)
+    english = read_page(load_charter(root, locale="en"), "python/10_style.md")
+    french = read_page(load_charter(root, locale="fr"), "python/10_style.md")
+
+    assert english.startswith("# Python style")
+    assert french.startswith("# Style Python")
+
+
+def test_a_translation_is_not_a_page_of_its_own(tmp_path):
+    """Otherwise every translated charter pays twice for the same index."""
+    root = _bilingual(tmp_path)
+    for locale in ("en", "fr"):
+        charter = load_charter(root, locale=locale)
+        refs = sorted(p.ref for p in charter.pages)
+        assert refs == ["python/10_style.md", "python/tests.md"], locale
+        assert ".fr.md" not in build_index(charter)
+
+
+def test_the_page_list_does_not_change_with_the_locale(tmp_path):
+    """What the agent is told *exists* is the same in every language; only the
+    file served changes. A charter whose index gained and lost pages with the
+    locale would be two different charters wearing one name."""
+    root = _bilingual(tmp_path)
+    english = load_charter(root, locale="en")
+    french = load_charter(root, locale="fr")
+    assert [p.ref for p in english.pages] == [p.ref for p in french.pages]
+
+
+def test_a_page_with_no_translation_falls_back_to_its_original(tmp_path):
+    """A partial translation has to stay usable. The alternative -- refusing to
+    serve a page that has not been translated yet -- turns an incomplete
+    translation into a charter with holes in it."""
+    charter = load_charter(_bilingual(tmp_path), locale="fr")
+    served = {p.ref: p for p in charter.pages}
+
+    assert served["python/10_style.md"].translated
+    assert read_page(charter, "python/10_style.md").startswith("# Style Python")
+    assert not served["python/tests.md"].translated
+    assert read_page(charter, "python/tests.md").startswith("# Python tests")
+
+
+def test_a_page_served_in_the_wrong_language_is_reported(tmp_path):
+    """The normal failure mode of any translation is falling behind, so the
+    operator is told which pages have -- once, with the list, not once per
+    page."""
+    charter = load_charter(_bilingual(tmp_path), locale="fr")
+    behind = [w for w in charter.warnings if "no fr translation" in w]
+    assert len(behind) == 1
+    assert "python/tests.md" in behind[0]
+    assert "10_style" not in behind[0], "the translated page must not be named"
+
+
+def test_untranslated_operating_rules_are_reported(tmp_path):
+    """The rules are the block injected into every request, so them being in
+    another language than the rest of the prompt is worth its own warning."""
+    (tmp_path / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
+    d = tmp_path / PACKS_DIR / "python"
+    d.mkdir(parents=True)
+    (d / "10_style.md").write_text("# Python style\n", encoding="utf-8")
+
+    charter = load_charter(tmp_path, locale="fr")
+    assert any("AGENTS.md has no fr translation" in w for w in charter.warnings)
+    assert not any("AGENTS" in w for w in load_charter(tmp_path, locale="en").warnings)
+
+
+def test_the_operating_rules_are_served_in_the_charters_locale(tmp_path):
+    root = _bilingual(tmp_path)
+    assert load_charter(root, locale="en").operating_rules.startswith("# How to work")
+    assert load_charter(root, locale="fr").operating_rules.startswith("# Comment travailler")
+
+
+def test_a_translation_of_nothing_is_reported_rather_than_served(tmp_path):
+    """`10_style.fr.md` with no `10_style.md` is reached by nobody: a
+    translation is served through the page it translates. Silently dropping it
+    would leave someone's written standards on disk and out of the charter."""
+    (tmp_path / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
+    d = tmp_path / PACKS_DIR / "python"
+    d.mkdir(parents=True)
+    (d / "orphan.fr.md").write_text("# Orpheline\n", encoding="utf-8")
+    (d / "10_style.md").write_text("# Python style\n", encoding="utf-8")
+
+    charter = load_charter(tmp_path, locale="fr")
+    assert [p.ref for p in charter.pages] == ["python/10_style.md"]
+    assert any("orphan.md" in w and "does not exist" in w for w in charter.warnings)
+
+
+def test_a_dotted_filename_is_not_mistaken_for_a_translation(tmp_path):
+    """Only locales that have a catalogue count as locales. Reading any
+    two-letter segment as a language would turn `api.v2.md` into a translation
+    of `api.md` for a language called `v2`, and the page would vanish from the
+    index to pay for the cleverness.
+    """
+    (tmp_path / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
+    d = tmp_path / PACKS_DIR / "api"
+    d.mkdir(parents=True)
+    (d / "api.v2.md").write_text("# Version 2\n", encoding="utf-8")
+    (d / "schema.v10.md").write_text("# Schema\n", encoding="utf-8")
+
+    refs = sorted(p.ref for p in load_charter(tmp_path, locale="fr").pages)
+    assert refs == ["api/api.v2.md", "api/schema.v10.md"]
+
+
+def test_the_page_budget_measures_the_file_actually_served(tmp_path):
+    """A translation is not the same length as its original, and the budget
+    exists to say what an agent will have to read."""
+    (tmp_path / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
+    d = tmp_path / PACKS_DIR / "python"
+    d.mkdir(parents=True)
+    (d / "big.md").write_text("x" * 100, encoding="utf-8")
+    (d / "big.fr.md").write_text("x" * (MAX_PAGE_CHARS + 50), encoding="utf-8")
+
+    french = load_charter(tmp_path, locale="fr")
+    assert french.pages[0].chars == MAX_PAGE_CHARS + 50
+    assert any("page budget" in w for w in french.warnings)
+
+    english = load_charter(tmp_path, locale="en")
+    assert english.pages[0].chars == 100
+    assert not any("page budget" in w for w in english.warnings)
+
+
+def test_the_fingerprint_follows_the_translation_that_is_served(tmp_path):
+    """The digest reads the file served, so editing a French page changes the
+    French fingerprint and leaves the English one alone. Both halves matter:
+    the first because provenance has to track what actually ran, the second
+    because an English deployment should not get a cold prefix cache out of
+    somebody else's translation work."""
+    root = _bilingual(tmp_path)
+    before_fr = load_charter(root, locale="fr").fingerprint
+    before_en = load_charter(root, locale="en").fingerprint
+
+    (root / PACKS_DIR / "python" / "10_style.fr.md").write_text(
+        "# Style Python\nruff décide, et c'est tout.\n", encoding="utf-8"
+    )
+
+    assert load_charter(root, locale="fr").fingerprint != before_fr
+    assert load_charter(root, locale="en").fingerprint == before_en
+
+
+def test_the_shipped_charter_is_translated_end_to_end():
+    """The charter in this repository, not a fixture: every page and the
+    operating rules carry a French sibling, so a `language: fr` deployment
+    serves no English at all."""
+    french = load_charter(SHIPPED, locale="fr")
+    assert french.warnings == [], french.warnings
+    assert all(p.translated for p in french.pages)
+    assert french.operating_rules.startswith("# Comment travailler ici")
+    assert "## Standards de la maison" in build_index(french)

@@ -34,7 +34,7 @@ from pathlib import Path
 
 import os_helper as osh
 
-from .i18n import DEFAULT_LOCALE, translator
+from .i18n import DEFAULT_LOCALE, available, translator
 
 #: Where packs live, relative to a charter root.
 PACKS_DIR = "packs"
@@ -49,18 +49,66 @@ MAX_INDEX_CHARS = 1200
 MAX_PAGE_CHARS = 12_000
 
 
+def _declared_locale(path: Path) -> str:
+    """The locale a filename declares, or ``""`` -- ``10_style.fr.md`` -> ``fr``.
+
+    Only locales that have a catalogue count. The alternative, reading any
+    two-letter segment as a language, turns ``api.v2.md`` into a translation of
+    ``api.md`` for a language called ``v2``, and a page would vanish from the
+    index to pay for the cleverness.
+    """
+    head, _, tail = path.stem.rpartition(".")
+    return tail if head and tail in available() else ""
+
+
+def _for_locale(path: Path, locale: str) -> Path:
+    """``path``'s sibling for ``locale``, or ``path`` when none exists.
+
+    The convention is the locale before the extension: ``AGENTS.md`` and
+    ``AGENTS.fr.md``, ``10_style.md`` and ``10_style.fr.md``. Chosen over a
+    parallel ``packs.fr/`` tree because a translation that sits next to its
+    original is reviewed in the same diff and noticed when the original moves;
+    a parallel tree is how half a charter ends up describing a page that was
+    renamed a year ago.
+
+    No special case for the default locale, deliberately. A deployment whose
+    base pages are written in French can ship ``10_style.en.md`` and get the
+    same behaviour in the other direction. The base file is simply the
+    fallback for every locale, which is also what makes a partial translation
+    usable rather than a half-broken charter.
+    """
+    sibling = path.with_name(f"{path.stem}.{locale}{path.suffix}")
+    return sibling if sibling.is_file() else path
+
+
 @dataclass(frozen=True)
 class Page:
-    """One page of the charter."""
+    """One page of the charter.
+
+    ``name`` is always the base spelling and ``path`` may be a translation of
+    it. That split is the whole design: a page keeps **one** reference in every
+    language, so the index costs the same and `read_page` answers the same
+    question whatever the charter's locale. What changes is the file served.
+    """
 
     pack: str
     name: str
     path: Path
     chars: int
+    #: Whether ``path`` is a locale sibling rather than the base file. Lets a
+    #: deployment be told which pages have fallen behind instead of finding out
+    #: when an agent reads English standards out of a French prompt.
+    translated: bool = False
 
     @property
     def ref(self) -> str:
-        """How the index names this page, and how a caller asks for it back."""
+        """How the index names this page, and how a caller asks for it back.
+
+        The base spelling, never the translated filename. An index that listed
+        `10_style.fr.md` would teach the agent a path that only resolves in one
+        language, and an index that listed both would cost double -- on the one
+        block paid for on every request.
+        """
         return f"{self.pack}/{self.name}"
 
 
@@ -165,10 +213,19 @@ def load_charter(
             locale=locale,
         )
 
-    rules_path = base / rules_file
+    rules_base = base / rules_file
+    rules_path = _for_locale(rules_base, locale)
     operating_rules = ""
     if osh.file_exists(str(rules_path)):
         operating_rules = rules_path.read_text(encoding="utf-8").strip()
+        if locale != DEFAULT_LOCALE and rules_path == rules_base:
+            wanted = f"{rules_base.stem}.{locale}{rules_base.suffix}"
+            warnings.append(
+                f"{rules_file} has no {locale} translation ({wanted}), so the block "
+                "injected into every request is served in its original language while "
+                "the rest of the prompt is not."
+            )
+            osh.warning(f"[charter] {warnings[-1]}")
     else:
         warnings.append(
             f"{rules_file} is missing. Without it the model is given an index and no "
@@ -181,9 +238,30 @@ def load_charter(
     if packs_root.is_dir():
         # recursive_glob so a pack can nest (javascript/react/...), which is how
         # a charter stays navigable once it has more than a handful of pages.
-        for found in sorted(osh.recursive_glob(str(packs_root), "*.md")):
-            path = Path(found)
+        found_files = [Path(f) for f in sorted(osh.recursive_glob(str(packs_root), "*.md"))]
+        present = {p.resolve() for p in found_files}
+        untranslated: list[str] = []
+
+        for path in found_files:
             rel = path.relative_to(packs_root)
+
+            # A translation is not a page. It is the same page in another
+            # language, reached through the base file below -- listing it would
+            # either double the index or teach the agent a path that resolves
+            # in one language only.
+            declared = _declared_locale(path)
+            if declared:
+                original = path.with_name(f"{path.stem.removesuffix('.' + declared)}{path.suffix}")
+                if original.resolve() not in present:
+                    warnings.append(
+                        f"{rel} is a {declared} translation of {original.name}, which does "
+                        "not exist. A translation is reached through the page it "
+                        "translates, so this file is served to nobody; rename it or add "
+                        "the page."
+                    )
+                    osh.warning(f"[charter] {warnings[-1]}")
+                continue
+
             if len(rel.parts) < 2:
                 warnings.append(
                     f"{rel} sits directly under {PACKS_DIR}/ with no pack. A page "
@@ -192,18 +270,41 @@ def load_charter(
                 )
                 osh.warning(f"[charter] {warnings[-1]}")
                 continue
-            size = path.stat().st_size
+
+            # The file actually served, which is what the budget and the
+            # fingerprint have to measure -- a translation is not the same
+            # length as its original.
+            served = _for_locale(path, locale)
+            if served == path and locale != DEFAULT_LOCALE:
+                untranslated.append(str(rel))
+            size = served.stat().st_size
             if size > MAX_PAGE_CHARS:
                 warnings.append(
-                    f"{rel} is {osh.format_size(size)}, over the "
+                    f"{served.relative_to(packs_root)} is {osh.format_size(size)}, over the "
                     f"{MAX_PAGE_CHARS:,}-character page budget. An agent reads it in "
                     "slices of eighty lines; past this it will read the beginning and "
                     "guess the rest. Split it."
                 )
                 osh.warning(f"[charter] {warnings[-1]}")
             pages.append(
-                Page(pack=rel.parts[0], name=str(Path(*rel.parts[1:])), path=path, chars=size)
+                Page(
+                    pack=rel.parts[0],
+                    name=str(Path(*rel.parts[1:])),
+                    path=served,
+                    chars=size,
+                    translated=served != path,
+                )
             )
+
+        # One warning naming all of them, not one per page. A translation
+        # falling behind is the normal failure mode of any translation, and the
+        # operator needs the list, not a scroll.
+        if untranslated:
+            warnings.append(
+                f"{len(untranslated)} page(s) have no {locale} translation and are served "
+                f"in their original language: {', '.join(untranslated)}."
+            )
+            osh.warning(f"[charter] {warnings[-1]}")
     else:
         warnings.append(f"no {PACKS_DIR}/ directory under {base}")
 

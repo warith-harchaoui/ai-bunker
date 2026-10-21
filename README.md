@@ -798,6 +798,58 @@ stored, and ten spellings across two languages are asserted to collapse to
 two digests. Same prompt, same fingerprint — a digest has to hold in both
 directions or it means nothing.
 
+### And the pages themselves
+
+The scaffolding being French while the standards it points at are English is
+half a job. `AGENTS.md` and all five pack pages now ship a sibling:
+
+```text
+charter/AGENTS.md          charter/AGENTS.fr.md
+packs/python/10_style.md   packs/python/10_style.fr.md
+```
+
+Beside the original rather than in a parallel `packs.fr/` tree, because a
+translation that sits next to what it translates is reviewed in the same diff
+and noticed when the original moves. A parallel tree is how half a charter ends
+up describing a page that was renamed a year ago.
+
+**A page keeps one reference in every language.** `read_page(charter,
+"python/10_style.md")` answers in the charter's language, and the index never
+names a `.fr.md`. Both alternatives were worse: listing the translated filename
+teaches the agent a path that resolves in one language only, and listing both
+doubles the cost of the one block paid on every request. So a translation is
+*not a page* — it is reached through the page it translates, and the page list
+is identical in every locale. What changes is the file served.
+
+The base file is the fallback for every locale, so a half-translated charter
+stays usable instead of acquiring holes — which makes the reporting the
+important half:
+
+```text
+$ ai-bunker charter --lang fr
+language     fr
+fingerprint  5c9ea71b30522ed44f469581a8c525c05fb04f0c
+pages        5
+floor cost   723 tokens  (operating rules + index, every request)
+```
+
+A translation falling behind is the normal failure mode of a translation, so
+`load_charter` warns once, with the list, naming the pages being served in the
+wrong language, and `--json` carries an `untranslated` array. A `.fr.md` whose
+original does not exist is reported too: it is reachable by nobody, and leaving
+somebody's standards on disk and out of the charter without saying so is the
+failure that warning exists for.
+
+Only locales that **have a catalogue** count in a filename — reading any
+two-letter segment as a language would turn `api.v2.md` into a translation of
+`api.md` for a language called `v2`, and a page would disappear from the index
+to pay for the cleverness.
+
+The French charter costs what it costs, and the figure is above: the floor goes
+from 607 to 723 tokens per request, 19% more, because French is longer than
+English. That is the price of the standards being readable by the team that
+wrote them, stated rather than hidden.
+
 ### The tool that was approved, and then changed
 
 Screening a tool declaration catches what it *says*. It cannot catch a server
@@ -1718,7 +1770,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1024 tests, `ruff` clean | ✅ |
+| 1037 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
