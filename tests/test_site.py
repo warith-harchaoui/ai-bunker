@@ -143,8 +143,14 @@ def _collected_tests() -> int:
 
 
 def test_the_quoted_test_count_is_real(all_text):
-    """The figure most likely to rot, since it changes on every commit."""
-    quoted = {int(n) for n in re.findall(r"(\d{3}) tests", all_text)}
+    """The figure most likely to rot, since it changes on every commit.
+
+    `{3,}` and a word boundary, not `{3}`: the suite passed a thousand tests
+    and a fixed three-digit match read `007` out of `1007`, so this guard
+    failed on a figure that was correct. A check that reports a drift which is
+    not there spends the same trust as one that misses a drift that is.
+    """
+    quoted = {int(n) for n in re.findall(r"\b(\d{3,}) tests", all_text)}
     assert quoted, "the site no longer quotes a test count; drop this test too"
     actual = _collected_tests()
     for n in quoted:

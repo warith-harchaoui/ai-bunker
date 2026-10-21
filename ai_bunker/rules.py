@@ -162,6 +162,36 @@ RUNNER_PREFIX = re.compile(
 COMMAND_PATH = re.compile(r"^\s*(?:/|\./|\.\./)\S{0,120}?/(?=[A-Za-z0-9_.-]{1,40}(?:\s|$))")
 
 
+#: ``git``'s own options, which sit between the program and its subcommand.
+#: Every rule in ``shell.yaml`` that watches git matches ``git`` followed
+#: immediately by the subcommand, so all nine of them were walked past by
+#: ``git -C . push --force``, ``git -c k=v reset --hard``,
+#: ``git --no-pager clean -fd``. This is the ``sudo`` bug a third time -- that
+#: one was fixed twice in two patterns, once in ``shell.destructive_rm`` and
+#: again in ``shell.pipe_to_shell``, which is the argument for fixing it here
+#: instead of in a tenth pattern: a program that takes options of its own
+#: takes them whether or not a rule author remembered.
+#:
+#: Anchored, for two reasons that agree. By the time this runs the segment has
+#: had its prefixes and its leading directory taken off, so the program name is
+#: at the front -- and an unanchored pattern rescans the whole line on every
+#: pass of the fixpoint below, which turned an adversarial line of fifty
+#: thousand ``env`` prefixes from milliseconds into minutes. The two
+#: transformations beside it are anchored and fail in constant time; this one
+#: has to be as well.
+GIT_GLOBAL_OPTION = re.compile(
+    r"""^\s*git(?:\s+(?:
+          (?:-[cC]|--exec-path|--git-dir|--work-tree|--namespace|--super-prefix)
+            (?:=\S{1,120}|\s+\S{1,120})
+        | --(?:no-pager|paginate|bare|no-replace-objects|literal-pathspecs
+             |glob-pathspecs|noglob-pathspecs|icase-pathspecs
+             |no-optional-locks|no-lazy-fetch)
+        | -P
+      )){1,6}(?=\s)""",
+    re.VERBOSE,
+)
+
+
 def _segments(command: str) -> list[str]:
     """``command`` split where a shell would start a new command.
 
@@ -252,6 +282,7 @@ def _as_the_shell_runs_it(segment: str) -> str:
         out = without_env_prefix(out)
         out = RUNNER_PREFIX.sub("", out, count=1)
         out = COMMAND_PATH.sub("", out, count=1)
+        out = GIT_GLOBAL_OPTION.sub("git", out, count=1)
     return out.strip()
 
 
