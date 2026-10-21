@@ -17,6 +17,7 @@ from __future__ import annotations
 import os_helper as osh
 import pytest
 
+from ai_bunker import i18n
 from ai_bunker.budget import Counter
 from ai_bunker.charter import (
     MAX_INDEX_CHARS,
@@ -46,7 +47,10 @@ def shipped():
 
 
 def _charter(
-    tmp_path, packs: dict[str, dict[str, str]], rules: str = "# How to work\nRead in slices.\n"
+    tmp_path,
+    packs: dict[str, dict[str, str]],
+    rules: str = "# How to work\nRead in slices.\n",
+    locale: str = i18n.DEFAULT_LOCALE,
 ):
     """Build a charter on disk from a {pack: {page: text}} description."""
     (tmp_path / "AGENTS.md").write_text(rules, encoding="utf-8")
@@ -55,7 +59,7 @@ def _charter(
         d.mkdir(parents=True, exist_ok=True)
         for name, text in pages.items():
             (d / name).write_text(text, encoding="utf-8")
-    return load_charter(tmp_path)
+    return load_charter(tmp_path, locale=locale)
 
 
 # ---------------------------------------------------------------------------
@@ -123,23 +127,151 @@ def test_one_large_pack_costs_its_own_names_not_everyone_elses(tmp_path):
     assert f"ls {PACKS_DIR}/" in index, "and it must say how to list the collapsed one"
 
 
-def test_a_single_page_pack_is_not_described_as_1_pages(tmp_path):
-    """A plural that only shows up once a pack collapses."""
+@pytest.mark.parametrize("locale", i18n.available())
+def test_a_single_page_pack_is_not_described_as_1_pages(tmp_path, locale):
+    """A plural that only shows up once a pack collapses -- and it has to
+    survive translation, so every catalogue is measured, not just English."""
     packs = {
         "solo": {"only.md": "x"},
         "big": {f"a_rather_long_page_name_{i}.md": "x" for i in range(200)},
     }
-    index = build_index(_charter(tmp_path, packs))
+    index = build_index(_charter(tmp_path, packs, locale=locale))
     assert "(1 pages)" not in index
+    assert "(200 page)" not in index
     if "solo (" in index:
         assert "solo (1 page)" in index
 
 
-def test_the_shipped_index_stays_within_its_budget(shipped):
-    index = build_index(shipped)
+@pytest.mark.parametrize("locale", i18n.available())
+def test_the_shipped_index_stays_within_its_budget(locale):
+    """Measured in every locale, not only the one the constant was tuned in.
+
+    `MAX_INDEX_CHARS` bounds `render()`, which is the pack listing -- file
+    names, which no translation touches. The prose scaffolding sits *outside*
+    that bound, which is why the assertion below carries a `+ 600` and why it
+    has to run per locale: translating the scaffolding is the one change that
+    can grow the part nothing caps. French is ~16% longer than English here,
+    and this block is paid on every single request.
+    """
+    index = build_index(load_charter(SHIPPED, locale=locale))
     assert 0 < len(index) <= MAX_INDEX_CHARS + 600  # prose header plus the listing
     counter = Counter(allow_ratio=True)
     assert counter.count(index) < 400, "the index is paid on every single request"
+
+
+# ---------------------------------------------------------------------------
+# The index is agent-facing text, so it is translated like the rest of it.
+# ---------------------------------------------------------------------------
+
+
+def test_the_index_is_rendered_in_the_charters_locale():
+    """`locale` circulated as far as refusals and stopped there, so the block
+    paid on *every* request went out in English whatever `language:` said."""
+    french = build_index(load_charter(SHIPPED, locale="fr"))
+    assert "Les pages vivent sous" in french
+    assert "Une seule page à la fois" in french
+    assert "Pages live under" not in french
+
+    english = build_index(load_charter(SHIPPED, locale="en"))
+    assert "Pages live under" in english
+    assert "Les pages vivent sous" not in english
+
+
+def test_the_english_index_is_byte_identical_to_before_translation():
+    """Moving these lines into a catalogue must not reword them.
+
+    A serving engine's prefix cache only helps while the head of the prompt is
+    byte-identical between requests, and this block sits in that head. A
+    well-meant copy-edit during the move would have invalidated the cache of
+    every existing deployment, silently and for nothing.
+    """
+    index = build_index(load_charter(SHIPPED, locale="en"))
+    assert index.splitlines()[0] == "## House standards (the charter)"
+    assert index.splitlines()[1] == (
+        f"Pages live under `{PACKS_DIR}/`. They are NOT loaded into this prompt: "
+        "read the one you need, when you need it, in slices."
+    )
+    assert index.splitlines()[2] == (
+        "Before writing or reviewing code in one of these domains, read the matching "
+        "page. The page wins over your habits and over a library's defaults."
+    )
+    assert index.splitlines()[3] == (
+        "One page at a time, for the domain actually in play: never a whole pack, and "
+        "no page at all for a question that writes no code."
+    )
+    assert index.splitlines()[-1].startswith(f"Example: read {PACKS_DIR}/")
+
+
+def test_the_default_index_is_still_english():
+    """A charter loaded without a locale is English, like every other
+    agent-facing string: a deployment opts in."""
+    assert build_index(load_charter(SHIPPED)) == build_index(load_charter(SHIPPED, locale="en"))
+
+
+def test_the_fingerprint_covers_the_locale():
+    """Two deployments of the same files that serve prompts differing in bytes
+    must not report the same fingerprint.
+
+    It is a cache key and it is provenance, and the lie is worse in the second
+    role: a decision record naming charter `9f2c` has to mean one prompt. The
+    English digest is the one that must stay put relative to its own locale --
+    see `test_the_english_index_is_byte_identical_to_before_translation` for
+    the bytes it keys.
+    """
+    english = load_charter(SHIPPED, locale="en")
+    french = load_charter(SHIPPED, locale="fr")
+    assert build_index(english) != build_index(french), "the premise of this test"
+    assert english.fingerprint != french.fingerprint
+    assert load_charter(SHIPPED).fingerprint == english.fingerprint
+
+
+@pytest.mark.parametrize("spelling", ["", "en", "EN", "en-US", "en_GB", "zz"])
+def test_every_spelling_that_renders_english_reports_one_fingerprint(spelling):
+    """The locale is stored resolved, and this is why.
+
+    Found in this change rather than reasoned about: `language:` defaults to
+    an empty string, an unknown locale falls back, and a region tag is
+    stripped -- so `""`, `"zz"` and `"en-US"` all serve the byte-identical
+    English index. Keeping the raw string gave that one prompt three different
+    fingerprints, which is precisely the lie that putting the locale in the
+    digest was added to prevent. Same prompt, same fingerprint; the rule has
+    to hold in both directions or the digest means nothing.
+    """
+    english = load_charter(SHIPPED, locale="en")
+    charter = load_charter(SHIPPED, locale=spelling)
+    assert charter.locale == "en"
+    assert build_index(charter) == build_index(english)
+    assert charter.fingerprint == english.fingerprint
+
+
+@pytest.mark.parametrize("spelling", ["fr", "FR", "fr-CA", "fr_FR"])
+def test_every_spelling_of_french_reports_one_fingerprint(spelling):
+    """And the same in the other direction, so the test above is not just
+    asserting that everything collapses to English."""
+    french = load_charter(SHIPPED, locale="fr")
+    charter = load_charter(SHIPPED, locale=spelling)
+    assert charter.locale == "fr"
+    assert charter.fingerprint == french.fingerprint
+    assert charter.fingerprint != load_charter(SHIPPED, locale="en").fingerprint
+
+
+def test_a_request_cannot_choose_the_language_an_agent_is_instructed_in():
+    """The locale is a property of the loaded charter, and that is the whole
+    guarantee: there is no per-request seam to pass one through.
+
+    `negotiate()` reads `Accept-Language` for refusals and notes, and a client
+    may legitimately influence those. It must not reach the charter, because
+    instruction-following is not uniformly strong across languages and which
+    language an agent is instructed in is the operator's call, not a caller's.
+    If a later change adds a `locale` parameter to either of these, this test
+    is the place that argument gets made.
+    """
+    import inspect
+
+    for fn in (build_index, system_blocks):
+        assert list(inspect.signature(fn).parameters) == ["charter"], (
+            f"{fn.__name__} grew a parameter; if it is a locale, see this test's docstring"
+        )
 
 
 def test_a_page_costs_nothing_until_it_is_opened(shipped):

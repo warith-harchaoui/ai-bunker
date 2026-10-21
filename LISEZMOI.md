@@ -809,6 +809,56 @@ message dont les marqueurs diffèrent de l'anglais. Ce dernier est celui qui
 lève une exception au lieu de mal se lire : un traducteur qui perd `{count}`
 livre un message qui marche jusqu'au jour où on l'appelle avec un compte.
 
+### Et le bloc qui est payé à chaque requête
+
+`locale` atteignait les refus, les notes d'outils retirés, les règles de
+paiement et le disjoncteur. Il n'atteignait pas `build_index()`, qui ne
+prenait aucune locale — donc un déploiement en `language: fr` injectait des
+standards de maison en anglais dans **chaque requête**. De tout ce qui pouvait
+rester en anglais, c'était le pire candidat : l'index est le seul texte
+destiné à l'agent qu'un modèle ne peut pas ignorer, et c'est lui qui décide si
+la charte est ouverte.
+
+```bash
+ai-bunker charter --index --lang fr
+```
+
+```text
+## Standards de la maison (la charte)
+Les pages vivent sous `packs/`. Elles ne sont PAS chargées dans ce prompt :
+lisez celle dont vous avez besoin, quand vous en avez besoin, par tranches.
+```
+
+**La locale appartient à la charte chargée, pas aux appels qui la rendent.**
+Elle est lue depuis `language:` une fois, au démarrage. Ce n'est pas un
+raccourci, c'est la garantie : la locale par requête que `negotiate()` déduit
+d'`Accept-Language` atteint les refus et s'arrête là, donc un client ne peut
+pas choisir la langue dans laquelle **vos** agents sont instruits — une fois
+la charte chargée, il n'y a plus de point de passage pour en fournir une. Un
+test vérifie que `build_index` et `system_blocks` n'acceptent toujours rien
+d'autre qu'une charte, pour que quiconque ajoute une locale par requête ait à
+défendre ce choix sciemment.
+
+Deux conséquences à énoncer. La sortie anglaise est **identique octet pour
+octet** à ce qu'elle était avant le déplacement, vérifiée ligne par ligne,
+parce qu'un cache de préfixe ne paie que si la tête du prompt ne bouge pas. Et
+**l'empreinte intègre désormais la locale** : deux déploiements des mêmes
+fichiers servent des prompts qui diffèrent en octets, et cette empreinte est à
+la fois la clé de cache et la provenance inscrite dans chaque enregistrement
+du journal de décision. Deux prompts différents qui annoncent une seule
+empreinte, c'est faux pour un cache et c'est un mensonge dans une piste
+d'audit.
+
+Ce qui a produit le défaut qui valait d'être gardé. `language:` vaut la chaîne
+vide par défaut, une locale inconnue se replie, et une étiquette de région est
+retirée — donc `""`, `"zz"` et `"en-US"` rendent le même index anglais, octet
+pour octet, et conserver la chaîne brute donnait à ce **seul** prompt **trois**
+empreintes. Exactement le mensonge que l'ajout de la locale venait d'empêcher.
+La locale est résolue avant d'être stockée, et dix orthographes sur deux
+langues sont vérifiées comme se réduisant à deux empreintes. Même prompt, même
+empreinte — une empreinte doit tenir dans les deux sens ou elle ne veut rien
+dire.
+
 ### L'outil qui a été approuvé, puis a changé
 
 Filtrer une déclaration d'outil attrape ce qu'elle **dit**. Cela n'attrape pas
@@ -1794,7 +1844,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1007 tests, `ruff` propre | ✅ |
+| 1024 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

@@ -106,6 +106,33 @@ text:
     caractère qu'un lecteur voit changerait ce qu'il dit — mais les règles ont été
     appliquées à la lecture non déguisée.
 
+# L'index de la charte : le seul bloc d'ici qui est payé à CHAQUE requête, et
+# non seulement quand quelque chose se passe mal. Quatre choses doivent être
+# dites et rien d'autre — voir `build_index()` pour la raison de chaque ligne ;
+# en raccourcir une change la fiabilité avec laquelle la charte est ouverte, ce
+# n'est pas une économie.
+#
+# Vouvoiement, comme le reste de ce catalogue : c'est la voix que le runtime
+# emploie quand il s'adresse à l'agent.
+charter:
+  index:
+    heading: "## Standards de la maison (la charte)"
+    not_loaded: >-
+      Les pages vivent sous `{dir}/`. Elles ne sont PAS chargées dans ce prompt :
+      lisez celle dont vous avez besoin, quand vous en avez besoin, par tranches.
+    when: >-
+      Avant d'écrire ou de relire du code dans l'un de ces domaines, lisez la page
+      correspondante. La page l'emporte sur vos habitudes et sur les réglages par
+      défaut d'une bibliothèque.
+    one_at_a_time: >-
+      Une seule page à la fois, pour le domaine réellement en jeu : jamais un pack
+      entier, et aucune page pour une question qui n'écrit pas de code.
+    list_one: "  En lister un : ls {dir}/<pack>"
+    example: "Exemple : lisez {dir}/{ref}"
+    pack:
+      one: "- {pack} ({count} page)"
+      other: "- {pack} ({count} pages)"
+
 # Le tableau de bord. Seules les clés sous `gui.` sont récupérées par la page,
 # et `tests/test_gui.py` vérifie dans les deux sens : chaque `data-i18n` de la
 # page se résout ici, et chaque clé d'ici est utilisée par la page.

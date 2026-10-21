@@ -75,6 +75,47 @@ client kits and a dashboard.
   plural with one form, and a message whose placeholders disagree with the
   English — the last being the one that raises rather than reads badly.
 
+### The charter index, in the reader's language too
+
+- **The block paid on every request was the one still in English.** `locale`
+  reached refusals, withheld-tool notes, payment rules and the breaker, but
+  `build_index()` took no locale at all, so a `language: fr` deployment
+  injected English house standards into every single request. That index is
+  also the one piece of agent-facing text a model cannot ignore — it is what
+  decides whether the charter gets opened — which made it the worst one to
+  leave untranslated.
+- The scaffolding now comes from `charter.index.*` keys. **The English output
+  is byte-identical**, asserted line by line, because a serving engine's
+  prefix cache only helps while the head of the prompt does not move: a
+  well-meant copy-edit during the move would have invalidated the cache of
+  every existing deployment for nothing.
+- **The locale lives on the loaded `Charter`, not on the rendering calls**, and
+  that is the design rather than a shortcut. It is read from `language:` once,
+  at startup. The per-request locale `negotiate()` works out from
+  `Accept-Language` reaches refusals and stops there, so **a client cannot
+  choose the language an agent is instructed in** — there is no seam to pass
+  one through. A test asserts `build_index` and `system_blocks` still take
+  nothing but a charter, so the argument has to be made again if that changes.
+  It also meant all six places that render the index — the pipeline, the
+  gateway, the agent card and the command line — were correct with no change.
+- **The fingerprint now covers the locale.** Two deployments of the same files
+  serve prompts that differ in bytes, and the digest is both a cache key and
+  the provenance recorded in every decision log entry; naming two prompts the
+  same thing is wrong for the first and a lie in the second. One-time change
+  to the digest for existing deployments.
+- **A bug found in this change, not reasoned about:** `language:` defaults to
+  an empty string, an unknown locale falls back, and a region tag is stripped,
+  so `""`, `"zz"` and `"en-US"` all render the byte-identical English index —
+  and storing the raw string gave that one prompt three different
+  fingerprints. Exactly the lie the locale was added to the digest to prevent.
+  The locale is now resolved before it is stored, and ten spellings across two
+  languages are asserted to collapse to two fingerprints.
+- `MAX_INDEX_CHARS` bounds the **pack listing**, which is file names and so
+  untouched by translation; the prose scaffolding sits outside it. That is why
+  the budget assertion carries a `+ 600` and now runs **per locale**: French
+  is ~16% longer than English, and this is the block paid every request.
+- `ai-bunker charter --index --lang fr` prints what such a deployment injects.
+
 ### Dependency versions
 
 - **A version the project does not declare is refused** (`deps.version_mismatch`).

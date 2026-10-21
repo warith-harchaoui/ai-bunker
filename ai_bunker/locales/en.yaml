@@ -96,6 +96,36 @@ text:
     exactly as it arrived, because rewriting a character a reader can see would change
     what it says -- but the rules were matched against the undisguised reading.
 
+# The charter index, which is the one block here that is paid on EVERY request
+# rather than only when something goes wrong. Four things have to be said and
+# nothing else -- see `build_index()` for why each line exists; shortening one
+# of them is a change to how reliably the charter gets opened, not a saving.
+#
+# `dir` is the packs directory and `ref` an example page. They are passed in
+# rather than written here so a renamed directory cannot leave a stale path in
+# a translation nobody reads.
+charter:
+  index:
+    heading: "## House standards (the charter)"
+    not_loaded: >-
+      Pages live under `{dir}/`. They are NOT loaded into this prompt: read the one
+      you need, when you need it, in slices.
+    when: >-
+      Before writing or reviewing code in one of these domains, read the matching
+      page. The page wins over your habits and over a library's defaults.
+    one_at_a_time: >-
+      One page at a time, for the domain actually in play: never a whole pack, and
+      no page at all for a question that writes no code.
+    # Printed only when a pack was collapsed to a count, so the agent is never
+    # told how to list pages it can already see named.
+    list_one: "  List one with: ls {dir}/<pack>"
+    example: "Example: read {dir}/{ref}"
+    # A collapsed pack. Plural because a one-page pack reading "(1 pages)" is
+    # the sort of detail that makes a model trust the rest of the block less.
+    pack:
+      one: "- {pack} ({count} page)"
+      other: "- {pack} ({count} pages)"
+
 # The dashboard. Keys under `gui.` are the only ones the page fetches, and
 # `tests/test_gui.py` checks in both directions: every `data-i18n` on the page
 # resolves here, and every key here is used by the page. A string nobody shows

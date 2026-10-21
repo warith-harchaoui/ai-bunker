@@ -753,6 +753,51 @@ placeholders disagree with the English. That last one is the one that raises
 rather than reads badly: a translator who drops `{count}` ships a message that
 works until the day it is called with a count.
 
+### And the block that is paid on every request
+
+`locale` reached the refusals, the withheld-tool notes, the payment rules and
+the breaker. It did not reach `build_index()`, which took no locale at all —
+so a `language: fr` deployment injected English house standards into **every
+single request**. Of everything that could have been left in English, that was
+the worst candidate: the index is the one piece of agent-facing text a model
+cannot ignore, and it is what decides whether the charter is opened at all.
+
+```bash
+ai-bunker charter --index --lang fr
+```
+
+```text
+## Standards de la maison (la charte)
+Les pages vivent sous `packs/`. Elles ne sont PAS chargées dans ce prompt :
+lisez celle dont vous avez besoin, quand vous en avez besoin, par tranches.
+```
+
+**The locale belongs to the loaded charter, not to the calls that render it.**
+It is read from `language:` once, at startup. That is not a shortcut — it is
+the guarantee: the per-request locale that `negotiate()` derives from
+`Accept-Language` reaches refusals and stops there, so a client cannot choose
+the language *your* agents are instructed in, because after the charter is
+loaded there is no seam to pass one through. A test asserts that `build_index`
+and `system_blocks` still accept nothing but a charter, so anyone adding a
+per-request locale has to make that argument on purpose.
+
+Two consequences worth stating. The English output is **byte-identical** to
+before the move, asserted line by line, because a prefix cache only pays while
+the head of the prompt does not move. And the **fingerprint now covers the
+locale**: two deployments of the same files serve prompts that differ in
+bytes, and that digest is both the cache key and the provenance written into
+every decision-log entry. Two different prompts reporting one fingerprint is
+wrong for a cache and a lie in an audit trail.
+
+Which produced the bug worth keeping. `language:` defaults to an empty string,
+an unknown locale falls back, and a region tag is stripped — so `""`, `"zz"`
+and `"en-US"` all render the byte-identical English index, and storing the raw
+string gave that **one** prompt **three** fingerprints. Precisely the lie the
+locale had just been added to prevent. The locale is resolved before it is
+stored, and ten spellings across two languages are asserted to collapse to
+two digests. Same prompt, same fingerprint — a digest has to hold in both
+directions or it means nothing.
+
 ### The tool that was approved, and then changed
 
 Screening a tool declaration catches what it *says*. It cannot catch a server
@@ -1673,7 +1718,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1007 tests, `ruff` clean | ✅ |
+| 1024 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

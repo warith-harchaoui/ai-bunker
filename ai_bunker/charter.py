@@ -34,6 +34,8 @@ from pathlib import Path
 
 import os_helper as osh
 
+from .i18n import DEFAULT_LOCALE, translator
+
 #: Where packs live, relative to a charter root.
 PACKS_DIR = "packs"
 
@@ -64,12 +66,22 @@ class Page:
 
 @dataclass
 class Charter:
-    """A loaded charter: its rules of operation, and an index of its pages."""
+    """A loaded charter: its rules of operation, and an index of its pages.
+
+    ``locale`` is a property of the *loaded* charter rather than an argument to
+    the functions that render it, and that is the design, not a shortcut. The
+    language an agent is instructed in belongs to the deployment: it is read
+    from configuration once, at load time. A request cannot reach it, because
+    after this there is no seam to pass one through -- the per-request locale
+    that `negotiate()` works out from `Accept-Language` reaches refusals and
+    notes, and stops there.
+    """
 
     root: Path
     operating_rules: str
     pages: list[Page] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    locale: str = DEFAULT_LOCALE
 
     @property
     def packs(self) -> dict[str, list[Page]]:
@@ -88,8 +100,15 @@ class Charter:
         the charter has *not* changed is worth money. And it is provenance: a
         session can record which charter it ran under, which is the difference
         between "the rules were followed" and "some rules were followed".
+
+        The locale is part of the digest, and both of those uses are why. Since
+        the index is rendered in the charter's locale, two deployments of the
+        same files serve system prompts that differ in bytes -- so a key that
+        ignored the locale would name two different prompts the same thing,
+        which is wrong for a cache and worse for provenance. A record saying
+        "this ran under charter 9f2c" has to mean one prompt, not two.
         """
-        parts = [self.operating_rules]
+        parts = [self.locale, self.operating_rules]
         parts += [
             f"{p.ref}:{p.path.read_text(encoding='utf-8')}"
             for p in sorted(self.pages, key=lambda q: q.ref)
@@ -97,7 +116,9 @@ class Charter:
         return osh.hash_string("\n".join(parts))
 
 
-def load_charter(root: str | Path, *, rules_file: str = "AGENTS.md") -> Charter:
+def load_charter(
+    root: str | Path, *, rules_file: str = "AGENTS.md", locale: str = DEFAULT_LOCALE
+) -> Charter:
     """Load a charter from disk.
 
     Parameters
@@ -110,6 +131,11 @@ def load_charter(root: str | Path, *, rules_file: str = "AGENTS.md") -> Charter:
         prompt, because it is what tells the model how to work -- read in
         slices, open one page at a time, do not dump a repository into the
         window. Everything else is indexed.
+    locale : str
+        Language for the index this charter renders. Comes from the
+        deployment's ``language:``, and the default stays English for the
+        reason given in `ai_bunker.i18n`: a deployment opts in rather than
+        having the language an agent is instructed in decided for it.
 
     Returns
     -------
@@ -121,9 +147,23 @@ def load_charter(root: str | Path, *, rules_file: str = "AGENTS.md") -> Charter:
     base = Path(root)
     warnings: list[str] = []
 
+    # The *effective* locale, not what was asked for. `language:` defaults to
+    # an empty string and an unknown locale falls back, so "", "zz" and
+    # "en-US" all render the identical English index -- and storing them
+    # verbatim gave one prompt three fingerprints, which is the exact lie
+    # putting the locale in the digest was meant to prevent. Resolve once,
+    # here, so the field always names the language the index is really in.
+    locale = translator(locale).locale
+
     if not base.is_dir():
         osh.warning(f"[charter] no charter at {base}; serving without one.")
-        return Charter(root=base, operating_rules="", pages=[], warnings=[f"no charter at {base}"])
+        return Charter(
+            root=base,
+            operating_rules="",
+            pages=[],
+            warnings=[f"no charter at {base}"],
+            locale=locale,
+        )
 
     rules_path = base / rules_file
     operating_rules = ""
@@ -168,7 +208,9 @@ def load_charter(root: str | Path, *, rules_file: str = "AGENTS.md") -> Charter:
         warnings.append(f"no {PACKS_DIR}/ directory under {base}")
 
     osh.debug(f"[charter] {len(pages)} page(s) across {len({p.pack for p in pages})} pack(s).")
-    return Charter(root=base, operating_rules=operating_rules, pages=pages, warnings=warnings)
+    return Charter(
+        root=base, operating_rules=operating_rules, pages=pages, warnings=warnings, locale=locale
+    )
 
 
 def build_index(charter: Charter) -> str:
@@ -186,10 +228,17 @@ def build_index(charter: Charter) -> str:
        otherwise read the whole pack and spend the window it was saving.
 
     Point 3 is the one that decides whether a charter is used at all.
+
+    Rendered in ``charter.locale``. This block is the one piece of agent-facing
+    text that is paid on every request, so it is also the one where leaving it
+    English on a French deployment was least defensible: a model is better at
+    following an instruction in the language the rest of its prompt is in, and
+    this is the instruction that decides whether the charter is opened at all.
     """
     packs = charter.packs
     if not packs:
         return ""
+    _ = translator(charter.locale)
 
     # Degrade rather than grow: an index that costs what the pages cost has
     # reinvented concatenation. The degradation is **per pack**, biggest
@@ -204,7 +253,7 @@ def build_index(charter: Charter) -> str:
 
     def render() -> str:
         return "\n".join(
-            f"- {pack} ({len(packs[pack])} page{'s' if len(packs[pack]) != 1 else ''})"
+            _.ngettext("charter.index.pack", len(packs[pack]), pack=pack)
             if pack in collapsed
             else named[pack]
             for pack in packs
@@ -217,7 +266,7 @@ def build_index(charter: Charter) -> str:
 
     body = render()
     if collapsed:
-        body += f"\n  List one with: ls {PACKS_DIR}/<pack>"
+        body += "\n" + _("charter.index.list_one", dir=PACKS_DIR)
 
     example = next(
         (p.ref for p in charter.pages if p.pack == "python"),
@@ -225,15 +274,12 @@ def build_index(charter: Charter) -> str:
     )
     return "\n".join(
         [
-            "## House standards (the charter)",
-            f"Pages live under `{PACKS_DIR}/`. They are NOT loaded into this prompt: "
-            "read the one you need, when you need it, in slices.",
-            "Before writing or reviewing code in one of these domains, read the matching "
-            "page. The page wins over your habits and over a library's defaults.",
-            "One page at a time, for the domain actually in play: never a whole pack, and "
-            "no page at all for a question that writes no code.",
+            _("charter.index.heading"),
+            _("charter.index.not_loaded", dir=PACKS_DIR),
+            _("charter.index.when"),
+            _("charter.index.one_at_a_time"),
             body,
-            f"Example: read {PACKS_DIR}/{example}",
+            _("charter.index.example", dir=PACKS_DIR, ref=example),
         ]
     )
 

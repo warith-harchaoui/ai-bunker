@@ -27,6 +27,7 @@ from ai_bunker.budget import (
 )
 from ai_bunker.charter import build_index, load_charter, read_page, system_blocks
 from ai_bunker.config import load_settings
+from ai_bunker.i18n import DEFAULT_LOCALE
 from ai_bunker.report import (
     default_assumptions_from_args,
     render,
@@ -276,7 +277,7 @@ def cmd_rules(args) -> int:
 
 
 def cmd_charter(args) -> int:
-    charter = load_charter(args.directory)
+    charter = load_charter(args.directory, locale=args.lang)
     if args.page:
         print(read_page(charter, args.page))
         return 0
@@ -330,7 +331,7 @@ def cmd_serve(args) -> int:
 def cmd_doctor(args) -> int:
     """Check that everything the deployment claims is actually true."""
     settings = load_settings(args.config)
-    charter = load_charter(settings.charter_dir)
+    charter = load_charter(settings.charter_dir, locale=settings.language)
     rules = load_rules(settings.rules_dir)
     report = test_rules(rules)
 
@@ -831,6 +832,14 @@ def build_parser() -> argparse.ArgumentParser:
     ch = sub.add_parser("charter", help="Inspect the charter and what it costs.")
     ch.add_argument("--directory", default="charter")
     ch.add_argument("--index", action="store_true", help="Print the index as injected.")
+    ch.add_argument(
+        "--lang",
+        default=DEFAULT_LOCALE,
+        help=(
+            "Render the index in this language, to see what a deployment with "
+            "that `language:` actually injects. Default: en."
+        ),
+    )
     ch.add_argument("--page", help="Print one page by its index reference.")
     ch.add_argument("--json", action="store_true")
     ch.set_defaults(func=cmd_charter)

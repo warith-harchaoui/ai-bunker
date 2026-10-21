@@ -93,7 +93,11 @@ class State:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.charter = load_charter(settings.charter_dir)
+        # The charter's language is the deployment's, fixed here at startup.
+        # Not the per-request locale `negotiate()` returns further down: that
+        # one may come from `Accept-Language`, and a client must not be able to
+        # choose the language an agent is instructed in.
+        self.charter = load_charter(settings.charter_dir, locale=settings.language)
         self.rules = load_rules(settings.rules_dir)
         self.counters: dict[tuple[str, str], Counter] = {}
         self.breaker = Breaker(threshold=settings.breaker_refusals, window=settings.breaker_window)
