@@ -88,8 +88,8 @@ export AI_BUNKER_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urls
 
 $ ai-bunker doctor
   [ok  ] charter carries operating rules
-  [ok  ] 25 rules loaded
-  [ok  ] 198 rule assertions pass
+  [ok  ] 27 rules loaded
+  [ok  ] 210 rule assertions pass
   [ok  ] 100% of rules carry evidence
   [WARN] upstream local answers at http://127.0.0.1:8001/v1   not reachable
   [ok  ] no route leaves this network
@@ -157,7 +157,7 @@ Adopting ai-bunker into /chemin/du/projet:
       <div class="mt-14 rounded-2xl border border-neutral-200 bg-neutral-50 p-6 dark:border-neutral-800 dark:bg-neutral-900/40">
         <h2 class="font-serif text-xl font-semibold tracking-tight">Avant d'en dépendre</h2>
         <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
-          C'est un <code class="font-mono text-sm">0.1.0-alpha</code> : 913 tests et une porte d'intégration continue (CI)
+          C'est un <code class="font-mono text-sm">0.1.0-alpha</code> : 932 tests et une porte d'intégration continue (CI)
           verte, à côté de projets qui ont des années de production. Le filtrage des commandes ne
           s'applique pas au streaming, et <code class="font-mono text-sm">/health</code> publie
           quelles garanties sont actives plutôt que de laisser croire qu'elles le sont toutes.

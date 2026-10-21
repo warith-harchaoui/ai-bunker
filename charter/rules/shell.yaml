@@ -4,7 +4,11 @@
 # destructive, and context-destroying. An unbounded `git log` does not damage
 # the repository -- it damages the session, which is just as fatal to the work.
 #
-# Only BLOCKER refuses. A WARNING here would be noted and then run.
+# Only BLOCKER refuses outright. A WARNING here would be noted and then run.
+# GATED is the middle tier: the command runs, but only once the agent has
+# written why, and that reason lands in the decision log. It suits the
+# commands that are routinely right and occasionally catastrophic -- the ones
+# where refusing outright would be wrong and saying nothing would be worse.
 
 rules:
   - id: shell.destructive_rm
@@ -214,6 +218,52 @@ rules:
       should_not_match:
         - "git reset HEAD~1"
         - "git rebase main"
+
+  # The BLOCKER above deliberately exempts --force-with-lease, which means
+  # that until this rule existed it passed in silence. It is the careful form
+  # of a force push -- it refuses if the remote moved under you -- so refusing
+  # it outright would be wrong after an honest rebase. But it still rewrites
+  # published history, and "allowed silently" is not the same as "allowed".
+  - id: shell.force_push_with_lease
+    severity: GATED
+    scope: command
+    description: "Rewrites published history, with a safety check. Say what moved and why."
+    description_fr: >-
+      Réécrit l'historique publié, avec un garde-fou. Dites ce qui a bougé et
+      pourquoi.
+    match:
+      pattern: '\bgit\s+push\b[^\n]{0,200}--force-with-lease\b'
+    examples:
+      should_match:
+        - "git push --force-with-lease origin main"
+        - "git push origin feature --force-with-lease"
+      should_not_match:
+        - "git push origin main"
+        - "git push --force origin main"
+
+  # Deletes files git was never tracking, which is exactly the set that has no
+  # copy anywhere. Clearing build output is routine; the same command one
+  # directory up takes work nobody can get back.
+  - id: shell.discard_untracked
+    severity: GATED
+    scope: command
+    description: "Deletes untracked files or stashed work, which git cannot restore. Say what is being cleared."
+    description_fr: >-
+      Supprime des fichiers non suivis ou du travail remisé, que git ne peut
+      pas restaurer. Dites ce qui est effacé.
+    match:
+      pattern: '\bgit\s+(?:clean\b[^\n]{0,60}?\s(?:-[a-z]{0,6}f[a-z]{0,6}|--force)\b|stash\s+(?:clear|drop)\b)'
+    examples:
+      should_match:
+        - "git clean -fd"
+        - "git clean -xfd build/"
+        - "git clean --force"
+        - "git stash clear"
+        - "git stash drop stash@{0}"
+      should_not_match:
+        - "git clean -n"
+        - "git stash list"
+        - "git stash pop"
 
   - id: shell.hook_hijack
     severity: BLOCKER

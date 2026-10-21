@@ -41,6 +41,13 @@ def test_the_export_covers_every_example_the_rules_carry(rules):
     """One scenario per example, in both directions. A rule whose cases stop
     being rendered is a rule nobody reviews."""
     expected = sum(len(r.should_match) + len(r.should_not_match) for r in rules)
+    # A GATED command example renders twice, and has to: once refused with no
+    # reason given, once allowed with one. A reader shown only the refusal
+    # would not know the gate opens, which is the whole difference between
+    # this severity and BLOCKER.
+    expected += sum(
+        len(r.should_match) for r in rules if r.severity == "GATED" and r.scope == "command"
+    )
     exported = sum(len(parse(export(rules, source=s))) for s in sorted({r.source for r in rules}))
     assert exported == expected
 

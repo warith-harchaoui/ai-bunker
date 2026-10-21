@@ -12,6 +12,11 @@ rules:
   refusal: |-
     [rules] {rule} refuse cette commande : {description}
     C'est une décision, pas une défaillance passagère. Ne la réessayez pas à l'identique : reformulez avec une cible plus étroite, une plage bornée, ou une option de résumé.
+  gate: |-
+    [rules] {rule} exige un motif écrit avant que cette commande ne tourne : {description}
+    Ce n'est pas un refus. Réémettez la même commande en la faisant précéder d'une raison, et elle sera autorisée et enregistrée :
+      {variable}="pourquoi c'est la bonne chose à faire ici" <votre commande>
+    Écrivez la vraie raison. Elle est conservée dans le journal de décision du déploiement et lue par une personne ; elle n'est comparée à rien.
 
 tools:
   withheld:

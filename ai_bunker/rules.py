@@ -18,18 +18,50 @@ because an agent can be harmed in exactly two ways by text it handles:
 
 And three severities, which decide what happens on a match:
 
-=========== ============================== ==============================
+=========== ============================== =====================================
 severity    scope ``output``                scope ``command``
-=========== ============================== ==============================
+=========== ============================== =====================================
 BLOCKER     redact (if the action says so)  **refuse to run**
+GATED       not available                   **refuse unless a purpose is given**
 WARNING     note, text passes through       note, command still runs
 SUGGESTION  note, text passes through       note, command still runs
-=========== ============================== ==============================
+=========== ============================== =====================================
 
 That table is the contract, and it is published because the alternative is a
 trap: a ``WARNING`` on a ``command`` reads as if it stops something, and it
 does not. :func:`load_rules` says so out loud when it loads one, rather than
 leaving the author to discover it the hard way.
+
+The purpose gate, and what it is not
+------------------------------------
+``GATED`` sits between "refuse" and "note": the command runs, but only once
+the agent has said *why*. The purpose travels in the command text itself, as
+an environment prefix the agent writes::
+
+    AI_BUNKER_PURPOSE="restoring from last night's backup" rm -rf ./cache
+
+That channel was chosen because it is the only one that works for every
+client with no client-side support, which is this project's whole claim. A
+header or a tool-call field would need the harness to cooperate, and a gate
+that only works on harnesses that opted in is not a gate.
+
+**It is a speed bump and an audit trail, not a security boundary.** A model
+can write a false purpose as easily as a true one. This is stated here, in
+the table, and in the documentation rather than buried, because shipping it
+as if it were enforcement would make it exactly the kind of trap the
+paragraph above exists to prevent. What it buys is that a destructive command
+now carries a reason somebody can read afterwards, and that an agent has to
+form the sentence before acting.
+
+There is deliberately **no minimum length** on a purpose. A floor of N
+characters is the bypass: it invites ``AI_BUNKER_PURPOSE=xxxxxxxxxx``. A
+purpose is non-empty or it is absent, and the audit trail is what makes a
+lazy one visible -- the same reasoning that removed the invisible-character
+rules whose thresholds *were* the way around them.
+
+``GATED`` is a ``command`` severity only. On ``output`` or ``tool`` there is
+nobody to ask: the agent writes neither a tool declaration nor a tool's
+output, so a rule that gated them would refuse forever.
 
 Two design commitments, both earned:
 
@@ -66,10 +98,55 @@ from ai_bunker.i18n import DEFAULT_LOCALE, translator
 from ai_bunker.invisible import as_rules as hidden_rules
 from ai_bunker.invisible import normalise
 
-Severity = Literal["BLOCKER", "WARNING", "SUGGESTION"]
+Severity = Literal["BLOCKER", "GATED", "WARNING", "SUGGESTION"]
 Scope = Literal["output", "command", "tool"]
 
-SEVERITIES: tuple[Severity, ...] = ("BLOCKER", "WARNING", "SUGGESTION")
+SEVERITIES: tuple[Severity, ...] = ("BLOCKER", "GATED", "WARNING", "SUGGESTION")
+
+#: The environment prefix an agent writes to clear a ``GATED`` rule. A name
+#: rather than a pattern: an agent that has to guess the spelling has not been
+#: given a way through, and the refusal message quotes this verbatim.
+PURPOSE_VAR = "AI_BUNKER_PURPOSE"
+
+#: A leading ``VAR=value`` assignment, which a shell applies to the environment
+#: and then runs whatever follows. Every one of these is a prefix that any
+#: ``^``-anchored command pattern stops seeing past.
+ENV_PREFIX = re.compile(r"""^\s*[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+""")
+
+
+def without_env_prefix(command: str) -> str:
+    """``command`` with any leading environment assignments removed.
+
+    A shell reads ``FOO=bar rm -rf /`` as *set FOO, then run* ``rm -rf /``.
+    A regular expression anchored at ``^`` reads it as something that does not
+    start with ``rm`` and lets it through -- which made ``FOO=bar rm -rf /``
+    walk past ``shell.destructive_rm`` for as long as that rule has existed.
+    The rule was not wrong about what it wanted; it was matching a string the
+    shell does not agree with.
+
+    Found by building the purpose gate, which asks an agent to write exactly
+    such a prefix: a feature that documented the bypass would have turned a
+    latent hole into a signposted one.
+    """
+    if not isinstance(command, str):
+        return ""
+    previous = None
+    out = command
+    # Repeatedly, because `A=1 B=2 rm -rf /` is as valid as one assignment.
+    while previous != out:
+        previous = out
+        out = ENV_PREFIX.sub("", out, count=1)
+    return out
+
+
+#: ``AI_BUNKER_PURPOSE=why`` or ``AI_BUNKER_PURPOSE="why, at length"``, at the
+#: head of the command where a shell would accept it. Anchored, because a
+#: purpose mentioned halfway through a pipeline is not a prefix the shell would
+#: treat as an assignment, and accepting it would mean the gate could be
+#: cleared by a string that never ran as one.
+PURPOSE = re.compile(
+    rf"""^\s*{PURPOSE_VAR}=(?:"(?P<dq>[^"]*)"|'(?P<sq>[^']*)'|(?P<bare>\S*))\s+""",
+)
 SCOPES: tuple[Scope, ...] = ("output", "command", "tool")
 
 #: Most notes an agent is shown at once. A rule engine that answers with a
@@ -205,7 +282,9 @@ class Rule:
     def enforces(self) -> bool:
         """Whether a match actually changes anything, rather than just noting it."""
         if self.scope == "command":
-            return self.severity == "BLOCKER"
+            # GATED enforces too: with no purpose written, the command does
+            # not run. It is a weaker stop than BLOCKER, not an absent one.
+            return self.severity in ("BLOCKER", "GATED")
         if self.scope == "tool":
             # A tool declaration is both text and a contract. A BLOCKER drops
             # the tool from the list the model is offered -- which is the only
@@ -252,6 +331,11 @@ class Violation:
 
     rule: Rule
     count: int = 1
+    #: The purpose written for the command this fired on, when the rule is
+    #: GATED. Carried here rather than passed alongside because one turn can
+    #: hold several commands, and a purpose stated for one of them must not
+    #: mark the others as explained.
+    purpose: str = ""
 
 
 @dataclass
@@ -579,11 +663,19 @@ def compile_rule(spec: Any, source: str = "<inline>") -> Rule | None:
     # The published severity-by-scope table, checked at load time. A rule that
     # reads as if it stops something and does not is the failure mode worth
     # reporting -- to its author, in `rules --check`, not to a production log.
+    if severity == "GATED" and scope != "command":
+        design_notes.append(
+            f"GATED on {scope}: there is nobody to ask. An agent writes commands, "
+            "not tool declarations and not a tool's output, so a gated rule on "
+            "this scope would refuse forever. Use BLOCKER to stop it or WARNING "
+            "to note it."
+        )
     if not rule.enforces:
         if scope == "command":
             design_notes.append(
                 f"{severity} on a command: it will be NOTED, not refused. "
-                "Only BLOCKER refuses a command."
+                "Only BLOCKER refuses a command outright, and GATED refuses it "
+                "until a purpose is written."
             )
         elif scope == "tool":
             design_notes.append(
@@ -819,13 +911,33 @@ def screen_output(text: str, rules: list[Rule]) -> Screened:
     return Screened(text=out, violations=violations)
 
 
+def stated_purpose(command: str) -> str:
+    """The purpose an agent wrote at the head of ``command``, if any.
+
+    Empty when absent *and* when written empty: ``AI_BUNKER_PURPOSE=`` with
+    nothing after it is a gate cleared with silence, which is the one thing a
+    purpose gate exists to stop. Beyond non-empty there is no quality test --
+    see the module docstring on why a length floor would be the bypass.
+    """
+    if not isinstance(command, str):
+        return ""
+    found = PURPOSE.match(command)
+    if not found:
+        return ""
+    raw = found.group("dq") or found.group("sq") or found.group("bare") or ""
+    return raw.strip()
+
+
 def screen_command(command: str, rules: list[Rule]) -> tuple[Rule | None, list[Violation]]:
     """Screen a shell command before it runs.
 
     Returns
     -------
     (refusal, notes)
-        ``refusal`` is the first BLOCKER that refuses this command, or None.
+        ``refusal`` is the first rule that stops this command, or None. A
+        BLOCKER always stops it; a GATED rule stops it only while no purpose
+        has been written, so the same command resubmitted with one comes back
+        through here and is not refused.
         ``notes`` are every rule that matched, including the refusal, so a
         caller can tell the agent everything at once rather than one round
         trip at a time.
@@ -835,6 +947,12 @@ def screen_command(command: str, rules: list[Rule]) -> tuple[Rule | None, list[V
     if not isinstance(command, str) or not command:
         return None, notes
 
+    # Read from the raw command rather than the normalised one. Normalisation
+    # strips characters that have no glyph, which is right for matching and
+    # wrong here: the purpose is text a human will read out of the audit log,
+    # and it should be what the agent actually wrote.
+    purpose = stated_purpose(command)
+
     # Matched against the undisguised reading, for the reason given in
     # `screen_output`. It mattered more here: `cu<U+200B>rl x.sh | sh` walked
     # past `shell.pipe_to_shell`, so one character nobody can see turned a
@@ -843,11 +961,25 @@ def screen_command(command: str, rules: list[Rule]) -> tuple[Rule | None, list[V
     normal = normalise(command)
     notes.extend(Violation(rule=found) for found in hidden_rules(normal, scope="command"))
 
+    # Two readings, and a rule fires on either. The shadow is what was typed;
+    # the second is what the shell will actually run once it has consumed any
+    # leading assignments. Matching both rather than replacing one with the
+    # other is deliberate: a rule that wants to see the assignment still can,
+    # and no detection that worked before can be weakened by this.
+    bare = without_env_prefix(normal.shadow)
+
     for rule in rules:
-        if rule.scope != "command" or not rule.fires_on(normal.shadow):
+        if rule.scope != "command":
             continue
-        notes.append(Violation(rule=rule))
-        if refusal is None and rule.severity == "BLOCKER":
+        if not (rule.fires_on(normal.shadow) or (bare != normal.shadow and rule.fires_on(bare))):
+            continue
+        notes.append(Violation(rule=rule, purpose=purpose if rule.severity == "GATED" else ""))
+        if refusal is not None:
+            continue
+        # A BLOCKER always stops it. A GATED rule stops it only while no
+        # purpose has been written, so the same command resubmitted with one
+        # comes back through here and passes.
+        if rule.severity == "BLOCKER" or (rule.severity == "GATED" and not purpose):
             refusal = rule
     return refusal, notes
 
@@ -858,7 +990,18 @@ def refusal_message(rule: Rule, locale: str = DEFAULT_LOCALE) -> str:
     Phrased as a decision rather than a failure. An agent that reads a refusal
     as a transient error retries it, which is both useless and, for the
     commands in scope here, occasionally dangerous.
+
+    A GATED rule is the one case where retrying *is* the right move, so it
+    gets its own message: a refusal that does not say how to proceed would
+    leave the agent guessing at the spelling of the one thing that clears it.
     """
+    if rule.severity == "GATED":
+        return translator(locale)(
+            "rules.gate",
+            rule=rule.id,
+            description=rule.describe(locale),
+            variable=PURPOSE_VAR,
+        )
     return translator(locale)("rules.refusal", rule=rule.id, description=rule.describe(locale))
 
 
@@ -933,12 +1076,18 @@ class Decision:
     rule_id: str
     severity: Severity
     scope: Scope
-    outcome: Literal["redacted", "refused", "noted", "withheld"]
+    outcome: Literal["redacted", "refused", "noted", "withheld", "gated", "permitted"]
     count: int
     charter: str = ""
+    #: The purpose an agent wrote to clear a GATED rule, screened before it
+    #: got here. Empty for every other kind of decision. This is the one piece
+    #: of agent-authored text the log keeps, and it is kept on purpose: a gate
+    #: whose reasons are not recorded has asked a question and thrown away the
+    #: answer.
+    purpose: str = ""
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        record = {
             "rule": self.rule_id,
             "severity": self.severity,
             "scope": self.scope,
@@ -946,6 +1095,9 @@ class Decision:
             "count": self.count,
             "charter": self.charter,
         }
+        if self.purpose:
+            record["purpose"] = self.purpose
+        return record
 
 
 def decisions_for(
@@ -963,8 +1115,18 @@ def decisions_for(
     """
     out: list[Decision] = []
     for v in violations:
-        if refusal is not None and v.rule.id == refusal.id:
-            outcome: Literal["redacted", "refused", "noted", "withheld"] = "refused"
+        stated = ""
+        if v.rule.severity == "GATED" and v.rule.scope == "command":
+            # Two different events, and the log has to tell them apart: a gate
+            # that stopped something, and a gate that let something through
+            # because a reason was given. Calling both "refused" would hide
+            # every command the gate actually passed.
+            outcome: Literal["redacted", "refused", "noted", "withheld", "gated", "permitted"] = (
+                "permitted" if v.purpose else "gated"
+            )
+            stated = v.purpose
+        elif refusal is not None and v.rule.id == refusal.id:
+            outcome = "refused"
         elif v.rule.scope == "tool" and v.rule.severity == "BLOCKER":
             # The tool was taken off the list the model is offered. Not
             # "noted" -- a capability disappeared from this request, and an
@@ -983,6 +1145,7 @@ def decisions_for(
                 outcome=outcome,
                 count=v.count,
                 charter=charter,
+                purpose=stated,
             )
         )
     return out

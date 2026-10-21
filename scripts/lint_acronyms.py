@@ -256,6 +256,7 @@ NAMES = {
     # Section markers and severity names, which are literals the project
     # defines rather than abbreviations.
     "BLOCKER",
+    "GATED",
     "WARNING",
     "SUGGESTION",
     "TABLE",

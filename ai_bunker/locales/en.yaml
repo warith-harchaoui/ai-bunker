@@ -12,6 +12,11 @@ rules:
   refusal: |-
     [rules] {rule} refuses this command: {description}
     This is a decision, not a transient failure. Do not retry it unchanged: reformulate with a narrower target, a bounded range, or a summary flag.
+  gate: |-
+    [rules] {rule} requires a stated purpose before this command runs: {description}
+    This one is not a refusal. Re-issue the same command with a reason in front of it, and it will be allowed and recorded:
+      {variable}="why this is the right thing to do here" <your command>
+    Write the actual reason. It is kept in the deployment's decision log and read by a person, not matched against anything.
 
 tools:
   withheld:

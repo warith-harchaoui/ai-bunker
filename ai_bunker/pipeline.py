@@ -264,6 +264,13 @@ def screen_outbound(
 
     for _, command in _commands_in(tool_calls, shell_tools):
         blocked, matched = screen_command(command, rules)
+        # A purpose is the one piece of agent-authored text the decision log
+        # keeps, so it goes through the output rules first. The log exists
+        # because the engine redacts secrets; a gate that wrote an agent's
+        # unscreened sentence into it would hand back a place to put one.
+        for note in matched:
+            if note.purpose:
+                note.purpose = screen_output(note.purpose, rules).text
         notes.extend(matched)
         if blocked is not None and refusal is None:
             refusal, refused = blocked, command

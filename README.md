@@ -364,18 +364,60 @@ and “some rules were followed”.
 
 ## The rules
 
-**One format, two scopes, three severities.** A rule is a versioned regular
+**One format, two scopes, four severities.** A rule is a versioned regular
 expression with a declared intent, and the table below is the contract:
 
 | severity | scope `output` | scope `command` |
 |---|---|---|
 | BLOCKER | redact | **refuse to run** |
+| GATED | — | **refuse until a purpose is written** |
 | WARNING | note, text passes | note, command still runs |
 | SUGGESTION | note, text passes | note, command still runs |
 
 That table is published because the alternative is a trap: a `WARNING` on a
 `command` reads as if it stops something, and it does not. The loader says so
 when it loads one.
+
+### GATED: the commands that are usually right and occasionally catastrophic
+
+Some commands do not belong on either side of a yes/no. `git push
+--force-with-lease` after an honest rebase is correct; the same command on a
+branch somebody else is using is not, and the gateway cannot tell which it is
+looking at. Refusing it outright is wrong often enough that an operator turns
+the rule off, which is worse than not having it.
+
+`GATED` asks the agent to say why. The reason travels in the command itself:
+
+```text
+$ AI_BUNKER_PURPOSE="rebased onto main after review; remote unchanged"     git push --force-with-lease origin main
+```
+
+Without it the command is refused, and the refusal says exactly how to
+proceed rather than leaving the agent to guess. With it, the command runs and
+the reason lands in the decision log next to the rule that asked for it.
+
+That channel — an environment prefix in the command text — was chosen because
+it is the only one that works for **every** client with no client-side
+support, which is the same reason everything else here lives behind the
+endpoint. A header or a tool-call field would need the harness to cooperate,
+and a gate that only works on harnesses that opted in is not a gate.
+
+**It is a speed bump and an audit trail, not a security boundary.** A model
+can write a false purpose as easily as a true one. That is said here rather
+than buried, because shipping it as though it were enforcement would make it
+precisely the kind of trap the published table exists to prevent. What it buys
+is that a destructive command now carries a reason a human can read
+afterwards, and that the agent has to form the sentence before acting.
+
+There is deliberately **no minimum length** on a purpose: a floor of *N*
+characters is the bypass, inviting `AI_BUNKER_PURPOSE=xxxxxxxxxx`. A purpose
+is non-empty or it is absent. The same reasoning retired two earlier rules
+whose thresholds turned out to *be* the way around them.
+
+The purpose is screened by the `output` rules before it reaches the log. It is
+the one piece of agent-written text the audit trail keeps, and a gate that
+wrote an unscreened sentence into it would have handed back a place to put a
+secret.
 
 ### Two scopes, because text can harm a session in two directions
 
@@ -425,8 +467,8 @@ So a rule carries its own examples, and they run in CI.
 
 ```text
 $ ai-bunker rules --check
-  rules loaded                          25
-  assertions passed                    198
+  rules loaded                          27
+  assertions passed                    210
   assertions failed                      0
   rules carrying evidence            100%
 ```
@@ -826,7 +868,7 @@ on a developer's machine arrived. Same risk, different base rate, so one is
 refused and the other recorded — the reasoning `deps.unpinned_install` already
 runs on.
 
-**25 rules, 198 assertions, 224 scenarios.** Each of the eleven is a table
+**27 rules, 210 assertions, 224 scenarios.** Each of the eleven is a table
 entry in `tests/test_rules.py` and not a comment, because a bypass that is only
 described comes back; each was checked against the previous rule set to confirm
 it fails there. The near misses are a table too — `eval "$(ssh-agent -s)"`,
@@ -1110,8 +1152,8 @@ planned against.
 ```bash
 $ ai-bunker doctor
   [ok  ] charter carries operating rules
-  [ok  ] 25 rules loaded
-  [ok  ] 198 rule assertions pass
+  [ok  ] 27 rules loaded
+  [ok  ] 210 rule assertions pass
   [ok  ] 100% of rules carry evidence
   [WARN] upstream local answers at http://127.0.0.1:8001/v1   not reachable
   [WARN] an API key is configured   no key: this gateway is open to anyone who
@@ -1541,7 +1583,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 913 tests, `ruff` clean | ✅ |
+| 932 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

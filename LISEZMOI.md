@@ -394,19 +394,66 @@ enregistrer sous quelle charte elle a tourné, ce qui fait la différence entre
 
 ## Les règles
 
-**Un format, deux portées, trois sévérités.** Une règle est une expression
+**Un format, deux portées, quatre sévérités.** Une règle est une expression
 régulière versionnée portant une intention déclarée, et le tableau suivant est
 le contrat :
 
 | sévérité | portée `output` | portée `command` |
 |---|---|---|
 | BLOCKER | censure | **refus d'exécuter** |
+| GATED | — | **refus tant qu'aucun motif n'est écrit** |
 | WARNING | note, le texte passe | note, la commande s'exécute |
 | SUGGESTION | note, le texte passe | note, la commande s'exécute |
 
 Ce tableau est publié parce que l'alternative est un piège : un `WARNING` sur
 une `command` se lit comme s'il arrêtait quelque chose, et il n'arrête rien.
 Le chargeur le dit quand il en rencontre un.
+
+### GATED : les commandes qui ont raison d'habitude et tort catastrophiquement
+
+Certaines commandes n'appartiennent à aucun des deux côtés d'un oui/non. `git
+push --force-with-lease` après un rebase honnête est correct ; la même commande
+sur une branche que quelqu'un d'autre utilise ne l'est pas, et la passerelle ne
+peut pas distinguer les deux. La refuser d'office est faux assez souvent pour
+qu'un exploitant désactive la règle — ce qui est pire que de ne pas l'avoir.
+
+`GATED` demande à l'agent de dire **pourquoi**. La raison voyage dans la
+commande elle-même :
+
+```text
+$ AI_BUNKER_PURPOSE="rebasé sur main après revue ; distant inchangé" \
+    git push --force-with-lease origin main
+```
+
+Sans elle, la commande est refusée, et le refus dit exactement comment
+procéder plutôt que de laisser l'agent deviner. Avec elle, la commande
+s'exécute et la raison atterrit dans le journal de décision, à côté de la
+règle qui l'a demandée.
+
+Ce canal — un préfixe d'environnement dans le texte de la commande — a été
+choisi parce que c'est **le seul qui marche pour tout client** sans
+coopération côté client, pour la même raison que tout le reste vit derrière le
+point d'entrée. Un en-tête ou un champ d'appel d'outil exigerait que le
+harnais collabore, et une porte qui ne fonctionne que sur les harnais
+consentants n'est pas une porte.
+
+**C'est un ralentisseur et une trace d'audit, pas une frontière de sécurité.**
+Un modèle peut écrire un faux motif aussi facilement qu'un vrai. C'est dit ici
+plutôt qu'enterré, parce que le livrer comme s'il s'agissait d'application en
+ferait précisément le genre de piège que le tableau publié existe pour éviter.
+Ce qu'il achète : une commande destructrice porte désormais une raison qu'un
+humain peut lire après coup, et l'agent doit former la phrase avant d'agir.
+
+Il n'y a volontairement **aucune longueur minimale** pour un motif : un
+plancher de *N* caractères **est** le contournement, il invite à écrire
+`AI_BUNKER_PURPOSE=xxxxxxxxxx`. Un motif est non vide ou il est absent. Le
+même raisonnement a retiré deux règles antérieures dont les seuils se sont
+révélés **être** le moyen de passer à côté.
+
+Le motif est screené par les règles `output` avant d'atteindre le journal.
+C'est le seul texte écrit par l'agent que la trace d'audit conserve, et une
+porte qui y écrirait une phrase non screenée aurait rendu un endroit où mettre
+un secret.
 
 ### Deux portées, parce qu'un texte peut nuire dans deux sens
 
@@ -454,8 +501,8 @@ en CI.
 
 ```text
 $ ai-bunker rules --check
-  rules loaded                          25
-  assertions passed                    198
+  rules loaded                          27
+  assertions passed                    210
   assertions failed                      0
   rules carrying evidence            100%
 ```
@@ -1182,8 +1229,8 @@ lequel on peut planifier.
 ```bash
 $ ai-bunker doctor
   [ok  ] charter carries operating rules
-  [ok  ] 25 rules loaded
-  [ok  ] 198 rule assertions pass
+  [ok  ] 27 rules loaded
+  [ok  ] 210 rule assertions pass
   [ok  ] 100% of rules carry evidence
   [WARN] upstream local answers at http://127.0.0.1:8001/v1   not reachable
   [WARN] an API key is configured   no key: this gateway is open to anyone who
@@ -1645,7 +1692,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 913 tests, `ruff` propre | ✅ |
+| 932 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

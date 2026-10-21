@@ -48,7 +48,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ai_bunker.rules import Rule, screen_command, screen_output
+from ai_bunker.rules import PURPOSE_VAR, Rule, screen_command, screen_output
 from ai_bunker.tools import screen as screen_tools
 
 #: The whole step vocabulary. Anything else is a parse error rather than a
@@ -59,6 +59,7 @@ GIVEN_TOOL = re.compile(r'^a tool declared as "(?P<text>.*)"$')
 GIVEN_COMMAND = re.compile(r'^the model asks to run "(?P<text>.*)"$')
 THEN_FIRES = re.compile(r"^the rule (?P<rule>[\w.]+) fires$")
 THEN_NO_RULE = re.compile(r"^no rule fires$")
+THEN_NOT_FIRES = re.compile(r"^the rule (?P<rule>[\w.]+) does not fire$")
 THEN_REDACTED = re.compile(r"^the text is redacted$")
 THEN_REFUSED = re.compile(r"^it is refused$")
 THEN_WITHHELD = re.compile(r"^the tool is withheld$")
@@ -76,6 +77,11 @@ class Scenario:
     expect_redacted: bool = False
     expect_refused: bool = False
     expect_allowed: bool = False
+    #: Rules this scenario asserts stay silent. Needed because a negative
+    #: example is evidence about ONE rule, while "it is allowed" is a claim
+    #: about the whole engine -- and two rules can legitimately disagree
+    #: about the same command, as `--force` and `--force-with-lease` do.
+    expect_absent: list[str] = field(default_factory=list)
     expect_withheld: bool = False
     line: int = 0
 
@@ -171,7 +177,11 @@ def export(rules: list[Rule], *, source: str = "") -> str:
             # refused" for it made three scenarios fail against the engine
             # that implements them.
             if rule.scope == "command":
-                if rule.severity == "BLOCKER":
+                if rule.severity in ("BLOCKER", "GATED"):
+                    # A GATED rule refuses this example because the example
+                    # carries no purpose. That is half the promise; the other
+                    # half gets a scenario of its own below, because a reader
+                    # who only saw "refused" would not know the gate opens.
                     lines.append("    And it is refused")
                 else:
                     lines.append("    And it is allowed")
@@ -184,12 +194,42 @@ def export(rules: list[Rule], *, source: str = "") -> str:
                 lines.append("    And the text is redacted")
             lines.append("")
 
+            if rule.scope == "command" and rule.severity == "GATED":
+                explained = f'{PURPOSE_VAR}="the reason this is the right call here" {case}'
+                lines += [
+                    f"  Scenario: {rule.id} allows {_summarise(case)} once a purpose is written",
+                    f'    Given {given} "{_escape(explained)}"',
+                    "    When the gateway screens it",
+                    f"    Then the rule {rule.id} fires",
+                    "    And it is allowed",
+                    "",
+                ]
+
         for case in rule.should_not_match:
+            # "it is allowed" is a claim about the whole engine, and a
+            # negative example is evidence about one rule. Usually those
+            # agree. They stop agreeing as soon as two rules split a family of
+            # commands between them -- `--force` is refused outright and
+            # `--force-with-lease` is gated, so each one's negative example is
+            # the other one's positive. Asserting the engine let it through
+            # would then be asserting something false about a deliberate pair.
+            caught_elsewhere = rule.scope == "command" and (
+                screen_command(
+                    case, [r for r in rules if r.scope == "command" and r.id != rule.id]
+                )[0]
+                is not None
+            )
+            if rule.scope != "command":
+                claim = "    Then no rule fires"
+            elif caught_elsewhere:
+                claim = f"    Then the rule {rule.id} does not fire"
+            else:
+                claim = "    Then it is allowed"
             lines += [
                 f"  Scenario: {rule.id} leaves {_summarise(case)} alone",
                 f'    Given {given} "{_escape(case)}"',
                 "    When the gateway screens it",
-                "    Then it is allowed" if rule.scope == "command" else "    Then no rule fires",
+                claim,
                 "",
             ]
 
@@ -242,7 +282,9 @@ def parse(text: str) -> list[Scenario]:
             if rest != "the gateway screens it":
                 raise ValueError(f"line {number}: unsupported When: {rest!r}")
         elif keyword == "Then":
-            if m := THEN_FIRES.match(rest):
+            if m := THEN_NOT_FIRES.match(rest):
+                current.expect_absent.append(m.group("rule"))
+            elif m := THEN_FIRES.match(rest):
                 current.expect_rules.append(m["rule"])
             elif THEN_NO_RULE.match(rest):
                 current.expect_none = True
@@ -309,6 +351,9 @@ def run(scenarios: list[Scenario], rules: list[Rule]) -> list[Result]:
                 problems.append(f"expected {expected} to fire; fired: {fired or 'nothing'}")
         if scenario.expect_none and fired:
             problems.append(f"expected nothing to fire; fired: {fired}")
+        for absent in scenario.expect_absent:
+            if absent in fired:
+                problems.append(f"expected {absent} to stay silent; it fired")
         if scenario.expect_redacted and not redacted:
             problems.append("expected the text to be redacted; it was unchanged")
         if scenario.expect_refused and not refused:

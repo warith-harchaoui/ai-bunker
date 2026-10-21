@@ -93,7 +93,7 @@ Feature: Shell
   Scenario: shell.force_push leaves git push --force-with-lease origin main alone
     Given the model asks to run "git push --force-with-lease origin main"
     When the gateway screens it
-    Then it is allowed
+    Then the rule shell.force_push does not fire
 
   # shell.pipe_to_shell -- BLOCKER
   # A download piped straight into an interpreter. Install from a verified source.
@@ -363,6 +363,121 @@ Feature: Shell
 
   Scenario: shell.history_rewrite leaves git rebase main alone
     Given the model asks to run "git rebase main"
+    When the gateway screens it
+    Then it is allowed
+
+  # shell.force_push_with_lease -- GATED
+  # Rewrites published history, with a safety check. Say what moved and why.
+
+  Scenario: shell.force_push_with_lease catches git push --force-with-lease origin main
+    Given the model asks to run "git push --force-with-lease origin main"
+    When the gateway screens it
+    Then the rule shell.force_push_with_lease fires
+    And it is refused
+
+  Scenario: shell.force_push_with_lease allows git push --force-with-lease origin main once a purpose is written
+    Given the model asks to run "AI_BUNKER_PURPOSE=\"the reason this is the right call here\" git push --force-with-lease origin main"
+    When the gateway screens it
+    Then the rule shell.force_push_with_lease fires
+    And it is allowed
+
+  Scenario: shell.force_push_with_lease catches git push origin feature --force-with-lease
+    Given the model asks to run "git push origin feature --force-with-lease"
+    When the gateway screens it
+    Then the rule shell.force_push_with_lease fires
+    And it is refused
+
+  Scenario: shell.force_push_with_lease allows git push origin feature --force-with-lease once a purpose is written
+    Given the model asks to run "AI_BUNKER_PURPOSE=\"the reason this is the right call here\" git push origin feature --force-with-lease"
+    When the gateway screens it
+    Then the rule shell.force_push_with_lease fires
+    And it is allowed
+
+  Scenario: shell.force_push_with_lease leaves git push origin main alone
+    Given the model asks to run "git push origin main"
+    When the gateway screens it
+    Then it is allowed
+
+  Scenario: shell.force_push_with_lease leaves git push --force origin main alone
+    Given the model asks to run "git push --force origin main"
+    When the gateway screens it
+    Then the rule shell.force_push_with_lease does not fire
+
+  # shell.discard_untracked -- GATED
+  # Deletes untracked files or stashed work, which git cannot restore. Say what is being cleared.
+
+  Scenario: shell.discard_untracked catches git clean -fd
+    Given the model asks to run "git clean -fd"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is refused
+
+  Scenario: shell.discard_untracked allows git clean -fd once a purpose is written
+    Given the model asks to run "AI_BUNKER_PURPOSE=\"the reason this is the right call here\" git clean -fd"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is allowed
+
+  Scenario: shell.discard_untracked catches git clean -xfd build/
+    Given the model asks to run "git clean -xfd build/"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is refused
+
+  Scenario: shell.discard_untracked allows git clean -xfd build/ once a purpose is written
+    Given the model asks to run "AI_BUNKER_PURPOSE=\"the reason this is the right call here\" git clean -xfd build/"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is allowed
+
+  Scenario: shell.discard_untracked catches git clean --force
+    Given the model asks to run "git clean --force"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is refused
+
+  Scenario: shell.discard_untracked allows git clean --force once a purpose is written
+    Given the model asks to run "AI_BUNKER_PURPOSE=\"the reason this is the right call here\" git clean --force"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is allowed
+
+  Scenario: shell.discard_untracked catches git stash clear
+    Given the model asks to run "git stash clear"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is refused
+
+  Scenario: shell.discard_untracked allows git stash clear once a purpose is written
+    Given the model asks to run "AI_BUNKER_PURPOSE=\"the reason this is the right call here\" git stash clear"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is allowed
+
+  Scenario: shell.discard_untracked catches git stash drop stash@{0}
+    Given the model asks to run "git stash drop stash@{0}"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is refused
+
+  Scenario: shell.discard_untracked allows git stash drop stash@{0} once a purpose is written
+    Given the model asks to run "AI_BUNKER_PURPOSE=\"the reason this is the right call here\" git stash drop stash@{0}"
+    When the gateway screens it
+    Then the rule shell.discard_untracked fires
+    And it is allowed
+
+  Scenario: shell.discard_untracked leaves git clean -n alone
+    Given the model asks to run "git clean -n"
+    When the gateway screens it
+    Then it is allowed
+
+  Scenario: shell.discard_untracked leaves git stash list alone
+    Given the model asks to run "git stash list"
+    When the gateway screens it
+    Then it is allowed
+
+  Scenario: shell.discard_untracked leaves git stash pop alone
+    Given the model asks to run "git stash pop"
     When the gateway screens it
     Then it is allowed
 
