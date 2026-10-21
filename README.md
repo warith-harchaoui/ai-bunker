@@ -72,6 +72,31 @@ Three, and they decide everything else.
    different on the machine where it matters. Put it behind the endpoint and
    there is exactly one copy, versioned, and no way to use the model without it.
 
+   Anthropic says the same thing about its own instruction files, which is a
+   stronger admission than anything this project could claim on its behalf:
+
+   > Claude treats them as context, **not enforced configuration**. To block an
+   > action regardless of what Claude decides, use a PreToolUse hook instead.
+   >
+   > — Anthropic, [*How Claude remembers your project*](https://code.claude.com/docs/en/memory),
+   > on `CLAUDE.md` and auto memory
+
+   Nothing in that sentence is particular to one vendor. A `CLAUDE.md`, the
+   `AGENTS.md` that OpenCode, Aider and goose read, a house style pasted into a
+   system prompt: all of them are things the model is *told*, and a thing the
+   model is told is a thing the model can weigh against something else.
+   Enforcement is a different mechanism from instruction, and it has to live
+   somewhere the model does not get a vote. Anthropic's answer is a hook on the
+   developer's machine, and the open-source harnesses offer their own equivalents;
+   both are the right tool for the things that happen before a request exists.
+   This project's answer is the endpoint, for the reason in the paragraph above:
+   a hook is still a file on a laptop, and it binds the one harness that reads it.
+
+   Which is why the charter is enforced for *every* client — the proprietary ones
+   and the open-source ones alike — and why the kits in [`clients/`](clients/README.md)
+   are deliberately thin. Any client that speaks the OpenAI-compatible protocol
+   gets the same rules, whether or not anyone wrote a kit for it.
+
 2. **Index, don't concatenate.** The tempting way to give a model your standards
    is to paste them all into the system prompt. On a 32k window that spends the
    context before the first question; on a 256k window it still costs real money

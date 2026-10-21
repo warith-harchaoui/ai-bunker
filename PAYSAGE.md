@@ -310,3 +310,22 @@ livre exactement celles-là et rien de plus (voir [`clients/`](clients/README.md
 
 Ce qu'elle ne peut pas faire, c'est tenir : c'est un fichier sur un portable, désactivé
 par une édition, et absent dès que quelqu'un ouvre un autre harnais.
+
+Il vaut la peine de séparer les deux moitiés de cette ligne, parce qu'elles ne valent pas
+la même chose et que l'éditeur les sépare aussi. Un hook **est** de l'application — c'est
+pourquoi cette colonne n'est pas à une étoile. Un fichier d'instructions ne l'est pas, et
+Anthropic le dit de ses propres fichiers :
+
+> Claude treats them as context, **not enforced configuration**. To block an action
+> regardless of what Claude decides, use a PreToolUse hook instead.
+>
+> (« Claude les traite comme du contexte, **pas comme de la configuration appliquée**.
+> Pour bloquer une action quoi que Claude décide, utilisez plutôt un hook PreToolUse. »)
+>
+> — Anthropic, [*How Claude remembers your project*](https://code.claude.com/docs/en/memory)
+
+Un `CLAUDE.md` n'est donc pas une version faible d'un moteur de règles ; c'est une chose
+d'une autre nature, et l'écart est la description qu'en fait l'éditeur lui-même plutôt
+qu'une caractérisation d'un concurrent par ce projet. Ce qui reste, pour le hook qui,
+lui, applique, c'est la portée : il lie un harnais sur une machine, et la ligne est notée
+là-dessus.

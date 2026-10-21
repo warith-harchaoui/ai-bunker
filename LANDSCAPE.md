@@ -293,3 +293,17 @@ endpoint can reach that. This project ships exactly those and no more
 
 What it cannot do is hold: it is a file on a laptop, disabled by an edit, and absent the
 moment someone opens a different harness.
+
+It is worth separating the two halves of this row, because they score differently and
+the vendor separates them too. A hook *is* enforcement — that is why this column is not
+one star. An instruction file is not, and Anthropic says so about its own:
+
+> Claude treats them as context, **not enforced configuration**. To block an action
+> regardless of what Claude decides, use a PreToolUse hook instead.
+>
+> — Anthropic, [*How Claude remembers your project*](https://code.claude.com/docs/en/memory)
+
+So a `CLAUDE.md` is not a weaker version of a rule engine; it is a different kind of
+thing, and the gap is the vendor's own description rather than this project's
+characterisation of a competitor. What remains, for the hook that does enforce, is
+reach: it binds one harness on one machine, and the row is scored on that.

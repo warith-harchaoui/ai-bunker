@@ -77,6 +77,37 @@ Trois, et ils décident de tout le reste.
    derrière le point d'entrée, il en existe exactement une copie, versionnée, et
    aucun moyen d'utiliser le modèle sans elle.
 
+   Anthropic dit la même chose de ses propres fichiers d'instructions, ce qui est
+   un aveu plus fort que tout ce que ce projet pourrait affirmer à sa place :
+
+   > Claude treats them as context, **not enforced configuration**. To block an
+   > action regardless of what Claude decides, use a PreToolUse hook instead.
+   >
+   > (« Claude les traite comme du contexte, **pas comme de la configuration
+   > appliquée**. Pour bloquer une action quoi que Claude décide, utilisez
+   > plutôt un hook PreToolUse. »)
+   >
+   > — Anthropic, [*How Claude remembers your project*](https://code.claude.com/docs/en/memory),
+   > à propos de `CLAUDE.md` et de la mémoire automatique
+
+   Rien dans cette phrase n'est propre à un éditeur. Un `CLAUDE.md`, l'`AGENTS.md`
+   que lisent OpenCode, Aider et goose, un style maison collé dans un prompt
+   système : ce sont tous des choses qu'on *dit* au modèle, et une chose qu'on dit
+   au modèle est une chose que le modèle peut mettre en balance avec une autre.
+   Appliquer est un mécanisme différent d'instruire, et cela doit vivre quelque
+   part où le modèle n'a pas voix au chapitre. La réponse d'Anthropic est un hook
+   sur la machine du développeur, et les harnais open source offrent leurs propres
+   équivalents ; les deux sont le bon outil pour ce qui se passe avant qu'une
+   requête existe. La réponse de ce projet est le point d'entrée, pour la raison du
+   paragraphe au-dessus : un hook reste un fichier sur un portable, et il ne lie
+   que le harnais qui le lit.
+
+   C'est pourquoi la charte est appliquée pour **tous** les clients — les
+   propriétaires comme les open source — et pourquoi les kits de
+   [`clients/`](clients/README.md) sont volontairement minces. Tout client qui
+   parle le protocole compatible OpenAI reçoit les mêmes règles, qu'on lui ait
+   écrit un kit ou non.
+
 2. **Indexer, ne pas concaténer.** La façon tentante de donner ses standards à un
    modèle est de tout coller dans le prompt système. Sur une fenêtre de 32k, cela
    dépense le contexte avant la première question ; sur une fenêtre de 256k, cela

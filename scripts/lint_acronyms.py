@@ -237,6 +237,7 @@ NAMES = {
     "OpenCode",
     "PAYSAGE",
     "PowerShell",
+    "PreToolUse",
     "PRO",
     "README",
     "RTX",
