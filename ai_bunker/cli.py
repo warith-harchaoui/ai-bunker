@@ -17,7 +17,7 @@ from pathlib import Path
 import os_helper as osh
 
 from ai_bunker import __version__, i18n
-from ai_bunker.adopt import CLIENTS, adopt, plan_adopt
+from ai_bunker.adopt import ALL_CLIENTS, CLIENTS, FRAMEWORKS, adopt, plan_adopt
 from ai_bunker.budget import (
     DECLARED_FRACTION,
     MIN_WORKING_TOKENS,
@@ -840,8 +840,16 @@ def build_parser() -> argparse.ArgumentParser:
     ad.add_argument(
         "--client",
         action="append",
-        choices=list(CLIENTS),
-        help="Which kit(s) to write. Repeatable; default: all.",
+        choices=list(ALL_CLIENTS),
+        help=(
+            "Which kit(s) to write. Repeatable. Default: "
+            + ", ".join(CLIENTS)
+            + " -- the code agents. The frameworks ("
+            + ", ".join(FRAMEWORKS)
+            + ") are opt-in, because their kit is a Python module and writing "
+            "application code into a repository by default is not this "
+            "command's job."
+        ),
     )
     ad.add_argument(
         "--no-charter",

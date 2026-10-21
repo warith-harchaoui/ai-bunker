@@ -33,7 +33,28 @@ import os_helper as osh
 #: Repository root of this installation, so an adopt can find its own templates.
 ROOT = Path(__file__).resolve().parent.parent
 
+#: Written by default. Both are *code agents* -- somebody else's loop, which a
+#: kit has to reach into for the things that happen before a request exists.
 CLIENTS = ("opencode", "claude-code")
+
+#: Opt-in, via ``--client``. These are *agent frameworks*: you write the loop,
+#: so there is no harness to configure, and the kit is a module you import.
+#: Deliberately not in :data:`CLIENTS` -- a default that dropped Python files
+#: into every repository that ran ``adopt`` would be writing application code
+#: on the user's behalf, which is a different thing from configuring a tool.
+FRAMEWORKS = ("langgraph", "llamaindex", "smolagents")
+
+#: Everything ``--client`` accepts.
+ALL_CLIENTS = CLIENTS + FRAMEWORKS
+
+#: Where each framework kit comes from and lands. One module per framework
+#: rather than a shared ``ai_bunker_client.py``: adopting two of them into one
+#: repository must not have the second overwrite the first.
+FRAMEWORK_KITS = {
+    "langgraph": "ai_bunker_langgraph.py",
+    "llamaindex": "ai_bunker_llamaindex.py",
+    "smolagents": "ai_bunker_smolagents.py",
+}
 
 #: Placeholders substituted into a client template. Everything here is either a
 #: deployment fact or a secret, so none of it is hardcoded into the templates:
@@ -258,6 +279,15 @@ def plan_adopt(
                     "what the gateway does to a session",
                 ),
             ]
+        elif client in FRAMEWORK_KITS:
+            module = FRAMEWORK_KITS[client]
+            items += [
+                (
+                    f"clients/{client}/{module}",
+                    module,
+                    "builds a model pointed at the gateway",
+                ),
+            ]
         else:
             plan.missing.append(f"unknown client {client!r}")
 
@@ -353,6 +383,7 @@ def adopt(
         ".opencode/plugins/bounded-reads.js": "clients/opencode/.opencode/plugins/bounded-reads.js",
         ".claude/settings.ai-bunker.json": "clients/claude-code/settings.json",
         "CLAUDE.md": "clients/claude-code/CLAUDE.md",
+        **{module: f"clients/{name}/{module}" for name, module in FRAMEWORK_KITS.items()},
     }
 
     for relative, _why in plan.writes:

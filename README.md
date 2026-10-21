@@ -1326,6 +1326,43 @@ identical output.
 So the OpenCode kit is a config plus **one** plugin, `bounded-reads.js`. If it
 ever grows, something has been put in the wrong place.
 
+### Agent frameworks, where the loop is yours
+
+The table above describes a **code agent**: somebody else's loop, which a kit
+has to reach into because the harness decides those three rows. In an agent
+framework you write the loop, so they are already yours — and a kit that set
+them would be guessing at an application it cannot see. The kit is a module you
+import, and it carries the two things a framework cannot get right on its own:
+which endpoint to call, and what context window to believe.
+
+```bash
+ai-bunker adopt . --client langgraph     # ChatOpenAI, so all of LangChain
+ai-bunker adopt . --client llamaindex    # OpenAILike
+ai-bunker adopt . --client smolagents    # OpenAIModel
+```
+
+```python
+from ai_bunker_langgraph import make_model
+from langgraph.prebuilt import create_react_agent
+
+agent = create_react_agent(make_model(), tools=[])
+```
+
+Opt-in rather than default: writing Python into a repository is authoring
+application code, which is a different act from configuring a tool.
+
+Thinner is not weaker, and that was checked rather than claimed. A tool result
+carrying `AWS_ACCESS_KEY_ID=AKIA…` sent through the LangGraph kit came back
+**redacted**, logged as `global.aws_access_key`, before the model read it. The
+charter arrives on that route too — an exact 595-token floor, counted by the
+engine's own tokenizer.
+
+One warning the smolagents kit carries in its own docstring, because it is the
+single risk a gateway does not cover: a `CodeAgent` executes the model's Python
+locally by default. The gateway refuses dangerous *shell* commands because it
+sees them as tool calls before they run; it cannot see an `exec` inside the
+harness at all. Use `executor_type="docker"` for anything that is not a toy.
+
 ### Clients with no kit: publish the charter as an Agent Skill
 
 A kit has to be written per client, which means a client this project has
@@ -1504,7 +1541,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 885 tests, `ruff` clean | ✅ |
+| 907 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

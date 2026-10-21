@@ -19,7 +19,10 @@ import os_helper as osh
 import pytest
 
 from ai_bunker.adopt import (
+    ALL_CLIENTS,
     CLIENTS,
+    FRAMEWORK_KITS,
+    FRAMEWORKS,
     ROOT,
     adopt,
     plan_adopt,
@@ -417,3 +420,123 @@ def test_the_claude_md_tells_an_agent_what_the_gateway_does(repo):
     assert "ai-bunker:untrusted" in text, "an agent must know what a marked block is"
     assert "decision" in text, "and that a refusal is not a transient failure"
     assert "context_budget_exhausted" in text
+
+
+# ---------------------------------------------------------------------------
+# Agent frameworks.
+#
+# The kits above configure *code agents* -- somebody else's loop, which a kit
+# has to reach into. These three are frameworks: the developer writes the loop,
+# so the kit is a module they import, and the only things it can usefully carry
+# are the endpoint and the context window to believe.
+# ---------------------------------------------------------------------------
+
+
+def test_a_framework_is_never_written_by_default(repo):
+    """Writing Python into a repository is not the same act as writing a config
+    file into one. A default that dropped three modules on every adopt would be
+    authoring application code on the user's behalf."""
+    written = {relative for relative, _ in plan_adopt(repo).writes}
+    for module in FRAMEWORK_KITS.values():
+        assert module not in written, f"{module} landed without being asked for"
+    assert set(FRAMEWORKS) & set(CLIENTS) == set(), "a framework is in the default set"
+
+
+def test_every_framework_is_selectable_and_lands_one_module(repo):
+    for name, module in FRAMEWORK_KITS.items():
+        plan = plan_adopt(repo, clients=(name,), charter=False)
+        assert plan.ok, plan.missing
+        assert [relative for relative, _ in plan.writes] == [module]
+
+
+def test_two_frameworks_do_not_overwrite_each_other(repo):
+    """The obvious design -- one `ai_bunker_client.py` -- makes the second
+    adopt silently replace the first. The filenames are distinct on purpose."""
+    assert len(set(FRAMEWORK_KITS.values())) == len(FRAMEWORK_KITS)
+    adopt(repo, clients=tuple(FRAMEWORK_KITS), charter=False, url="http://h:1/v1")
+    for module in FRAMEWORK_KITS.values():
+        assert (repo / module).exists(), f"{module} was not written"
+
+
+def test_the_cli_accepts_every_framework():
+    """`--client` is built from ALL_CLIENTS; a kit missing from it is a kit
+    nobody can ask for."""
+    for name in FRAMEWORKS:
+        assert name in ALL_CLIENTS
+    for name in CLIENTS:
+        assert name in ALL_CLIENTS
+
+
+@pytest.mark.parametrize("name", sorted(FRAMEWORK_KITS))
+def test_a_rendered_framework_kit_is_valid_python(repo, name):
+    """The template is not: it carries `{{PLACEHOLDER}}`, and `render` is
+    documented to leave an unresolved one in place so the file fails at load.
+    What gets written has to parse."""
+    import ast
+
+    adopt(repo, clients=(name,), charter=False, url="http://127.0.0.1:9/v1", model="m")
+    text = (repo / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
+    ast.parse(text)
+    assert "{{" not in text, "a placeholder survived into the rendered module"
+
+
+@pytest.mark.parametrize("name", sorted(FRAMEWORK_KITS))
+def test_a_framework_kit_never_carries_the_key(repo, name):
+    """The URL and the model name are deployment facts and are rendered in. A
+    key is a credential, and a credential rendered into a committable module is
+    a credential in a git history. It comes from the environment or not at all.
+    """
+    adopt(
+        repo,
+        clients=(name,),
+        charter=False,
+        url="http://127.0.0.1:9/v1",
+        api_key="sk-secret-value",
+    )
+    text = (repo / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
+    assert "sk-secret-value" not in text, "the API key was written into the module"
+    assert 'os.environ.get("AI_BUNKER_API_KEY"' in text
+
+
+@pytest.mark.parametrize(
+    "name,needle",
+    [
+        # Verified against each project's own documentation rather than
+        # remembered. The parameter names differ between all three, which is
+        # exactly why this is pinned: `base_url` for LangChain, `api_base` for
+        # the other two, and `model` versus `model_id`.
+        ("langgraph", "ChatOpenAI("),
+        ("langgraph", "base_url=AI_BUNKER_URL"),
+        ("llamaindex", "OpenAILike("),
+        ("llamaindex", "api_base=AI_BUNKER_URL"),
+        ("llamaindex", "context_window=AI_BUNKER_DECLARED_CONTEXT"),
+        ("smolagents", "OpenAIModel("),
+        ("smolagents", "api_base=AI_BUNKER_URL"),
+        ("smolagents", "model_id=AI_BUNKER_MODEL"),
+    ],
+)
+def test_the_kit_calls_the_constructor_each_project_documents(name, needle):
+    text = (ROOT / "clients" / name / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
+    assert needle in text, f"{name} kit no longer matches the documented API"
+
+
+def test_the_smolagents_kit_warns_about_local_code_execution():
+    """`CodeAgent` runs the model's Python in-process by default. The gateway
+    refuses dangerous shell commands because it sees them as tool calls; it
+    cannot see an `exec` inside the harness at all. That is the one risk a
+    gateway genuinely does not cover, so the kit has to say so."""
+    text = (ROOT / "clients" / "smolagents" / FRAMEWORK_KITS["smolagents"]).read_text(
+        encoding="utf-8"
+    )
+    assert "executor_type" in text
+    assert "docker" in text
+
+
+@pytest.mark.parametrize("name", sorted(FRAMEWORK_KITS))
+def test_a_framework_kit_says_what_it_does_not_carry(name):
+    """A thin kit read as a complete one is a kit someone adds rules to. Each
+    says outright that the charter, the screening and the budget are enforced
+    server-side and cannot be switched off from here."""
+    text = (ROOT / "clients" / name / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
+    collapsed = " ".join(text.split())
+    assert "enforced server-side and cannot be switched off here" in collapsed

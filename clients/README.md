@@ -43,11 +43,30 @@ attack first. That measurement found a workstation injecting 59 skill
 descriptions into every prompt — 17,754 tokens, 68% of the floor — which made
 every session loop without answering while the harness said nothing.
 
+## Two kinds of client, and why their kits differ
+
+A **code agent** is somebody else's loop. The kit is a config file, and it has
+to reach into the harness for the three rows marked **client** above, because
+the harness is what decides them.
+
+An **agent framework** is your loop. There is no harness to configure: bounded
+reads, what goes in the prompt and when to compact are all code you already
+write. So the kit is a module you import, and it carries only the two things a
+framework cannot get right on its own — which endpoint to call, and what
+context window to believe.
+
+Thinner is not weaker. The charter, the secret and injection screening, the
+refusal of dangerous commands and the token count all live behind the endpoint
+and apply to both kinds identically. Verified rather than asserted: a tool
+result carrying `AWS_ACCESS_KEY_ID=AKIA...` sent through the LangGraph kit came
+back redacted, logged as `global.aws_access_key`, before the model read it.
+
 ## Installing
 
 ```bash
-ai-bunker adopt /path/to/project                  # charter + both client kits
+ai-bunker adopt /path/to/project                  # charter + both code-agent kits
 ai-bunker adopt /path/to/project --client opencode
+ai-bunker adopt /path/to/project --client langgraph --client smolagents
 ai-bunker adopt /path/to/project --list           # what would be written
 ```
 
@@ -55,6 +74,26 @@ Nothing is overwritten without `--force`, and the gateway's URL — its uniform
 resource locator — and key come from the environment so a kit can be
 committed.
 
+**Code agents** (written by default):
+
 - [`opencode/`](opencode) — provider config plus one plugin, for the one thing
   the gateway cannot do.
 - [`claude-code/`](claude-code) — settings and environment.
+
+**Agent frameworks** (opt-in, because a kit that writes Python into a
+repository by default is authoring application code rather than configuring a
+tool):
+
+- [`langgraph/`](langgraph) — `ChatOpenAI`, so anything built on LangChain
+  works too. `pip install langchain-openai`
+- [`llamaindex/`](llamaindex) — `OpenAILike` rather than `OpenAI`, which
+  validates model names against OpenAI's own catalogue and refuses every model
+  a sovereign deployment serves. `pip install llama-index-llms-openai-like`
+- [`smolagents/`](smolagents) — `OpenAIModel`. `pip install smolagents`
+
+One warning that belongs with the code rather than in a footnote: a smolagents
+`CodeAgent` executes the model's Python locally by default. The gateway refuses
+dangerous *shell* commands because it sees them as tool calls before they run,
+and it cannot see an `exec` inside the harness at all. Use
+`executor_type="docker"` for anything that is not a toy. It is the one risk a
+gateway genuinely does not cover, and the kit says so in its own docstring.

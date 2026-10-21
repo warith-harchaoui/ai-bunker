@@ -1364,6 +1364,48 @@ Le kit OpenCode est donc une configuration plus **un seul** plugin,
 `bounded-reads.js`. S'il grossit un jour, c'est que quelque chose a été mis au
 mauvais endroit.
 
+### Les frameworks d'agents, où la boucle est la vôtre
+
+Le tableau ci-dessus décrit un **agent de code** : la boucle de quelqu'un
+d'autre, dans laquelle un kit doit aller mettre les mains puisque c'est le
+harnais qui décide ces trois lignes. Dans un framework d'agents, c'est vous qui
+écrivez la boucle, donc elles vous appartiennent déjà — et un kit qui les
+fixerait devinerait au sujet d'une application qu'il ne voit pas. Le kit est
+alors un module que vous importez, et il ne porte que les deux choses qu'un
+framework ne peut pas deviner : quel point d'entrée appeler, et quelle fenêtre
+de contexte croire.
+
+```bash
+ai-bunker adopt . --client langgraph     # ChatOpenAI, donc tout LangChain
+ai-bunker adopt . --client llamaindex    # OpenAILike
+ai-bunker adopt . --client smolagents    # OpenAIModel
+```
+
+```python
+from ai_bunker_langgraph import make_model
+from langgraph.prebuilt import create_react_agent
+
+agent = create_react_agent(make_model(), tools=[])
+```
+
+Sur demande plutôt que par défaut : écrire du Python dans un dépôt, c'est
+rédiger du code applicatif, ce qui n'est pas le même acte que configurer un
+outil.
+
+Plus mince ne veut pas dire plus faible, et cela a été **vérifié** et pas
+affirmé. Un résultat d'outil portant `AWS_ACCESS_KEY_ID=AKIA…` envoyé à travers
+le kit LangGraph est revenu **caviardé**, journalisé en
+`global.aws_access_key`, avant que le modèle ne le lise. La charte arrive aussi
+sur cette route — un plancher exact de 595 tokens, compté par le tokenizer du
+moteur lui-même.
+
+Un avertissement que le kit smolagents porte dans sa propre docstring, parce
+que c'est le seul risque qu'une passerelle ne couvre pas : un `CodeAgent`
+exécute le Python du modèle **localement** par défaut. La passerelle refuse les
+commandes *shell* dangereuses parce qu'elle les voit comme des appels d'outil
+avant qu'elles ne tournent ; elle ne voit pas du tout un `exec` à l'intérieur
+du harnais. Utilisez `executor_type="docker"` pour autre chose qu'un jouet.
+
 ### Les clients sans kit : publier la charte en Agent Skill
 
 Un kit s'écrit par client, donc un client dont ce projet n'a jamais entendu
@@ -1603,7 +1645,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 885 tests, `ruff` propre | ✅ |
+| 907 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
