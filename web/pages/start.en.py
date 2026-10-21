@@ -119,8 +119,8 @@ export OPENAI_API_KEY="$AI_BUNKER_API_KEY"</code></pre>
             <code class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-sm dark:bg-neutral-800">/gui</code>:
           </p>
           <figure class="mt-5">
-            <img src="img/dashboard.png" width="1800" height="1290" loading="lazy"
-              alt="The ai-bunker dashboard. A bar across the top shows the session floor as a small orange segment against a mostly green window, labelled 'floor 607 — under 1% of the window' and '193,108 left to work with'. Below it a second bar breaks the floor into its components, and a table lists each component with its token count and owner. A panel on the right reports the served and declared context and says the count came from the server's tokenizer."
+            <img src="img/dashboard-light.png" width="1800" height="1290" loading="lazy"
+              alt="The ai-bunker dashboard in its light theme. A status bar across the top carries chips reading 'sovereign', 'open to anyone who can reach it', '10 output rules', '12 command rules' and '3 tool rules', and a sun button that switches to the dark theme. Below, a thin bar shows the session floor as a sliver of orange against a nearly empty window, labelled 'floor 595 — under 1% of the window' and '193,120 left to work with'. A second, wider bar breaks that floor into its two components, charter at 448 tokens (75%) and knowledge index at 147 (25%), both owned by ai-bunker, and a table repeats them with their shares. A panel on the right reports 262,144 tokens served by the engine, 209,715 declared to clients, a 16,000-token compaction margin and 193,120 of conversation space, and says the count was made by the server's own tokenizer rather than estimated."
               class="w-full rounded-2xl border border-neutral-200 dark:border-neutral-800">
             <figcaption class="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
               Two bars rather than one: a 300:1 ratio and a composition are two different

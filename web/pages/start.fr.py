@@ -120,8 +120,8 @@ export OPENAI_API_KEY="$AI_BUNKER_API_KEY"</code></pre>
             <code class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-sm dark:bg-neutral-800">/gui</code> :
           </p>
           <figure class="mt-5">
-            <img src="../img/dashboard.png" width="1800" height="1290" loading="lazy"
-              alt="Le tableau de bord d'ai-bunker. Un bandeau en haut montre le plancher de session en un petit segment orange sur une fenêtre majoritairement verte, légendé « floor 607 — under 1% of the window » et « 193,108 left to work with ». En dessous, une seconde barre décompose le plancher par composant, et un tableau liste chacun avec son nombre de tokens et son propriétaire. Un panneau à droite indique le contexte servi et déclaré, et précise que le compte vient du tokenizer du serveur."
+            <img src="../img/dashboard-light.png" width="1800" height="1290" loading="lazy"
+              alt="Le tableau de bord d'ai-bunker dans son thème clair. Un bandeau en haut porte les pastilles « sovereign », « open to anyone who can reach it », « 10 output rules », « 12 command rules » et « 3 tool rules », ainsi qu'un bouton soleil qui bascule vers le thème sombre. En dessous, une barre fine montre le plancher de session en un filet orange sur une fenêtre presque vide, légendée « floor 595 — under 1% of the window » et « 193,120 left to work with ». Une seconde barre, plus large, décompose ce plancher en ses deux composants, la charte à 448 tokens (75 %) et l'index de connaissance à 147 (25 %), tous deux détenus par ai-bunker, et un tableau les reprend avec leurs parts. Un panneau à droite indique 262 144 tokens servis par le moteur, 209 715 déclarés aux clients, une marge de compaction de 16 000 et 193 120 d'espace de conversation, et précise que le compte vient du tokenizer du serveur plutôt que d'une estimation."
               class="w-full rounded-2xl border border-neutral-200 dark:border-neutral-800">
             <figcaption class="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
               Deux barres plutôt qu'une : un rapport de 300:1 et une composition sont deux
