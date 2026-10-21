@@ -266,7 +266,14 @@ def cmd_rules(args) -> int:
             print("[rules] no rule matched; the command would run.")
         return 1 if refusal else 0
 
-    text = Path(args.screen).read_text(encoding="utf-8") if args.screen else sys.stdin.read()
+    # `-` is stdin, the way every other tool spells it. Without this the help
+    # said "default: stdin" and the conventional way of asking for it crashed
+    # with a FileNotFoundError on a file literally named `-`, which reads as a
+    # broken tool rather than as an unsupported spelling.
+    if args.screen and args.screen != "-":
+        text = Path(args.screen).read_text(encoding="utf-8")
+    else:
+        text = sys.stdin.read()
     result = screen_output(text, rules)
     if args.provenance:
         text_out = wrap_provenance(result.text, source=args.provenance)
@@ -826,7 +833,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run every rule against its own examples; exit non-zero on failure.",
     )
     r.add_argument("--command", help="Screen one shell command.")
-    r.add_argument("--screen", help="Screen a file's content (default: stdin).")
+    r.add_argument("--screen", help="Screen a file's content, or `-` for stdin (the default).")
     r.add_argument(
         "--provenance",
         metavar="SOURCE",

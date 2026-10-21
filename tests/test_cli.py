@@ -17,6 +17,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import io
 import re
 
 import pytest
@@ -196,3 +197,47 @@ def test_an_unreadable_config_does_not_leak_a_library_message(capsys, tmp_path, 
     (tmp_path / "project").mkdir()
     main(["adopt", str(tmp_path / "project"), "--list", "--config", str(tmp_path / "none.yaml")])
     assert "Missing required keys" not in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# `-` means stdin. Same family as the `--help` crash this file opens with.
+# ---------------------------------------------------------------------------
+
+
+def test_screen_accepts_a_dash_for_stdin(monkeypatch, capsys):
+    """The help said "default: stdin" and the conventional way of asking for
+    it crashed with a FileNotFoundError on a file literally named `-`.
+
+    A documented spelling that crashes is worse than an unsupported one,
+    because the documentation invited it -- which is the same lesson as the
+    `--help` bug at the top of this file, found the same way: by running the
+    command rather than reading it.
+    """
+    monkeypatch.setattr("sys.stdin", io.StringIO('api_key = "sk_live_8Kq2mZx9PvN3wR7t"\n'))
+    assert main(["rules", "--screen", "-"]) == 0
+    assert "<SECRET REDACTED>" in capsys.readouterr().out
+
+
+def test_screen_with_no_argument_still_reads_stdin(monkeypatch, capsys):
+    """The default the help has always advertised."""
+    monkeypatch.setattr("sys.stdin", io.StringIO('api_key = "sk_live_8Kq2mZx9PvN3wR7t"\n'))
+    assert main(["rules"]) == 0
+    assert "<SECRET REDACTED>" in capsys.readouterr().out
+
+
+def test_screen_still_reads_a_real_file(tmp_path, capsys):
+    """`-` must not have been bought by breaking the ordinary case."""
+    path = tmp_path / "out.txt"
+    path.write_text('api_key = "sk_live_8Kq2mZx9PvN3wR7t"\n', encoding="utf-8")
+    assert main(["rules", "--screen", str(path)]) == 0
+    assert "<SECRET REDACTED>" in capsys.readouterr().out
+
+
+def test_the_screen_help_mentions_the_dash():
+    """A spelling that works and is not documented is a spelling nobody uses."""
+    action = next(
+        a
+        for a in build_parser()._subparsers._group_actions[0].choices["rules"]._actions
+        if "--screen" in a.option_strings
+    )
+    assert "`-`" in action.help
