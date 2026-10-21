@@ -27,6 +27,7 @@ from ai_bunker.adopt import ROOT
 from ai_bunker.charter import load_charter
 from ai_bunker.rules import load_rules
 from ai_bunker.rules import test_rules as check_rules
+from ai_bunker.spec import load as load_scenarios
 
 WEB = ROOT / "web"
 PAGES = sorted(WEB.glob("*.html")) + sorted((WEB / "fr").glob("*.html"))
@@ -59,9 +60,26 @@ def all_prose() -> str:
 def test_the_documentation_quotes_the_real_rule_counts(all_prose):
     """The site is guarded; the prose was not, and drifted the moment a rule
     was added. Same assertion, applied to the files people actually read
-    first."""
+    first.
+
+    Two blind spots closed here, both found by reading what this guard
+    actually matched rather than what it was named after:
+
+    * The summary sentence is `N rules, M assertions, S scenarios`, and only
+      `N` was captured -- `M` sat inside a non-capturing group and `S` was not
+      in the pattern at all. So `224 scenarios` stood unchallenged next to a
+      corrected `27 rules, 218 assertions` while the specification had grown
+      to 277, and the half of the sentence the generator owned made the other
+      half look maintained.
+    * Every pattern was English. `LISEZMOI.md` is in `PROSE` and was read on
+      every run, but nothing looked for `règles` or `scénarios`, so it quoted
+      25 rules and 198 assertions for three sessions. A guard that reads a
+      translated file without knowing its words is a guard that reports on a
+      file it never checked.
+    """
     rules = load_rules(ROOT / "charter" / "rules")
     report = check_rules(rules)
+    scenarios = len(load_scenarios(ROOT / "features"))
 
     for pattern, actual, label in (
         (r"rules loaded\s+(\d+)", len(rules), "rules"),
@@ -69,6 +87,11 @@ def test_the_documentation_quotes_the_real_rule_counts(all_prose):
         (r"assertions passed\s+(\d+)", report.passed, "assertions"),
         (r"\[ok\s*\]\s*(\d+) rule assertions pass", report.passed, "assertions"),
         (r"(\d+) rules, (?:\d+) assertions", len(rules), "rules"),
+        (r"\d+ rules, (\d+) assertions", report.passed, "assertions"),
+        (r"\d+ rules, \d+ assertions, (\d+) scenarios", scenarios, "scenarios"),
+        (r"(\d+) règles, (?:\d+) assertions", len(rules), "rules (fr)"),
+        (r"\d+ règles, (\d+) assertions", report.passed, "assertions (fr)"),
+        (r"\d+ règles, \d+ assertions, (\d+) scénarios", scenarios, "scenarios (fr)"),
     ):
         for n in {int(x) for x in re.findall(pattern, all_prose)}:
             assert n == actual, f"the documentation says {n} {label}; there are {actual}"

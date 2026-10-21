@@ -79,12 +79,27 @@ def rule_figures() -> tuple[int, int]:
     return len(rules), check_rules(rules).passed
 
 
+def scenario_count() -> int:
+    """The scenarios `spec --run` executes, from the parser that runs them.
+
+    Not a `grep` for `Scenario:`. The count quoted in the prose is a claim
+    about what the specification *runs*, and the parser is the only thing that
+    knows -- it is also what would raise on a step nobody supports, which a
+    line count would read as a scenario.
+    """
+    sys.path.insert(0, str(ROOT))
+    from ai_bunker.spec import load as load_scenarios
+
+    return len(load_scenarios(ROOT / "features"))
+
+
 def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
     """(pattern, replacement, label). Every pattern keeps its own context, so
     a number that means something else is never touched: `327 tests` inside a
     sentence about a past moment stays, because none of these match it."""
     tests = collected_tests()
     rules, assertions = rule_figures()
+    scenarios = scenario_count()
     return [
         (re.compile(r"\b\d+ tests · "), f"{tests} tests · ", f"{tests} tests (site footer)"),
         (
@@ -115,10 +130,36 @@ def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
             f"[ok  ] {assertions} rule assertions pass",
             "assertions (doctor)",
         ),
+        # The three-figure summary comes first, and the pair below it is left
+        # in place rather than folded into one optional group. Run the pair
+        # first and it rewrites the two numbers it knows and leaves the third
+        # standing, which is exactly how `224 scenarios` survived next to a
+        # corrected `27 rules, 218 assertions`: a sentence half-updated by its
+        # own generator reads more trustworthy than one left alone.
+        (
+            re.compile(r"\b\d+ rules, \d+ assertions, \d+ scenarios"),
+            f"{rules} rules, {assertions} assertions, {scenarios} scenarios",
+            "all three",
+        ),
+        # And the French twin, which none of the English patterns could ever
+        # match. `LISEZMOI.md` quoted 25 rules and 198 assertions for three
+        # sessions while `README.md` was corrected on every run -- the guard
+        # was bilingual in the files it read and monolingual in what it looked
+        # for. A figure in a translated document is still a figure.
+        (
+            re.compile(r"\b\d+ règles, \d+ assertions, \d+ scénarios"),
+            f"{rules} règles, {assertions} assertions, {scenarios} scénarios",
+            "all three (fr)",
+        ),
         (
             re.compile(r"\b\d+ rules, \d+ assertions"),
             f"{rules} rules, {assertions} assertions",
             "both",
+        ),
+        (
+            re.compile(r"\b\d+ règles, \d+ assertions"),
+            f"{rules} règles, {assertions} assertions",
+            "both (fr)",
         ),
     ]
 

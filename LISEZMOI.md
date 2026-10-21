@@ -930,7 +930,7 @@ moitié des binaires d'une machine de développeur sont arrivés. Même risque,
 fréquence de base différente, donc l'un est refusé et l'autre consigné — le
 raisonnement sur lequel `deps.unpinned_install` tourne déjà.
 
-**25 règles, 198 assertions, 224 scénarios.** Chacune des onze est une entrée
+**27 règles, 218 assertions, 277 scénarios.** Chacune des onze est une entrée
 de tableau dans `tests/test_rules.py` et non un commentaire, parce qu'un
 contournement seulement décrit revient ; chacune a été vérifiée contre le jeu
 de règles précédent pour confirmer qu'elle y échoue. Les quasi-collisions sont

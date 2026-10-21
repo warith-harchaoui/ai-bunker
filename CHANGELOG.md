@@ -286,6 +286,31 @@ client kits and a dashboard.
   in `tests/test_rules.py` rather than nine hand-written cases, because the
   next git rule should inherit the test.
 
+### The drift guard was monolingual, and owned two thirds of a sentence
+
+- **`LISEZMOI.md` quoted 25 rules and 198 assertions for three sessions.** It
+  is listed in `PROSE` and was read on every run, but every pattern in
+  `scripts/sync_counts.py` and `tests/test_site.py` was English, and none of
+  them could match `règles` or `scénarios`. The French README was checked by a
+  guard that did not know its words — reported on, never actually read. Both
+  now carry the French spellings.
+- **`224 scenarios` stood next to a corrected `27 rules, 218 assertions`.** The
+  generator's pattern was `\d+ rules, \d+ assertions`, so it rewrote the first
+  two figures of the summary sentence on every run and left the third where it
+  was; the specification had meanwhile grown to 277. The guard's pattern had
+  the matching hole — `(\d+) rules, (?:\d+) assertions` captured only the
+  rules, so the assertion count in that sentence was unasserted too.
+  **A sentence half-updated by its own generator reads more trustworthy than
+  one left alone**, which is why this is worth a fix rather than an edit.
+- The scenario count comes from `spec.load()`, the parser that runs them, not
+  from a `grep` for `Scenario:` — the quoted figure is a claim about what the
+  specification *runs*, and the parser is also what raises on a step nobody
+  supports, which a line count would happily count as a scenario.
+- Historical entries in this file are deliberately left alone: `CHANGELOG.md`
+  is in neither `SOURCES` nor `PROSE`, because `25 rules, 198 assertions,
+  224 scenarios` was true on the day it was written and updating it would turn
+  a record into a false statement.
+
 ### Importing a skills tree someone else wrote
 
 - **`ai-bunker skill --import DIR --pack NAME`** reads a tree of Agent Skills
