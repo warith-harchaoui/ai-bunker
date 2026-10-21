@@ -101,3 +101,110 @@ Feature: Gaps a reviewer found before an attacker did
     Given a tool result containing "ship it \U0001f468\u200d\U0001f469\u200d\U0001f467"
     When the gateway screens it
     Then no rule fires
+
+  # One command line, many commands. Every scenario below was a bypass of
+  # `shell.destructive_rm` -- a BLOCKER, and the one the README leads with.
+  # The rule is anchored at both ends: `^` so a prefix cannot smuggle a
+  # delete in, `$` so `rm -rf /home/me/project` is not read as `rm -rf /`.
+  # Both anchors are right about one command and the line is not one command.
+  # A shell starts a new one at every `;`, `&&`, `||`, `|`, `&` and newline,
+  # and the pattern only ever saw the first; it also never saw past a comment,
+  # a subshell, a runner word, a directory on the command word, an
+  # interpreter handed a string, or -- plainest of all -- a pair of quotes
+  # around the target.
+  #
+  # The fix segments the line and screens each command the shell would run,
+  # keeping the typed string as the first reading so nothing that matched
+  # before can stop matching. The anchors stay: they were never the bug.
+
+  Scenario: a separator does not smuggle a destructive delete past
+    Given the model asks to run "echo ok && rm -rf /"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: a semicolon does not smuggle a destructive delete past
+    Given the model asks to run "echo ok; rm -rf /"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: trailing work does not hide the end of a destructive delete
+    Given the model asks to run "rm -rf / && echo done"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: a trailing comment does not hide the end of a destructive delete
+    Given the model asks to run "rm -rf / #cleanup"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: a subshell does not smuggle a destructive delete past
+    Given the model asks to run "(rm -rf /)"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: quoting the target does not hide a destructive delete
+    Given the model asks to run "rm -rf '/'"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: a directory on the command word does not hide a destructive delete
+    Given the model asks to run "/bin/rm -rf /"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: a runner word does not smuggle a destructive delete past
+    Given the model asks to run "nohup rm -rf /"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: a backslash that only defeats an alias does not hide the command
+    Given the model asks to run "\\rm -rf /"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: a second line is a second command
+    Given the model asks to run "echo a\nrm -rf /"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: an interpreter handed a string is handed a command
+    Given the model asks to run "sh -c 'rm -rf /'"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  Scenario: a bundled -c flag is still -c
+    Given the model asks to run "bash -lc 'rm -rf /'"
+    When the gateway screens it
+    Then the rule shell.destructive_rm fires
+    And it is refused
+
+  # Segmenting is also how the fix avoids becoming its own bug. A shell does
+  # not read the semicolon inside a quoted string as a separator, so neither
+  # does the engine: refusing an honest commit message for naming the command
+  # it fixes would be a worse rule than the hole it closed.
+
+  Scenario: a commit message naming a destructive delete is not a destructive delete
+    Given the model asks to run "git commit -m 'fix; rm -rf / was the bug'"
+    When the gateway screens it
+    Then the rule shell.destructive_rm does not fire
+
+  Scenario: echoing a warning about a command is not running it
+    Given the model asks to run "echo 'rm -rf /' > warning.txt"
+    When the gateway screens it
+    Then the rule shell.destructive_rm does not fire
+
+  Scenario: a delete under a path is still not a delete of the path
+    Given the model asks to run "cd /tmp && rm -rf cache"
+    When the gateway screens it
+    Then the rule shell.destructive_rm does not fire

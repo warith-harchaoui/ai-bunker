@@ -876,6 +876,50 @@ it fails there. The near misses are a table too — `eval "$(ssh-agent -s)"`,
 `scp build/out.tar deploy@prod:` — because refusing those would make the
 gateway unusable rather than safe.
 
+### One line is not one command
+
+`shell.destructive_rm` is anchored at both ends. `^` so that nothing smuggles a
+delete in front of it, `$` so that `rm -rf /home/me/project` is not read as
+`rm -rf /`. Both anchors are correct about **one command**, and a line is not
+one command:
+
+```bash
+echo ok && rm -rf /        # allowed: the pattern read a line starting with `echo`
+rm -rf / && echo done      # allowed: the `$` anchor never reached the end
+rm -rf '/'                 # allowed: two apostrophes, and the BLOCKER stopped firing
+```
+
+A shell starts a new command at every `;`, `&&`, `||`, `|`, `&` and newline,
+and the pattern only ever saw the first one. It also never saw past a comment,
+a subshell, a runner word (`nohup`, `env`, `timeout 5`), a directory on the
+command word (`/bin/rm`), a backslash that only defeats an alias (`\rm`), or an
+interpreter handed the command as a string (`sh -c '…'`, `bash -lc '…'`).
+
+The engine now reads the line the way a shell does: it splits it into the
+commands that will actually run and screens each one, having taken off the
+spellings that change nothing about what executes. The anchors stay — they were
+never the bug. Segmenting hands `$` the single command it was always meant to
+be measuring.
+
+Two properties make this safe in both directions:
+
+- **The typed string is always the first reading.** Every transformation *adds*
+  a reading rather than replacing one, so no detection that worked before can
+  be weakened. `shell.pipe_to_shell` is written to match across a pipe, and
+  still sees the whole line.
+- **The split is quote-aware, because a shell's is.** The semicolon in
+  `git commit -m "fix; rm -rf / was the bug"` is not a separator, so the engine
+  does not treat it as one. Refusing an honest commit message for naming the
+  command it fixes would be a worse rule than the hole it closed, and the
+  near misses are a test table for exactly that reason.
+
+There is deliberately **no cap on the number of segments**. A "first *N*
+commands" window is a bypass with a published offset — `echo a;` thirty-two
+times and then the delete — which is the same mistake that retired two earlier
+rules whose thresholds turned out to *be* the way around them. Every segment is
+screened; the cost is linear in the length of the line, and the bound that
+matters is the one already on the input.
+
 ### The rules as a specification someone can approve
 
 Every rule already carries the cases it must catch and the cases it must leave
@@ -1583,7 +1627,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 932 tests, `ruff` clean | ✅ |
+| 978 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

@@ -939,6 +939,55 @@ un tableau aussi — `eval "$(ssh-agent -s)"`, `curl … | jq .`,
 `scp build/out.tar deploy@prod:` — parce que refuser celles-là rendrait la
 passerelle inutilisable plutôt que sûre.
 
+### Une ligne n'est pas une commande
+
+`shell.destructive_rm` est ancrée aux deux bouts. `^` pour que rien ne glisse
+une suppression devant elle, `$` pour que `rm -rf /home/moi/projet` ne soit pas
+lu comme `rm -rf /`. Les deux ancres ont raison à propos d'**une commande**, et
+une ligne n'est pas une commande :
+
+```bash
+echo ok && rm -rf /        # autorisé : le motif a lu une ligne qui commence par `echo`
+rm -rf / && echo fini      # autorisé : l'ancre `$` n'a jamais atteint la fin
+rm -rf '/'                 # autorisé : deux apostrophes, et le BLOCKER a cessé de déclencher
+```
+
+Un interpréteur de commandes démarre une nouvelle commande à chaque `;`, `&&`,
+`||`, `|`, `&` et retour à la ligne, et le motif n'a jamais vu que la première.
+Il ne voyait pas davantage au-delà d'un commentaire, d'un sous-interpréteur,
+d'un mot lanceur (`nohup`, `env`, `timeout 5`), d'un répertoire sur le mot de
+commande (`/bin/rm`), d'une barre oblique inversée qui ne sert qu'à contourner
+un alias (`\rm`), ni d'un interpréteur recevant la commande sous forme de
+chaîne (`sh -c '…'`, `bash -lc '…'`).
+
+Le moteur lit désormais la ligne comme le fait un interpréteur : il la découpe
+en les commandes qui seront réellement exécutées et filtre chacune d'elles,
+après avoir retiré les orthographes qui ne changent rien à ce qui s'exécute.
+Les ancres restent — elles n'ont jamais été le défaut. Le découpage donne à `$`
+la commande unique qu'elle était censée mesurer depuis le début.
+
+Deux propriétés rendent cela sûr dans les deux sens :
+
+- **La chaîne telle qu'elle a été tapée est toujours la première lecture.**
+  Chaque transformation *ajoute* une lecture au lieu d'en remplacer une, donc
+  aucune détection qui fonctionnait avant ne peut être affaiblie.
+  `shell.pipe_to_shell` est écrite pour correspondre à travers un tube, et voit
+  toujours la ligne entière.
+- **Le découpage respecte les guillemets, parce que celui d'un interpréteur le
+  fait.** Le point-virgule de `git commit -m "corrige ; rm -rf / était le bug"`
+  n'est pas un séparateur, et le moteur ne le traite donc pas comme tel.
+  Refuser un message de validation honnête parce qu'il nomme la commande qu'il
+  corrige serait une règle pire que le trou qu'elle a bouché, et les quasi-cas
+  forment une table de tests précisément pour cette raison.
+
+Il n'y a délibérément **aucun plafond sur le nombre de segments**. Une fenêtre
+« les *N* premières commandes » est un contournement dont le décalage est
+publié — `echo a;` trente-deux fois puis la suppression — c'est-à-dire la même
+erreur qui a retiré deux règles antérieures dont les seuils se sont révélés
+*être* le moyen de les contourner. Chaque segment est filtré ; le coût est
+linéaire en la longueur de la ligne, et la borne qui compte est celle qui pèse
+déjà sur l'entrée.
+
 ### Les règles comme spécification approuvable
 
 Chaque règle porte déjà les cas qu'elle doit attraper et ceux qu'elle doit
@@ -1692,7 +1741,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 932 tests, `ruff` propre | ✅ |
+| 978 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

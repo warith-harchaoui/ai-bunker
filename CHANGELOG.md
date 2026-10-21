@@ -193,6 +193,55 @@ client kits and a dashboard.
   `git config --get core.hooksPath`, `scp build/out.tar deploy@prod:`), because
   refusing those would make the gateway unusable rather than safe.
 
+### One line is not one command
+
+- **Security fix. `shell.destructive_rm` — a BLOCKER, and the rule the README
+  leads with — was bypassed by almost every way of writing the same command.**
+  `echo ok && rm -rf /`, `rm -rf / && echo done`, `rm -rf / #cleanup`,
+  `(rm -rf /)`, `nohup rm -rf /`, `/bin/rm -rf /`, `\rm -rf /`,
+  `sh -c 'rm -rf /'`, `bash -lc 'rm -rf /'`, a second line — and, plainest of
+  all, `rm -rf '/'`. Two apostrophes around the target and the rule stopped
+  firing.
+- The cause is the same one the environment prefix had, carried to the rest of
+  the syntax. The rule is anchored at both ends and both anchors are right
+  about *one command*: `^` so nothing smuggles a delete in front of it, `$` so
+  `rm -rf /home/me/project` is not read as `rm -rf /`. A line is not one
+  command. A shell starts a new one at every `;`, `&&`, `||`, `|`, `&` and
+  newline, and the pattern only ever saw the first.
+- `shell_readings()` splits a line into the commands a shell would run and
+  reduces each to what will actually execute — subshell punctuation, an
+  environment prefix, a runner word, an interpreter taking the rest as a
+  string, an alias-defeating backslash, a directory on the command word, and
+  the quotes around an argument. The anchors were not the bug and are not
+  removed: segmenting hands `$` the single command it was always meant to be
+  measuring.
+- **The typed string is always the first reading**, so no detection that
+  worked before can be weakened. `shell.pipe_to_shell` is written to match
+  across a pipe and still sees the whole line. The eleven unanchored command
+  rules were probed and are unaffected; `shell.unbounded_diff` and
+  `shell.download_executable`, the other two anchored rules, gain the fix for
+  free.
+- **The split is quote-aware, because a shell's is.** The semicolon in
+  `git commit -m "fix; rm -rf / was the bug"` is not a separator. Nineteen
+  near misses are a test table — commit messages, `grep`, `sed`, `echo` of a
+  warning, `cd /tmp && rm -rf cache`, `gcc -c main.c`, `bash -lc 'make test'` —
+  because a rule that refuses those is one an operator turns off.
+- **Interpreter nesting is peeled by a fixpoint rather than a depth limit**, so
+  `sh -c 'sh -c "rm -rf /"'` is seen through however deep it goes. It
+  terminates because every pass either shortens the string or stops.
+- **There is no cap on the number of segments, and that was the second
+  version's bug.** Capping the split at 32 left `echo a;` thirty-two times and
+  then the delete allowed — a bypass with a published offset, which is the
+  mistake that retired two earlier rules whose thresholds turned out to *be*
+  the way around them. Every segment is screened; measured cost is linear, ~3 ms
+  per thousand segments, and the bound that matters is the one already on the
+  input. The regression test asserts 31, 32, 33, 64 and 200 segments.
+- Found by sending the forms people actually type through the real engine
+  rather than by reading the patterns — the same method that found the eleven
+  above, applied to the one rule that had been fixed twice already.
+- **27 rules, 210 assertions, 978 tests.** Fifteen scenarios added to
+  `features/gaps.feature`, where every entry failed when it was written.
+
 ### Importing a skills tree someone else wrote
 
 - **`ai-bunker skill --import DIR --pack NAME`** reads a tree of Agent Skills
