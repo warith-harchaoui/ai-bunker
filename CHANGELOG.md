@@ -666,6 +666,42 @@ client kits and a dashboard.
   light-scheme-only, which no amount of dark-mode review would have found.
 - Every number the site quotes is tested against the repository that produced
   it, so hand-written pages cannot drift from the code.
+- **`scripts/verify_deployment.py` checks the server rather than the tree.**
+  `tests/test_site.py` holds the pages to the repository's figures and
+  `publish.py --check` holds the tree to its own consistency; both pass
+  happily while the deployed site is a month old, because the upload is a
+  manual step over the SSH File Transfer Protocol (SFTP), SSH being Secure
+  Shell, and nothing closed that loop. This asks production for each of the 38
+  files `publish.py` would send and compares the bytes — the only
+  check here that can tell you the upload did not happen. Standard library
+  only, so it runs on a machine with no extras installed.
+- It takes its file list from `publish.py`'s own `shipped()` rather than
+  globbing, and **that is the bug it exists to avoid repeating**: the hand
+  check it replaced filtered by extension and was wrong in both directions —
+  it missed `js/theme.js`, `js/nav.js` and six `.woff2` fonts, which are
+  served, and counted five `_shell/` partials, a Tailwind input and three
+  favicon source sizes, which are not. It reported "39 files identical" about
+  a set sharing 31 members with reality. Three tests fail if anyone replaces
+  the list with a glob again.
+- `unreachable` is a separate verdict from `missing`, because a timeout means
+  the check did not happen and a 404 means the upload did not — calling the
+  first one "missing" blames the deployment for the network.
+- Requests refuse a cached answer, for the reason this site already paid for:
+  `max-age=604800` without revalidation is why `dashboard.png` had to be
+  renamed rather than replaced, and a verifier that accepts a cached body
+  reports success about bytes nobody serves. **Measured consequence:** that
+  makes every page an origin hit, 25s cold against 2–4s warm on this host, so
+  the first version reported eight pages unreachable on a site that was fine.
+  Four workers, a 45-second timeout and one retry, all three set from those
+  numbers rather than from taste.
+- Stated limit: it cannot find files on the server the repository does not
+  list, because HTTP cannot enumerate a directory. `img/dashboard.png` was
+  found by remembering it existed, which is not a check, so deleting a
+  superseded upload stays a manual job.
+- **Not a continuous-integration gate**, deliberately — it needs the network
+  and a deployment to exist. It runs after an upload. `CONTRIBUTING.md` says so
+  where it lists the gates, because a reader who finds a check missing from
+  that list deserves the reason.
 
 ### Security fixes found by running the real thing
 

@@ -67,6 +67,18 @@ python scripts/sync_counts.py        # rewrite every quoted figure from its sour
 
 CI runs exactly these, on Python 3.10 through 3.13.
 
+One check is deliberately **not** in that list:
+
+```bash
+python3 scripts/verify_deployment.py   # does production match the repository?
+```
+
+It compares the site on the server, byte for byte, against what
+`web/publish.py` would upload. That needs the network and a deployment to
+exist, so it cannot be a gate on a pull request — it is what you run *after*
+an upload, and it is the only check here that can tell you the upload did not
+happen. See `web/DEPLOY.md`.
+
 ## Tests
 
 **A test asserts a claim, and its name states the claim.**

@@ -44,6 +44,40 @@ It refuses to assemble a tree when a local link does not resolve, because a
 404 discovered after upload costs a round trip through someone else's SFTP —
 the SSH File Transfer Protocol, SSH being Secure Shell.
 
+## The check after uploading
+
+```bash
+python3 ../scripts/verify_deployment.py          # or --quiet for the drift only
+```
+
+Everything above this line checks the *tree*. This one checks the *server*, and
+it is the only check here that can tell you the upload did not happen: it asks
+production for each of the 38 files `publish.py` would send and compares the
+bytes. Exit zero means production is the repository.
+
+It takes its file list from `publish.py`'s own `shipped()` rather than globbing,
+and that is load-bearing. The hand check this replaced filtered by extension
+and was wrong both ways — it missed `js/theme.js`, `js/nav.js` and the six
+fonts, and counted five `_shell/` partials that are never served.
+
+Three things it deliberately does:
+
+- **Refuses a cached answer** (`Cache-Control: no-cache`). This site has
+  already been bitten by `max-age=604800` without revalidation, which is why
+  `dashboard.png` had to be renamed rather than replaced. A verifier that
+  accepts a cached body reports success about bytes nobody is serving.
+- **Separates `unreachable` from `missing`.** A timeout means the check did not
+  happen; a 404 means the upload did not. Calling the first one "missing" would
+  blame the deployment for the network.
+- **Retries once**, because refusing the cache makes every page an origin hit —
+  measured at 25s cold against 2–4s warm on this host, so the first version
+  reported eight pages unreachable on a site that was serving them fine.
+
+What it **cannot** do: find files on the server that the repository does not
+list. The HyperText Transfer Protocol (HTTP) cannot enumerate a directory, so
+a superseded image left behind by an earlier upload stays invisible — `img/dashboard.png` was found by
+remembering it, which is not a check. Deleting those stays a manual job.
+
 ## Writing a page
 
 One module per page and per language in `pages/<slug>.<lang>.py`, exposing
@@ -53,6 +87,6 @@ header, footer, theme script — is shared, so the
 header is edited once rather than eight times.
 
 The pages are **written by hand**, not generated from the Markdown. That is a
-deliberate choice and it carries a risk: the figures quoted here (1071 tests,
+deliberate choice and it carries a risk: the figures quoted here (1094 tests,
 27 rules, 218 assertions) can drift from the repository. `tests/test_site.py`
 asserts they match.
