@@ -4,6 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ai-bunker</title>
+<script>
+/* Before first paint, so a stored choice never shows as a flash of the other
+   scheme. It stamps the attribute *only* when the operator actually chose:
+   with nothing stored the CSS below already resolves the system preference,
+   and leaving the attribute off is what keeps the page following the system
+   live if it flips mid-session. Stamping unconditionally -- the obvious
+   version -- would freeze it at whatever the system said on load. */
+(function () {
+  var stored; try { stored = localStorage.getItem("ai-bunker-theme"); } catch (e) {}
+  if (stored === "dark" || stored === "light") {
+    document.documentElement.setAttribute("data-color-scheme", stored);
+  }
+})();
+</script>
 <!--
   Hand-written CSS, and that is a decision rather than an omission.
 
@@ -95,6 +109,21 @@ h1 .dim { color: var(--label-3); font-weight: 400; }
 .chip.good { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); }
 .chip.warn { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 40%, transparent); }
 .chip.bad  { color: var(--red);   border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+
+/* Sized to the chips it sits next to rather than to a body-text button: this
+   is a control on a status bar, not a call to action. The emoji is the label,
+   so the accessible name comes from aria-label and changes with the state --
+   a button reading "light" is ambiguous about whether that is the current
+   scheme or the one it switches to. */
+.theme-toggle {
+  flex: none; width: 30px; height: 30px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px; line-height: 1; cursor: pointer;
+  border-radius: 999px; border: 1px solid var(--separator);
+  background: var(--surface); color: var(--label);
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.theme-toggle:hover { background: var(--raised); border-color: var(--label-3); }
 
 .card {
   background: var(--surface); border: 1px solid var(--separator);
@@ -199,6 +228,8 @@ td.dim { color: var(--label-3); }
     <div class="chips" id="chips" aria-live="polite">
       <span class="chip"><span class="sk" style="display:inline-block;width:70px"></span></span>
     </div>
+    <button class="theme-toggle" id="theme-toggle" type="button"
+            aria-label="Switch to dark theme" aria-pressed="false">🌞</button>
   </div>
 </header>
 
@@ -671,11 +702,54 @@ $("measure").addEventListener("click", async () => {
 });
 $("reset-budget").addEventListener("click", () => { $("req").value = ""; loadBudget(); });
 
+// ---------------------------------------------------------------------------
+// Light / dark, and who decides.
+//
+// Same rule as the language, and for the same reason (D132): the reader here
+// is the operator looking at their own screen, so their browser wins. The
+// system preference is the default, an explicit click overrides it, and the
+// override is remembered -- a preference about oneself, not a credential, and
+// the only thing this page stores. The key deliberately is not: see `KEY`.
+// ---------------------------------------------------------------------------
+const THEME_STORE = "ai-bunker-theme";
+
+function currentTheme() {
+  const chosen = document.documentElement.getAttribute("data-color-scheme");
+  if (chosen === "dark" || chosen === "light") return chosen;
+  // Unstamped means nothing was ever chosen, so the system is the answer --
+  // and the CSS has already painted it; this only reports what the eye sees.
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function paintTheme() {
+  const dark = currentTheme() === "dark";
+  const button = $("theme-toggle");
+  button.textContent = dark ? "\u{1F31B}" : "\u{1F31E}";
+  // Named for where it goes, not where it is: "light" on a button is ambiguous
+  // about whether it describes the current scheme or the next one.
+  button.setAttribute("aria-label", t(dark ? "theme.to_light" : "theme.to_dark"));
+  button.setAttribute("aria-pressed", String(dark));
+}
+
+$("theme-toggle").addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-color-scheme", next);
+  try { localStorage.setItem(THEME_STORE, next); } catch (e) { /* private mode */ }
+  paintTheme();
+});
+
+// Only matters while nothing is stored: without a stamped attribute the page
+// is still following the system, so the glyph has to follow it too.
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintTheme);
+
+paintTheme();
+
 async function boot() {
   // First, because every render below asks `t()` for its words. The static
   // markup already carries the English, so a failure here degrades to that
   // rather than to an empty page.
   await loadMessages();
+  paintTheme();  // again: its label is a translated string like any other.
   const h = await loadHealth().catch(() => null);
   // Pick a model the gateway actually routes, so its tokenizer can answer and
   // the budget shown here is the server's real count rather than an estimate.

@@ -129,6 +129,9 @@ gui:
     packs: Packs / pages
     index_cost: Index, paid every request
     pages_cost: Pages, read on demand
+  theme:
+    to_dark: Switch to dark theme
+    to_light: Switch to light theme
   strip:
     floor_title: floor — {tokens} tokens
     left: "floor {tokens} — {share}% of the window"

@@ -138,6 +138,9 @@ gui:
     packs: Paquets / pages
     index_cost: Index, payé à chaque requête
     pages_cost: Pages, lues à la demande
+  theme:
+    to_dark: Passer au thème sombre
+    to_light: Passer au thème clair
   strip:
     floor_title: plancher — {tokens} tokens
     left: "plancher {tokens} — {share} % de la fenêtre"

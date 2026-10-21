@@ -86,15 +86,35 @@ def test_both_colour_schemes_are_defined():
 def test_the_api_key_is_never_persisted():
     """A dashboard is not a place to store a credential.
 
-    Matches a *call*, not a mention: the comment in the page explains why
-    localStorage is avoided, and a naive substring search flags that comment
+    This used to ban browser storage outright, which was the right shape while
+    the page stored nothing. The theme toggle has to remember a choice, so the
+    blanket ban would now have to be deleted to let it through -- and a gate
+    deleted to unblock a feature stops guarding the thing it was written for.
+    So it is narrowed instead of dropped: storage is allowed, but only under a
+    named key, and the credential may never reach it. That is the property the
+    original test was reaching for, and it is strictly harder to violate by
+    accident than the substring ban was.
+
+    Matches a *call*, not a mention: the page explains in prose why the key is
+    kept out of storage, and a naive substring search flags that explanation
     as the very thing it rules out.
     """
     import re
 
     source = GUI.read_text(encoding="utf-8")
-    for api in ("localStorage", "sessionStorage", "document.cookie"):
+
+    for api in ("sessionStorage", "document.cookie"):
         assert not re.search(rf"\b{api}\s*[.\[]", source), f"{api} is used"
+
+    calls = re.findall(r"localStorage\.(getItem|setItem|removeItem)\(([^)]*)\)", source)
+    assert calls, "the theme preference is no longer persisted"
+    for method, args in calls:
+        assert "KEY" not in args.replace("THEME_STORE", ""), (
+            f"localStorage.{method}({args}) may be reached by the API key"
+        )
+        named = re.match(r'\s*(?:"ai-bunker-theme"|THEME_STORE)\s*(?:,|$)', args)
+        assert named, f"storage under an unexpected key: localStorage.{method}({args})"
+
     assert "URLSearchParams" in source, "the key comes from the URL, per request"
 
 
@@ -115,6 +135,59 @@ def test_measurable_tiles_declare_their_polarity():
     assert source.count('class="polarity"') >= 2
     assert "↑ more conversation space is better" in source
     assert "↓ a smaller index is better" in source
+
+
+# ---------------------------------------------------------------------------
+# The theme toggle.
+#
+# Same rule as the language (D132) and for the same reason: the reader of this
+# page is the operator looking at their own screen, so their browser wins --
+# the inverse of what an agent is told, where the deployment decides.
+# ---------------------------------------------------------------------------
+
+
+def test_the_toggle_exists_and_names_where_it_goes():
+    page = GUI.read_text(encoding="utf-8")
+    assert 'id="theme-toggle"' in page
+    assert "\U0001f31e" in page and "\\u{1F31B}" in page, "both glyphs must appear"
+    # A button labelled "light" is ambiguous about whether that is the current
+    # scheme or the one it switches to; the label names the destination.
+    assert "theme.to_dark" in page and "theme.to_light" in page
+
+
+def test_the_system_preference_is_the_default():
+    """Nothing stored means nothing stamped, so the CSS media query decides --
+    and the page keeps following the system if it flips mid-session. Stamping
+    unconditionally, the obvious version, would freeze it at load."""
+    page = GUI.read_text(encoding="utf-8")
+    head = page[: page.index("</head>")]
+    assert "localStorage.getItem" in head, "the stored choice must win before first paint"
+    guard = re.search(r'if\s*\(\s*stored === "dark" \|\| stored === "light"\s*\)', head)
+    assert guard, "the attribute is stamped unconditionally, freezing the system preference"
+    assert 'matchMedia("(prefers-color-scheme: dark)").addEventListener' in page
+
+
+def test_the_toggle_is_reachable_without_a_mouse():
+    """It is a real button, not a clickable div: focusable and Enter-activated
+    for free, which is the whole reason to spend an element on it."""
+    page = GUI.read_text(encoding="utf-8")
+    button = re.search(r"<button[^>]*id=\"theme-toggle\"[^>]*>", page, re.S)
+    assert button, "the toggle is not a <button>"
+    assert 'type="button"' in button.group(0), (
+        "an untyped button in no form still submits nothing, but say so"
+    )
+    assert "aria-label=" in button.group(0), "an emoji alone is not an accessible name"
+    assert "aria-pressed=" in button.group(0), "a toggle must report its state"
+
+
+def test_the_toggle_reads_the_same_catalogue_as_the_rest():
+    """Not a second copy of two strings, which is how a page ends up half
+    translated."""
+    for locale in ("en", "fr"):
+        catalogue = _catalogue(locale)
+        assert "theme.to_dark" in catalogue
+        assert "theme.to_light" in catalogue
+    assert _catalogue("fr")["theme.to_dark"] != _catalogue("en")["theme.to_dark"]
 
 
 # ---------------------------------------------------------------------------
