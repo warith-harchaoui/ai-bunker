@@ -523,6 +523,9 @@ class Violation:
     #: hold several commands, and a purpose stated for one of them must not
     #: mark the others as explained.
     purpose: str = ""
+    #: Hosts the output tried to reach, when that is what fired. The
+    #: destination, never the payload -- see `Decision.hosts`.
+    hosts: tuple[str, ...] = ()
 
 
 @dataclass
@@ -1273,6 +1276,13 @@ class Decision:
     #: whose reasons are not recorded has asked a question and thrown away the
     #: answer.
     purpose: str = ""
+    #: Hosts the screened output tried to fetch from, for an exfiltration
+    #: beacon. The **destination**, and deliberately not the URL: a beacon's
+    #: query string is the stolen data, so logging it would do the exfiltration
+    #: into the audit file -- which is the rule stated above. The host carries
+    #: none of the payload and is the one fact an incident needs: somebody has
+    #: to be told where it was going.
+    hosts: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         record = {
@@ -1285,6 +1295,8 @@ class Decision:
         }
         if self.purpose:
             record["purpose"] = self.purpose
+        if self.hosts:
+            record["hosts"] = list(self.hosts)
         return record
 
 
@@ -1334,6 +1346,7 @@ def decisions_for(
                 count=v.count,
                 charter=charter,
                 purpose=stated,
+                hosts=v.hosts,
             )
         )
     return out

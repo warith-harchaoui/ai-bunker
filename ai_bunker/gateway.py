@@ -273,6 +273,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "commands": s.enforce_commands,
                 "provenance": s.mark_provenance,
             },
+            # Published because the two tiers are a real difference in what
+            # this deployment does, not a preference: `neutralise: false` means
+            # untrusted output still fetches itself when a client renders it,
+            # and the gateway only says so. A reader must be able to tell which
+            # of those they are getting without reading the configuration file.
+            "render": {
+                "beacons": "neutralised" if s.render_neutralise else "noted",
+                "allow_hosts": list(s.render_allow_hosts),
+            },
             "audit_log": s.audit_log or None,
         }
 
@@ -713,6 +722,8 @@ def _prepare(
         declared_context=int(upstream.served_context * s.declared_fraction),
         min_working=s.min_working_tokens,
         mark_provenance=s.mark_provenance,
+        allow_hosts=s.render_allow_hosts,
+        neutralise=s.render_neutralise,
     )
 
 

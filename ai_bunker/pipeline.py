@@ -44,6 +44,7 @@ from typing import Any
 
 import os_helper as osh
 
+from ai_bunker import beacon
 from ai_bunker.breaker import as_rule as breaker_rule
 from ai_bunker.budget import Budget, Counter, measure_request
 from ai_bunker.charter import Charter, system_blocks
@@ -58,6 +59,7 @@ from ai_bunker.rules import (
     Rule,
     Violation,
     decisions_for,
+    format_note,
     refusal_message,
     screen_command,
     screen_output,
@@ -120,6 +122,9 @@ def screen_inbound(
     *,
     mark_provenance: bool = True,
     preamble: bool = False,
+    allow_hosts: tuple[str, ...] = (),
+    neutralise: bool = False,
+    locale: str = DEFAULT_LOCALE,
 ) -> tuple[list[dict[str, Any]], list[Violation]]:
     """Screen every tool result on its way into the conversation.
 
@@ -142,6 +147,14 @@ def screen_inbound(
         default: the charter already carries it, and paying for it on every
         tool result in a long session is exactly the kind of waste this
         project exists to measure.
+    allow_hosts : tuple of str
+        Hosts whose untrusted content may fetch itself on render. Anything
+        else is reported as an exfiltration beacon -- see `ai_bunker.beacon`.
+    neutralise : bool
+        Also stop those fetches, rather than only reporting them.
+    locale : str
+        Language for the beacon note. The pattern rules carry their own
+        translations; this one is built in code, so it has to be told.
 
     Returns
     -------
@@ -157,15 +170,41 @@ def screen_inbound(
             continue
 
         screened = screen_output(message["content"], rules)
-        for violation in screened.violations:
-            if violation.rule.id in fired:
-                fired[violation.rule.id].count += violation.count
-            else:
-                fired[violation.rule.id] = Violation(rule=violation.rule, count=violation.count)
-
+        violations = list(screened.violations)
         content = screened.text
-        if screened.violations:
-            content += screened.note
+
+        # Assessed against the text as it ARRIVED, for the same reason the
+        # noting rules are: a redaction must not hide a classification. A
+        # secret rule rewriting the query string of a beacon would otherwise
+        # blind this one, and the agent would be told about the secret and
+        # never hear that the output fetches itself.
+        beacon_finding = beacon.assess(message["content"], allow_hosts)
+        if beacon_finding:
+            violations.append(
+                Violation(
+                    rule=beacon.as_rule(beacon_finding, locale),
+                    count=len(beacon_finding.references),
+                    hosts=tuple(beacon_finding.hosts),
+                )
+            )
+            if neutralise:
+                content = beacon.neutralise(content, allow_hosts)
+
+        for violation in violations:
+            if violation.rule.id in fired:
+                seen = fired[violation.rule.id]
+                seen.count += violation.count
+                # Union, in first-seen order: two tool results can beacon to
+                # different hosts, and the audit record has to name both or it
+                # names whichever message happened to come first.
+                seen.hosts += tuple(h for h in violation.hosts if h not in seen.hosts)
+            else:
+                fired[violation.rule.id] = Violation(
+                    rule=violation.rule, count=violation.count, hosts=violation.hosts
+                )
+
+        if violations:
+            content += format_note(violations)
         if mark_provenance:
             content = wrap_provenance(content, source=_tool_source(message), preamble=preamble)
         out.append({**message, "content": content})
@@ -355,6 +394,8 @@ def apply_inbound(
     pins: Any = None,
     session: str = "",
     approved_tools: dict[str, str] | None = None,
+    allow_hosts: tuple[str, ...] = (),
+    neutralise: bool = False,
 ) -> Applied:
     """Run stages 1 to 3 over an inbound request.
 
@@ -377,7 +418,14 @@ def apply_inbound(
         request, rules, locale, pins=pins, session=session, approved=approved_tools
     )
 
-    screened, inbound = screen_inbound(messages, rules, mark_provenance=mark_provenance)
+    screened, inbound = screen_inbound(
+        messages,
+        rules,
+        mark_provenance=mark_provenance,
+        allow_hosts=allow_hosts,
+        neutralise=neutralise,
+        locale=locale,
+    )
     with_charter = inject_charter(screened, charter)
 
     prepared = {**with_tools, "messages": with_charter}

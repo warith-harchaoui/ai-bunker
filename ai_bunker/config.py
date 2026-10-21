@@ -90,6 +90,20 @@ class Settings:
     mark_provenance: bool = True
     enforce_budget: bool = True
     enforce_commands: bool = True
+    #: Hosts whose untrusted content may fetch itself when a client renders it.
+    #: Matched on the host and its subdomains. This is the Content Security
+    #: Policy model and it is an operator decision, which is why the list ships
+    #: empty rather than carrying an opinion: allowing a host means trusting it
+    #: not to forward, and a badge service with a `?url=` endpoint would launder
+    #: exactly what this is meant to catch. Everything off the list is NOTED,
+    #: never refused -- a false positive here is a README badge.
+    render_allow_hosts: tuple[str, ...] = ()
+    #: Also stop the fetch, rather than only reporting it. Off by default
+    #: because it edits text a person is going to read: an image becomes a
+    #: link, an auto-fetching attribute keeps its URL under a name no renderer
+    #: fetches. Nothing is deleted and every URL stays readable, but it is
+    #: still an edit, so the operator asks for it.
+    render_neutralise: bool = False
     #: Whether to expose the charter over MCP. On by default, and worth a
     #: lever because importing `fastapi-mcp` costs ~24 seconds of startup on a
     #: cold interpreter -- measured, not guessed. A deployment whose clients
@@ -248,6 +262,11 @@ MISPLACED_KEYS = {
     "mcp": "enforcement",
     "commands": "enforcement",
     "mark_provenance": "enforcement",
+    # Same failure as `api_key` at the top level, one layer along: an operator
+    # writes `neutralise: true`, believes untrusted output can no longer fetch
+    # itself, and nothing has changed.
+    "neutralise": "render",
+    "allow_hosts": "render",
 }
 
 
@@ -393,6 +412,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
     budget = raw.get("budget") or {}
     enforcement = raw.get("enforcement") or {}
     breaker = raw.get("breaker") or {}
+    render = raw.get("render") or {}
 
     settings = Settings(
         api_key=api_key,
@@ -437,6 +457,10 @@ def load_settings(path: str | Path | None = None) -> Settings:
         audit_log=str(raw.get("audit_log") or ""),
         language=str(raw.get("language") or ""),
         tools_lock=str(enforcement.get("tools_lock") or ""),
+        render_allow_hosts=tuple(
+            str(h).strip() for h in (render.get("allow_hosts") or []) if str(h).strip()
+        ),
+        render_neutralise=_as_bool(render.get("neutralise"), False),
     )
 
     if not settings.sovereign:

