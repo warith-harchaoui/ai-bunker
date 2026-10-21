@@ -44,10 +44,6 @@ that changes language with a configuration file is a log nobody can search.
 
 **Rule identifiers, configuration keys, command names.** They are names.
 
-**The dashboard**, for now. It is operator-facing and should be localised; it
-is a single hand-written page with its strings inline, and doing it properly
-is a separate piece of work rather than a half-done one here.
-
 The trade on agent-facing text, stated rather than hidden
 ----------------------------------------------------------
 A refusal is read by a *model* before it reaches a person. Changing its
@@ -55,6 +51,21 @@ language changes what the model reads, and instruction-following is not
 uniformly strong across languages. So the default stays English and a
 deployment opts in, the same way it opts into a premium route: the gateway
 does not quietly decide that an agent should be instructed in French.
+
+The dashboard inverts that rule, on purpose
+-------------------------------------------
+The dashboard *is* translated -- its strings are the ``gui.`` keys in these
+catalogues, and ``tests/test_gui.py`` checks both directions, so a string
+nobody shows and a label nobody translated both fail. But it resolves its
+language the other way round: ``?lang=`` first, then the stored click, then
+``navigator.language``, and only then the configuration.
+
+The two rules disagree because the readers do. Agent-facing text is read by a
+model whose behaviour the operator is accountable for, so the operator
+chooses. The dashboard is read by a person who is standing there, and the
+language a person reads is not a deployment decision. That inversion must not
+leak back the other way: the toggle changes what that page says and nothing
+about the language an agent is instructed in.
 
 Author
 ------
