@@ -437,3 +437,108 @@ def test_the_lock_file_is_readable_by_a_person(tmp_path):
     assert "rug pull" in text
     assert "read_file:" in text and "run_tests:" in text
     assert text.index("read_file") < text.index("run_tests"), "sorted, so diffs stay small"
+
+
+# ---------------------------------------------------------------------------
+# A request shape, not a request content. This project screens what arrives
+# obsessively and had never asked what an awkward SHAPE costs.
+# ---------------------------------------------------------------------------
+
+
+def _many(count: int) -> dict:
+    return {
+        "model": "m",
+        "messages": [{"role": "user", "content": "hi"}],
+        "tools": [
+            {"type": "function", "function": {"name": f"t{i}", "description": "Search the web"}}
+            for i in range(count)
+        ],
+    }
+
+
+def test_a_long_tool_list_costs_bounded_work():
+    """Five thousand declared tools cost **163 seconds** of a blocked event
+    loop before the gateway's 413 came back.
+
+    `collisions` compares every pair, and `Tool.key` was a plain property, so
+    `normalise` ran once per comparison rather than once per tool --
+    1,438,800 calls for 1,200 tools. The budget did refuse the request. It
+    refused it after the work, which is a denial of service with a tidy status
+    code.
+
+    Asserted as a property rather than a duration, for the reason the shell
+    reduction test learned the hard way: a wall-clock number measures a
+    machine. Twelve times the input must not cost anything like 144 times the
+    work.
+    """
+    import time
+
+    from ai_bunker.rules import load_rules
+    from ai_bunker.tools import screen as screen_tools
+
+    rules = load_rules("charter/rules")
+
+    def cost(count: int) -> float:
+        request = _many(count)
+        best = float("inf")
+        for _ in range(3):
+            started = time.perf_counter()
+            screen_tools(request, rules, "en")
+            best = min(best, time.perf_counter() - started)
+        return best
+
+    small, large = cost(400), cost(5_000)
+    assert large < max(small * 12, 0.5), f"{small:.3f}s -> {large:.3f}s is superlinear"
+
+
+def test_the_pair_comparison_is_bounded():
+    """Even with the key cached, every pair of five thousand tools is twelve
+    million comparisons. A request declaring more tools than the bound has
+    already lost the argument this check exists to win: a planner handed four
+    hundred tools is not choosing carefully between two similar ones."""
+    from ai_bunker.tools import MAX_TOOLS_COMPARED, Tool, collisions
+
+    # Names that genuinely differ. Sequentially numbered ones do NOT: the
+    # first fixture here used `tool_number_1` against `tool_number_2`, which
+    # differ by one character in thirteen -- a ratio of 0.077 against a
+    # threshold of 0.25 -- so the check called them confusable and was right
+    # to. The test was wrong, not the rule.
+    words = ["alpha", "bravo", "delta", "gamma", "kappa", "sigma", "omega", "theta"]
+    tools = [
+        Tool(name=f"{words[i % len(words)]}_{words[(i // len(words)) % len(words)]}_{i:05d}")
+        for i in range(MAX_TOOLS_COMPARED * 3)
+    ]
+    assert collisions(tools) is not None  # it must still return at all
+
+    # The bound must not hide a collision inside the compared window.
+    tools[0] = Tool(name="search_web")
+    tools[1] = Tool(name="search_vveb")
+    assert collisions(tools), "a confusable pair inside the window was missed"
+
+
+def test_the_key_is_computed_once_per_tool():
+    """The fix, asserted where it matters rather than through a stopwatch."""
+    from ai_bunker.tools import Tool
+
+    tool = Tool(name="search_web")
+    first = tool.key
+    assert tool.key is first, "the key is recomputed on every access"
+
+
+@pytest.mark.parametrize(
+    "left,right,expected",
+    [
+        ("search_web", "search_web", True),
+        ("search_web", "search-web", True),
+        ("search_web", "search_vveb", True),
+        ("search_web", "delete_file", False),
+        ("go", "ga", False),
+    ],
+)
+def test_caching_the_key_did_not_change_what_collides(left, right, expected):
+    """The speedup is worthless if it changed the verdict. Punctuation
+    disguises, near-misses and genuinely different names all behave as before.
+    """
+    from ai_bunker.tools import Tool, collisions
+
+    assert bool(collisions([Tool(name=left), Tool(name=right)])) is expected
