@@ -495,6 +495,13 @@ purpose), and which of the three enforcement stages are actually live.
   tool-call fragments are held, assembled, judged by the same `apply_outbound`
   the atomic path uses, and then released. `/health` still reports which
   guarantees are live.
+- **The audit log grows without bound.** `audit_log` is appended to, never
+  rotated: a gateway that runs for months writes one JavaScript Object
+  Notation (JSON) object per decision
+  until the disk says otherwise. Rotation belongs to whatever already rotates
+  logs on that host, and `/v1/decisions` reads only the tail — but nothing
+  here will tell you the file is large. In-memory state *is* bounded: the
+  breaker keeps 4,096 sessions and the tool pins 512, both oldest-first.
 - **Counting blocks the event loop.** The tokenizer probe and the counts
   themselves are synchronous calls inside asynchronous handlers, so while one
   runs the gateway serves nobody. The probe is bounded at five seconds per
@@ -911,7 +918,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1352 tests, `ruff` clean | ✅ |
+| 1356 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

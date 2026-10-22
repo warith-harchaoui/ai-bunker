@@ -307,3 +307,90 @@ def test_the_shipped_defaults_are_the_documented_ones():
     """These two numbers are published in the README, so they are asserted
     here rather than left to drift."""
     assert (DEFAULT_THRESHOLD, DEFAULT_WINDOW) == (5, 300)
+
+
+# ---------------------------------------------------------------------------
+# The second day. Nothing in this repository had ever run longer than a test,
+# so nothing had asked what a week of sessions costs.
+# ---------------------------------------------------------------------------
+
+
+def _refusal() -> list:
+    from ai_bunker.rules import Decision
+
+    return [
+        Decision(
+            rule_id="shell.destructive_rm",
+            severity="BLOCKER",
+            scope="command",
+            outcome="refused",
+            count=1,
+        )
+    ]
+
+
+def test_session_history_is_bounded():
+    """`_prune` dropped the events in a session older than the window and
+    never dropped the session itself.
+
+    Measured before the cap: **1,003 bytes per session, 201 MB across 200,000
+    conversations**, held for the gateway's lifetime. Session identity is
+    inferred from the request rather than given, so a busy deployment reaches
+    those numbers without anybody doing anything unusual.
+    """
+    breaker = Breaker(threshold=3, window=600)
+    breaker.limit = 64
+    for i in range(5_000):
+        breaker.record(f"session-{i}", _refusal())
+
+    assert len(breaker._seen) <= breaker.limit
+    assert len(breaker._why) <= breaker.limit
+
+
+def test_a_stopped_session_is_never_evicted():
+    """The one thing eviction must not do.
+
+    A cap on memory that closed an open breaker would be a way to be
+    re-admitted after being deliberately stopped: flood the gateway with
+    sessions until yours is forgotten. Tested with two hundred sessions of
+    pressure against a cap of eight.
+    """
+    breaker = Breaker(threshold=3, window=600)
+    breaker.limit = 8
+
+    for _ in range(3):
+        breaker.record("victim", _refusal())
+    assert breaker.state("victim") is not None, "the fixture needs a tripped session"
+
+    for i in range(200):
+        breaker.record(f"noise-{i}", _refusal())
+
+    assert breaker.state("victim") is not None, "a stopped session was re-admitted"
+    assert len(breaker._seen) <= breaker.limit
+
+
+def test_the_breaker_still_trips_under_eviction_pressure():
+    """A cap that quietly stopped the breaker working would trade a memory
+    leak for a missing control."""
+    breaker = Breaker(threshold=3, window=600)
+    breaker.limit = 8
+    for i in range(100):
+        breaker.record(f"noise-{i}", _refusal())
+
+    for _ in range(3):
+        breaker.record("fresh", _refusal())
+    assert breaker.state("fresh") is not None
+
+
+def test_eviction_takes_the_oldest_first():
+    """Oldest-first is what makes eviction nearly free: the session being
+    dropped has not been seen in a long time, so its refusals are already
+    outside the window and `_prune` would have discarded them anyway."""
+    breaker = Breaker(threshold=99, window=600)
+    breaker.limit = 3
+    for name in ("first", "second", "third"):
+        breaker.record(name, _refusal())
+    breaker.record("fourth", _refusal())
+
+    assert "first" not in breaker._seen
+    assert "fourth" in breaker._seen

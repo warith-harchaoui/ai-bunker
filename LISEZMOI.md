@@ -529,6 +529,14 @@ réellement actives.
   intacts ; seuls les fragments d'appel sont retenus, assemblés, jugés par le
   même `apply_outbound` que la voie atomique, puis relâchés. `/health` dit
   toujours quelles garanties sont actives.
+- **Le journal d'audit grossit sans borne.** `audit_log` est ajouté, jamais
+  rotaté : une passerelle qui tourne des mois écrit un objet JavaScript Object
+  Notation (JSON) par décision
+  jusqu'à ce que le disque dise non. La rotation revient à ce qui rotate déjà
+  les journaux sur cette machine, et `/v1/decisions` ne lit que la queue — mais
+  rien ici ne vous dira que le fichier est gros. L'état en mémoire, lui, **est**
+  borné : le disjoncteur garde 4 096 sessions et les épingles d'outils 512, les
+  plus anciennes évincées d'abord.
 - **Le comptage bloque la boucle d'événements.** La sonde du tokenizer et les
   comptages eux-mêmes sont des appels synchrones dans des gestionnaires
   asynchrones : pendant qu'un tourne, la passerelle ne sert personne. La sonde
@@ -977,7 +985,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1352 tests, `ruff` propre | ✅ |
+| 1356 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

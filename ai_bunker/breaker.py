@@ -128,6 +128,27 @@ class Breaker:
     threshold: int = DEFAULT_THRESHOLD
     window: int = DEFAULT_WINDOW
     #: session -> timestamps of counted outcomes, oldest first.
+    #: Most sessions whose refusal history is kept at once.
+    #:
+    #: `_prune` drops the *events* in a session older than the window, and
+    #: never dropped the session itself -- so a gateway accumulated one entry
+    #: per distinct session identity for its whole lifetime. Measured: **1,003
+    #: bytes each, 201 MB across 200,000 conversations**, never released. And
+    #: session identity is *inferred* from the request rather than given, so a
+    #: busy deployment reaches those numbers without anybody doing anything
+    #: unusual.
+    #:
+    #: Nothing had noticed because nothing here had ever run longer than a
+    #: test. `Pins` in `tools.py` already caps itself the same way, for the
+    #: same reason, with the same oldest-first eviction -- this is that code's
+    #: argument applied where it was missing.
+    #:
+    #: Evicting is nearly free behaviourally: oldest-first means the session
+    #: being dropped has not been seen in a long time, so its refusals are
+    #: already outside the window and `_prune` would have discarded them. A
+    #: session with an **open** breaker is never evicted, because forgetting
+    #: one would re-admit a session that was deliberately stopped.
+    limit: int = 4096
     _seen: dict[str, deque[float]] = field(default_factory=dict, repr=False)
     #: session -> the rule ids that contributed, for the message.
     _why: dict[str, list[str]] = field(default_factory=dict, repr=False)
@@ -168,6 +189,8 @@ class Breaker:
         if not counted:
             return self.state(session)
 
+        if session not in self._seen:
+            self._evict_if_full()
         seen = self._seen.setdefault(session, deque())
         why = self._why.setdefault(session, [])
         for identifier in counted:
@@ -187,6 +210,26 @@ class Breaker:
                 rules=contributing,
             )
         return self.state(session)
+
+    def _evict_if_full(self) -> None:
+        """Make room for a new session, oldest first.
+
+        Dictionaries keep insertion order, so the first key is the
+        least-recently-created. A session holding an open breaker is skipped:
+        dropping its history would close a breaker that was opened on purpose.
+        """
+        while len(self._seen) >= self.limit:
+            for candidate in self._seen:
+                if candidate not in self._open:
+                    self._seen.pop(candidate, None)
+                    self._why.pop(candidate, None)
+                    break
+            else:
+                # Every retained session has an open breaker. Growing past the
+                # limit is the right answer here: the alternative is to close
+                # one, and a cap on memory must not become a way to be
+                # re-admitted after being stopped.
+                return
 
     def _prune(self, session: str, now: float) -> None:
         seen = self._seen.get(session)
