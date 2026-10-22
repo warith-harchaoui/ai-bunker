@@ -133,7 +133,12 @@ class State:
         key = (upstream_name, model)
         if key not in self.counters:
             up = self.settings.upstreams[upstream_name]
-            counter = Counter(base_url=up.base_url, model=model, allow_ratio=True)
+            counter = Counter(
+                base_url=up.base_url,
+                model=model,
+                tokenizer=getattr(up, "tokenizer", "") or "",
+                allow_ratio=True,
+            )
             if counter.backend == "ratio":
                 osh.warning(
                     f"[gateway] {up.name} does not tokenize {model!r}; the budget for it "

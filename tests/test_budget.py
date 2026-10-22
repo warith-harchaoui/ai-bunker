@@ -16,6 +16,7 @@ Warith Harchaoui
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -54,6 +55,41 @@ def _tokens(n: int) -> str:
     return "d" * int(n * CHARS_PER_TOKEN)
 
 
+def _tool_schemas(count: int, total_tokens: int) -> list[dict]:
+    """``count`` tool schemas whose serialised form costs ``total_tokens``.
+
+    Solved in CHARACTERS, which is what the budget actually measures: it
+    serialises the whole list once (`json.dumps(tools)`) and counts that blob,
+    so the envelope is per-list rather than per-tool and the relationship is
+    linear in description length.
+
+    Solving it is the point. This was once a hard-coded description size with
+    "the envelope costs ~27 tokens per tool" in a comment -- true at 4.0
+    characters per token, silently false at 2.5, because the envelope's
+    character count is fixed while its token cost is not. A fixture that
+    depends on a constant it does not name breaks when the constant is
+    corrected, and then looks like the correction was wrong.
+    """
+
+    def build(description: str) -> list[dict]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": f"tool{i}",
+                    "description": description,
+                    "parameters": {"type": "object"},
+                },
+            }
+            for i in range(count)
+        ]
+
+    envelope = len(json.dumps(build(""), ensure_ascii=False))
+    wanted = int(total_tokens * CHARS_PER_TOKEN)
+    each = max(0, (wanted - envelope) // count)
+    return build("d" * each)
+
+
 def _incident_request(skill_tokens: int = 17_754) -> dict:
     """The 2026-09-28 request, rebuilt from its published breakdown.
 
@@ -78,21 +114,9 @@ def _incident_request(skill_tokens: int = 17_754) -> dict:
     return (
         {
             "messages": [{"role": "system", "content": _tokens(2345) + skills + charter + index}],
-            # One schema per tool, as a harness sends them. The JSON envelope
-            # (keys, braces, quoting) costs ~27 tokens per tool on top of the
-            # description, which is itself part of what a client really sends, so
-            # the descriptions are sized to leave room for it and hit ~3,164 total.
-            "tools": [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": f"tool{i}",
-                        "description": _tokens(425),
-                        "parameters": {"type": "object"},
-                    },
-                }
-                for i in range(7)
-            ],
+            # Seven schemas costing the published 3,164 tokens in total,
+            # solved rather than assumed -- see `_tool_schemas`.
+            "tools": _tool_schemas(7, 3164),
         },
         charter,
         index,
@@ -496,3 +520,125 @@ def test_an_engine_that_tokenizes_into_nothing_is_not_trusted(monkeypatch):
     c = Counter(base_url="http://engine.test/v1", model="m", allow_ratio=True)
     assert c.backend == "ratio"
     assert c.exact is False
+
+
+# ---------------------------------------------------------------------------
+# Resolving a real tokenizer, and the estimate that stands in when none is.
+#
+# The estimate was the one number in this project that was folklore: a
+# constant whose comment claimed a measurement nobody could reproduce. It was
+# not merely imprecise, it was unsafe in the direction that founded the
+# project.
+# ---------------------------------------------------------------------------
+
+
+def test_the_ratio_never_under_counts_the_densest_content():
+    """`CHARS_PER_TOKEN` must sit at or below the lowest ratio real content
+    produces, because the estimate CAN refuse a request.
+
+    `Budget.verdict` is computed whatever the backend and the gateway returns
+    413 on `unusable`, so an optimistic estimate fails to refuse a session
+    that has no room -- which is the 40,433-into-32,768 failure exactly.
+    Measured floor is 2.51 chars/token on markup; see
+    `scripts/measure_ratio.py`, which re-measures and refuses a constant above
+    it.
+    """
+    from ai_bunker.budget import CHARS_PER_TOKEN
+
+    assert CHARS_PER_TOKEN <= 2.51, (
+        "the estimate would under-count dense content, and it can refuse a "
+        "request; run scripts/measure_ratio.py --check"
+    )
+
+
+def test_the_estimate_over_counts_rather_than_under_counts():
+    """The property, asserted on text rather than on the constant.
+
+    Dense markup is the adversarial case: 2.51 chars/token measured, so an
+    estimate at 4.0 reported about 60% of the real cost.
+    """
+    from ai_bunker.budget import Counter
+
+    counter = Counter(allow_ratio=True)
+    assert counter.backend == "ratio"
+
+    dense = "<url><loc>https://example.test/a</loc><lastmod>2026-01-01</lastmod></url>" * 40
+    # The true count for this shape is len/2.51; the estimate must not be below.
+    assert counter.count(dense) >= len(dense) / 2.51
+
+
+def test_a_tokenizer_file_is_used_when_one_is_configured(tmp_path):
+    """The sovereign way to be exact: a file on this machine.
+
+    An earlier version of this resolved a Hugging Face repository id, which
+    worked and was wrong for this project -- resolving a repository is an
+    outbound call, and a gateway whose claim is that nothing leaves the local
+    network cannot phone a third party to learn how to count.
+    """
+    tokenizers = pytest.importorskip("tokenizers")
+    source = tokenizers.Tokenizer(tokenizers.models.WordLevel({"a": 0, "b": 1}, unk_token="a"))
+    source.pre_tokenizer = tokenizers.pre_tokenizers.Whitespace()
+    path = tmp_path / "tokenizer.json"
+    source.save(str(path))
+
+    counter = Counter(model="whatever-the-engine-calls-it", tokenizer=str(path))
+    assert counter.backend == "local"
+    assert counter.exact
+    assert counter.count("a b a") == 3
+
+
+def test_a_missing_tokenizer_file_warns_and_falls_back(tmp_path):
+    """Silence here would be the worst outcome: an operator who configured a
+    tokenizer believes the counts are exact, and they are estimates."""
+    counter = Counter(tokenizer=str(tmp_path / "absent.json"), allow_ratio=True)
+    assert counter.backend == "ratio"
+    assert not counter.exact
+
+
+def test_nothing_resolves_a_tokenizer_over_the_network():
+    """Held to structurally rather than by intent.
+
+    `from_pretrained` resolves a model-hub repository over the network. This
+    module must not call it: the gateway's whole claim is that nothing leaves
+    the local network, and a count that depends on a third-party service is
+    not a count this project can make.
+    """
+    source = Path("ai_bunker/budget.py").read_text(encoding="utf-8")
+    assert "from_pretrained" not in source
+    assert "huggingface" not in source.lower()
+
+
+def test_an_estimate_says_it_gates_because_it_does():
+    """It used to say the opposite.
+
+    The warning read "This figure cannot gate a deployment", and the verdict
+    is computed whatever the backend -- the gateway returns 413 on `unusable`.
+    A module whose whole subject is honesty about measurement cannot carry a
+    sentence that contradicts what the code does.
+    """
+    from ai_bunker.budget import Counter, measure_request
+
+    budget = measure_request(
+        {"messages": [{"role": "user", "content": "hello"}]},
+        counter=Counter(allow_ratio=True),
+        served_context=8192,
+    )
+    estimate_warnings = " ".join(w for w in budget.warnings if "ratio" in w.lower())
+    assert estimate_warnings, "an estimate must say it is one"
+    assert "cannot gate" not in estimate_warnings
+    assert "DOES gate" in estimate_warnings or "does gate" in estimate_warnings
+
+
+def test_measuring_does_not_send_unless_asked():
+    """The guarantee a test in `test_gateway.py` already held, pinned here too
+    because it constrains this module's design.
+
+    Ollama reports `prompt_eval_count`, which is exact and is not a tokenizer:
+    obtaining it runs the text through the model. `/v1/budget` promises to
+    measure *without* sending, so the engine probe can never be chosen
+    automatically -- a planning endpoint that quietly consumes
+    graphics-processor time is not one anybody can plan against.
+    """
+    counter = Counter(base_url="http://127.0.0.1:1/v1", model="anything", allow_ratio=True)
+    assert counter.allow_engine_probe is False
+    assert counter.backend == "ratio"

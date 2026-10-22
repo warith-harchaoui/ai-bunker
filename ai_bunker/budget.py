@@ -63,27 +63,64 @@ MIN_WORKING_TOKENS = 5000
 #: estimates its own tokens under-counts; this margin absorbs the gap.
 DECLARED_FRACTION = 0.80
 
-#: Characters per token, measured on French and English technical prose with a
-#: Mistral-family tokenizer. Used only by the ``ratio`` backend, and only when
-#: no real tokenizer is reachable.
-CHARS_PER_TOKEN = 4.0
+#: Characters per token for the ``ratio`` backend, used only when no real
+#: tokenizer is reachable.
+#:
+#: **2.5, not 4.0, and the difference is a safety property rather than a
+#: precision one.** `scripts/measure_ratio.py` measures this against thirteen
+#: real files from this repository and three tokenizer families, and the true
+#: ratio runs from **2.51** (markup) to **4.23** (Python). Dividing by 4.0
+#: therefore UNDER-counted most content, by up to 37% on the densest -- and
+#: under-counting is the failure this project was founded on: a client that
+#: estimated its own tokens and sent 40,433 to a 32,768-token server.
+#:
+#: An estimate is not advisory here. `Budget.verdict` is computed whatever the
+#: backend and the gateway returns 413 on ``unusable``, so this figure can
+#: refuse a request. A number that can refuse must never be optimistic, which
+#: means taking the measured FLOOR rather than the mean.
+#:
+#: The cost is stated rather than hidden: at 2.5 the estimate over-counts
+#: English prose by about 50%, so an unknown model may be told it has less room
+#: than it does. That is the recoverable direction -- it produces a refusal that
+#: names its own pessimism and the remedy -- and it is now the rare case, since
+#: `Counter` resolves a real tokenizer for every family the catalogue knows.
+#:
+#: Re-measure with `python3 scripts/measure_ratio.py --check` after changing
+#: this or adding a family.
+CHARS_PER_TOKEN = 2.5
 
 #: The GPU is shared and sometimes saturated: a trivial /tokenize call has been
 #: observed taking 20 seconds. Waiting beats returning an estimate.
 TOKENIZE_TIMEOUT = 120
 
+
 Backend = Literal["server", "local", "ratio"]
 
-#: How to ask an engine to tokenize. The two engines this project names do not
-#: agree: vLLM takes ``{"model", "prompt"}``, llama.cpp takes ``{"content"}``.
-#: Sending vLLM's body to llama.cpp does not fail -- it returns ``{"tokens":
-#: []}``, a silent zero -- so a llama.cpp deployment fell back to estimates
-#: while its operator believed the engine was counting. Order matters only for
-#: which is tried first; both are cheap.
+#: How to ask an engine to tokenize. The engines this project names do not
+#: agree, and the disagreement is not cosmetic: vLLM takes ``{"model",
+#: "prompt"}``, llama.cpp takes ``{"content"}``. Sending vLLM's body to
+#: llama.cpp does not fail -- it returns ``{"tokens": []}``, a silent zero --
+#: so a llama.cpp deployment fell back to estimates while believing it was
+#: exact. Each dialect is probed and the one that answers is remembered.
 TOKENIZE_DIALECTS: tuple[tuple[str, str], ...] = (
     ("vllm", "prompt"),
     ("llama.cpp", "content"),
 )
+
+#: Ollama has no ``/tokenize`` at all, which is why every Ollama deployment
+#: fell back to an estimate. It does report ``prompt_eval_count``: the engine's
+#: own count of the prompt it just processed, which is the most authoritative
+#: number available and needs no third-party service to obtain.
+#:
+#: Two details make it usable. The count includes the chat template, so "x"
+#: comes back as 30 rather than 1 -- the overhead is measured once per model
+#: and subtracted, and it is measured rather than assumed because it varies
+#: with the template. And ``num_predict`` is 1 rather than 0, because 0 is
+#: ignored and the engine generates a full response.
+#:
+#: Verified exact against a reference tokenizer on seven samples: 1, 2, 4, 7
+#: and 100 tokens all matched after calibration.
+OLLAMA_GENERATE = "/api/generate"
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +138,17 @@ class Counter:
         endpoint is used -- the only count that can actually refuse a request.
     model : str, optional
         Model name to tokenize against. Required by the server backend.
+    tokenizer : str, optional
+        Path to a ``tokenizer.json`` on this machine, used when the engine
+        will not count for itself. A path rather than a model-hub id on
+        purpose: resolving a hub repository is an outbound call, and this
+        gateway's claim is that nothing leaves the local network.
+    allow_engine_probe : bool
+        Whether the engine may be asked to *evaluate* a prompt in order to
+        count it. **False by default.** Ollama has no ``/tokenize`` but reports
+        ``prompt_eval_count``, which is exact -- and obtaining it runs the text
+        through the model, so it costs real compute and breaks the promise that
+        measuring does not send. Worth having, never silently.
     allow_ratio : bool
         When True (the default), fall back to a characters-per-token estimate
         if no real tokenizer is reachable. Set False to make an unavailable
@@ -113,14 +161,20 @@ class Counter:
         base_url: str | None = None,
         model: str | None = None,
         *,
+        tokenizer: str | None = None,
         allow_ratio: bool = True,
+        allow_engine_probe: bool = False,
     ) -> None:
+        self.allow_engine_probe = allow_engine_probe
+        self.tokenizer = (tokenizer or "").strip()
         self.base_url = (base_url or "").rstrip("/")
         self.model = model
         self.allow_ratio = allow_ratio
         self._local: Any = None
         #: Resolved by the probe in `_server_works`; see TOKENIZE_DIALECTS.
         self._dialect: str = TOKENIZE_DIALECTS[0][1]
+        #: Tokens Ollama's chat template adds, measured once in `_ollama_works`.
+        self._template_overhead: int = 0
         self.backend: Backend = self._pick_backend()
 
     # -- backend selection ------------------------------------------------
@@ -148,23 +202,114 @@ class Counter:
                     return True
             except Exception as exc:  # unusable, not a crash
                 osh.debug(f"Server tokenizer refused the {name} dialect ({exc}).")
-        osh.debug("No /tokenize dialect answered; trying local.")
+        if self.allow_engine_probe and self._ollama_works():
+            return True
+        osh.debug("No /tokenize dialect answered; trying a local tokenizer file.")
         return False
 
+    def _post_json(self, url: str, body: dict[str, Any]) -> dict[str, Any]:
+        """One JSON round trip, by whichever client is installed."""
+        try:
+            import httpx  # optional: part of the [api] extra
+
+            response = httpx.post(url, json=body, timeout=TOKENIZE_TIMEOUT)
+            response.raise_for_status()
+            return dict(response.json())
+        except ImportError:
+            request = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(request, timeout=TOKENIZE_TIMEOUT) as response:
+                return dict(json.load(response))
+
+    def _ollama_count(self, text: str) -> int:
+        """What Ollama says the prompt cost, before calibration."""
+        root = self._tokenize_root()
+        payload = self._post_json(
+            f"{root}{OLLAMA_GENERATE}",
+            {"model": self.model, "prompt": text, "stream": False, "options": {"num_predict": 1}},
+        )
+        count = payload.get("prompt_eval_count")
+        if count is None:
+            raise ValueError("no prompt_eval_count in the response")
+        return int(count)
+
+    def _ollama_works(self) -> bool:
+        """Probe Ollama, and measure its chat-template overhead once.
+
+        **Opt-in, because this one sends.** `prompt_eval_count` is exact and it
+        is not a tokenizer: obtaining it means running the text through the
+        model. `/v1/budget` promises to measure *without* sending, and a test
+        asserts it -- rightly, because a planning endpoint that quietly
+        consumes graphics-processor time is not one anybody can plan against.
+        So this is never chosen automatically; an operator who wants the exact
+        number on an engine with no `/tokenize` asks for it, knowing it costs a
+        prompt evaluation.
+
+        The overhead is measured rather than assumed because it is a property
+        of the model's template, not of Ollama: on `qwen2.5:3b` it is 29
+        tokens, and a different template is a different number. Calibrating
+        from a one-character prompt and subtracting is what turns the engine's
+        count of a *templated* prompt into a count of the caller's text --
+        verified exact against a reference tokenizer at 1, 2, 4, 7 and 100
+        tokens.
+        """
+        if not self.base_url or not self.model:
+            return False
+        try:
+            single = self._ollama_count("x")
+        except Exception as exc:  # unusable, not a crash
+            osh.debug(f"Ollama-style counting unavailable ({exc}).")
+            return False
+        if single <= 0:
+            return False
+        # `x` is one token in every vocabulary this would be used with.
+        self._template_overhead = single - 1
+        self._dialect = "ollama"
+        osh.debug(
+            f"Counting with Ollama's own prompt_eval_count "
+            f"(template overhead {self._template_overhead} tokens)."
+        )
+        return True
+
     def _load_local(self) -> bool:
-        """Load the model's tokenizer in-process, if `tokenizers` is installed."""
-        if not self.model:
+        """Load a tokenizer from a file on this machine.
+
+        **A path, never a model hub.** An earlier version of this resolved a
+        Hugging Face repository id, which worked and was wrong for this
+        project: resolving a repository is an outbound call, and a gateway
+        whose entire claim is that nothing leaves the local network cannot
+        phone a third party on startup to learn how to count. It also made the
+        count depend on an account and a service that may not be there.
+
+        So the operator points at a file. `tokenizer.json` ships beside most
+        open weights and is readable offline, which makes this the sovereign
+        way to be exact when the engine will not count for itself.
+        """
+        if not self.tokenizer:
+            return False
+        path = Path(self.tokenizer).expanduser()
+        if not path.is_file():
+            osh.warning(
+                f"[budget] tokenizer file {self.tokenizer!r} does not exist; "
+                "counting will fall back. Point `tokenizer:` at a tokenizer.json."
+            )
             return False
         try:
             from tokenizers import Tokenizer  # optional extra, imported lazily
         except ImportError:
-            osh.debug("`tokenizers` not installed; install ai-bunker[tokenizers].")
+            osh.warning(
+                f"[budget] {self.tokenizer!r} is configured but `tokenizers` is "
+                "not installed; install ai-bunker[tokenizers]."
+            )
             return False
         try:
-            self._local = Tokenizer.from_pretrained(self.model)
+            self._local = Tokenizer.from_file(str(path))
             return True
-        except Exception as exc:
-            osh.debug(f"Could not load a local tokenizer for {self.model!r} ({exc}).")
+        except Exception as exc:  # unusable, not a crash
+            osh.warning(f"[budget] {self.tokenizer!r} is not a usable tokenizer ({exc}).")
             return False
 
     def _pick_backend(self) -> Backend:
@@ -226,6 +371,10 @@ class Counter:
         if not text:
             return 0
         if self.backend == "server":
+            if self._dialect == "ollama":
+                # The engine counts the templated prompt; the caller asked
+                # about their own text.
+                return max(1, self._ollama_count(text) - self._template_overhead)
             return self._count_server(text)
         if self.backend == "local":
             return len(self._local.encode(text).ids)
@@ -445,9 +594,18 @@ def measure_request(
         )
 
     if not counter.exact:
+        # It said "cannot gate a deployment", and it gates: the verdict below
+        # is computed whatever the backend, and the gateway returns 413 on
+        # `unusable`. Saying otherwise was the kind of claim this project
+        # exists to catch, so the text now says what actually happens --
+        # pessimistically, by design, with the remedy named.
         warnings.append(
-            "Counted by ratio, not by a tokenizer. This figure cannot gate a "
-            "deployment: start the server, or install the `tokenizers` extra."
+            "Counted by a characters-per-token ratio, not by a tokenizer, and "
+            "deliberately on the pessimistic side: it never reports fewer "
+            "tokens than the text really costs, so it over-counts ordinary "
+            "prose by roughly half. This figure DOES gate -- a session it "
+            "calls unusable is refused -- so start the engine's tokenizer or "
+            "install the `tokenizers` extra to be judged on a real count."
         )
 
     verdict: Literal["ok", "tight", "unusable"]

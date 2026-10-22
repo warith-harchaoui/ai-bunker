@@ -47,6 +47,12 @@ class Upstream:
     #: against, so the operator's main instrument reports an estimate on a
     #: deployment perfectly capable of being exact.
     model: str = ""
+    #: Path to a ``tokenizer.json`` on this machine, for engines that will not
+    #: count for themselves. A path rather than a model-hub id: resolving a hub
+    #: repository is an outbound call, and this gateway's claim is that nothing
+    #: leaves the local network. `tokenizer.json` ships beside most open
+    #: weights, so this is usually a file the operator already has.
+    tokenizer: str = ""
     #: True when the request leaves the local network. Recorded so every
     #: routed request can be logged as such, rather than discovered later.
     remote: bool = False
@@ -406,6 +412,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
             api_key=key,
             served_context=int(spec.get("served_context") or 131_072),
             model=str(spec.get("model") or ""),
+            tokenizer=str(spec.get("tokenizer") or ""),
             remote=_as_bool(spec.get("remote"), False),
         )
 

@@ -154,9 +154,17 @@ def test_the_charter_reaches_the_engine(client):
 
 
 def test_the_budget_is_measured_against_the_real_engine(client):
-    """`/v1/budget` reports which counting backend produced the number. Against
-    a real engine that answer is real: Ollama has no `/tokenize`, so this must
-    say `ratio` and say so rather than claiming exactness."""
+    """`/v1/budget` reports which counting backend produced the number, and
+    against a real engine that answer is real.
+
+    This test used to assert `ratio`, because Ollama serves no `/tokenize` and
+    the in-process fallback could not resolve a name like `qwen2.5:3b` -- a
+    Hugging Face repository id may not contain a colon. That is fixed, so the
+    honest assertion is now the weaker and more useful one: whatever backend
+    answered, the report must name it, and `exact` must agree with it. A
+    gateway claiming `local` while counting by ratio is the failure worth
+    catching here.
+    """
     response = client.post(
         "/v1/budget",
         json={"model": MODEL, "messages": [{"role": "user", "content": "hello"}]},
@@ -164,11 +172,8 @@ def test_the_budget_is_measured_against_the_real_engine(client):
     assert response.status_code == 200, response.text
     body = response.json()
 
-    # Ollama serves no `/tokenize`, so the honest answer here is the estimate,
-    # labelled as one. A gateway that claimed `server` against this engine
-    # would be claiming an exactness it cannot have -- the failure the budget
-    # module exists to prevent.
-    assert body.get("backend") == "ratio", body
+    assert body.get("backend") in {"server", "local", "ratio"}, body
+    assert body.get("exact") is (body["backend"] != "ratio"), body
     assert body.get("declared_context"), body
 
 
@@ -313,3 +318,63 @@ def test_the_streamed_and_atomic_verdicts_agree_on_a_real_call(client):
     assert (streamed.refusal.id if streamed.refusal else None) == (
         atomic.refusal.id if atomic.refusal else None
     )
+
+
+def test_the_engine_counts_its_own_prompt_exactly(client):
+    """Ollama has no `/tokenize`, which is why every Ollama deployment counted
+    by estimate -- and it reports `prompt_eval_count`, which is the engine's
+    own count and the most authoritative number available.
+
+    Two details make it usable, and both were measured rather than assumed:
+    the count includes the chat template (so "x" comes back as 30, not 1), and
+    `num_predict: 0` is ignored so the engine generates a full response. The
+    overhead is calibrated from a one-character prompt and subtracted.
+
+    It is opt-in (`allow_engine_probe`) because obtaining it runs the text
+    through the model: exact, and not free. `/v1/budget` promises to measure
+    without sending, so this can never be the silent default.
+
+    This asserts what matters -- that the count is exact in the caller's text
+    rather than in Ollama's template.
+    """
+    from ai_bunker.budget import Counter
+
+    counter = Counter(base_url=ENGINE, model=MODEL, allow_ratio=True, allow_engine_probe=True)
+    if counter.backend != "server":
+        pytest.skip(f"this engine does not count for itself (backend {counter.backend})")
+
+    # A single ASCII letter is one token in every vocabulary this would run
+    # against. If the template overhead were not subtracted this would be ~30,
+    # which is the whole failure the calibration exists to avoid.
+    assert counter.count("x") == 1
+
+    # Doubling a repeated single-character run doubles the count exactly: the
+    # run tokenises into identical pieces, so this holds even though
+    # tokenisation in general does not.
+    assert counter.count("d" * 400) == 100
+    assert counter.count("d" * 800) == 200
+
+    # NOT additive in general, and asserting that it was is a mistake this
+    # test made first: BPE merges across a repetition, so ten copies of
+    # "hello world. " cost 31 tokens rather than 4 x 10 = 40. A counter that
+    # reported 40 would be wrong in the dangerous direction, and one that
+    # reported 31 only looks wrong to someone expecting arithmetic.
+    assert counter.count("hello world. " * 10) < counter.count("hello world. ") * 10
+    assert counter.exact
+
+
+def test_an_exact_count_is_not_claimed_without_one(client):
+    """The failure this module exists to prevent, from the other side: a
+    deployment that cannot count must say so rather than guess."""
+    from ai_bunker.budget import Counter
+
+    counter = Counter(
+        base_url=ENGINE,
+        model="no-such-model-at-all",
+        allow_ratio=True,
+        allow_engine_probe=True,
+    )
+    if counter.backend == "server":
+        pytest.skip("this engine answers for unknown models too")
+    assert counter.backend == "ratio"
+    assert not counter.exact

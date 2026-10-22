@@ -31,6 +31,52 @@ before the upgrade rather than after.
   hosts are listed. Nothing is refused and nothing is edited unless
   `render.neutralise` is turned on.
 
+### The token estimate was unsafe, and it was the project's own folklore
+
+- **`CHARS_PER_TOKEN` was 4.0 and under-counted by up to 37%.** Its comment
+  claimed a measurement nobody could reproduce, which is the wrong kind of
+  number for a repository whose one rule is that every claim is a measurement.
+  `scripts/measure_ratio.py` measures it against thirteen real files and three
+  tokenizer families: the true ratio runs **2.51** (markup) to **4.23**
+  (Python), so dividing by 4.0 under-counted most content.
+- **Under-counting is the founding failure.** The project exists because a
+  client estimated its own tokens and sent 40,433 to a 32,768-token server. Its
+  own fallback was making the same mistake, in the same direction.
+- **And the estimate gates.** `Budget.verdict` is computed whatever the
+  backend and the gateway returns 413 on `unusable`, while the warning text
+  said "This figure cannot gate a deployment". A module whose subject is
+  honesty about measurement cannot carry a sentence that contradicts its own
+  code. Both are fixed: the constant is **2.5**, the measured floor, so the
+  estimate is never optimistic; and the warning says what happens.
+- The cost is published rather than hidden: at 2.5 the estimate over-counts
+  ordinary prose by about 69%. That is the recoverable direction — it produces
+  a refusal naming its own pessimism — and `measure_ratio.py --check` fails if
+  anyone raises the constant above the measured floor.
+- **No model hub, by design.** An intermediate version resolved a Hugging Face
+  repository id, which worked and was wrong here: resolving a repository is an
+  outbound call, and a gateway whose whole claim is that nothing leaves the
+  local network cannot phone a third party on startup to learn how to count.
+  A test asserts `from_pretrained` appears nowhere in `budget.py`.
+- **What replaced it, sovereign both ways.** `tokenizer:` on an upstream points
+  at a `tokenizer.json` **on this machine** — a file that ships beside most
+  open weights. And for Ollama, which has no `/tokenize` at all, the engine
+  will count its own prompt: `prompt_eval_count`, calibrated by subtracting the
+  chat-template overhead measured from a one-character prompt. Verified exact
+  against a reference at 1, 2, 4, 7 and 100 tokens.
+- **That one is opt-in, and a test is why.** `prompt_eval_count` is exact and
+  is not a tokenizer: obtaining it runs the text through the model.
+  `/v1/budget` promises to measure *without* sending, and an existing test
+  asserts it — rightly, because a planning endpoint that quietly consumes
+  graphics-processor time is not one anybody can plan against. So
+  `allow_engine_probe` defaults to False. The test earned that design.
+- A fixture bug the change exposed: `test_budget.py` hard-coded a tool
+  description size with "the envelope costs ~27 tokens per tool" in a comment —
+  true at 4.0 characters per token and silently false at 2.5, because the
+  envelope's character count is fixed while its token cost is not. It now
+  solves for the size in characters. A fixture that depends on a constant it
+  does not name breaks when the constant is corrected, and then looks like the
+  correction was wrong.
+
 ### Streaming is screened, which closes the bypass
 
 - **`stream: true` used to skip command screening entirely.** That is the mode

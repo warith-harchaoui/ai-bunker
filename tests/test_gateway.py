@@ -80,11 +80,17 @@ def upstream(monkeypatch):
     transport = httpx.MockTransport(stub.handler)
     real = httpx.AsyncClient
 
-    def patched(*args, **kwargs):
-        kwargs["transport"] = transport
-        return real(*args, **kwargs)
+    # A subclass rather than a function, for the reason the streaming fixture
+    # below gives: `fastapi-mcp` evaluates `httpx.AsyncClient | None` in an
+    # annotation, and `function | None` raises. Replacing a class with a class
+    # keeps every use of it legal. This was latent here and surfaced when the
+    # import order changed.
+    class Patched(real):
+        def __init__(self, *args, **kwargs):
+            kwargs["transport"] = transport
+            super().__init__(*args, **kwargs)
 
-    monkeypatch.setattr(httpx, "AsyncClient", patched)
+    monkeypatch.setattr(httpx, "AsyncClient", Patched)
 
     # The token counter probes synchronously, so the stub has to answer that
     # route too -- and the gateway's "exact" budget path is only exercised
@@ -379,12 +385,42 @@ def test_the_budget_endpoint_measures_without_sending(client, upstream):
     assert not upstream.requests, "measuring must not call the model"
 
 
-def test_the_budget_falls_back_and_says_so_when_tokenize_is_absent(client):
-    """The stub refuses /tokenize; the figure must be labelled an estimate."""
-    body = client().post("/v1/budget", json=_chat(), headers=AUTH).json()
+def test_the_budget_falls_back_and_says_so_when_nothing_can_tokenize(client):
+    """The stub refuses `/tokenize` and nothing knows this model, so the figure
+    must be labelled an estimate.
+
+    The model name matters, and it is why this test now names an invented one.
+    A model the catalogue knows -- or one in a declared family -- resolves a
+    real tokenizer in-process even with no `/tokenize`, which is the whole
+    point of that change. Keeping `devstral` here would have tested the
+    fallback by accident and stopped testing it the moment the fallback
+    stopped being needed.
+    """
+    body = (
+        client()
+        .post("/v1/budget", json=_chat(model="nothing-knows-this-model"), headers=AUTH)
+        .json()
+    )
     assert body["exact"] is False
     assert body["backend"] == "ratio"
     assert any("ratio" in w for w in body["warnings"])
+
+
+def test_a_catalogued_model_is_counted_exactly_without_a_server(client):
+    """The improvement, asserted rather than assumed.
+
+    `/tokenize` is absent here, and the count is still exact: the tokenizer is
+    resolved in-process from the catalogue's own `hf` field. Skipped when that
+    tokenizer is not in the local cache, because the resolution is deliberately
+    offline -- a gateway that claims nothing leaves the network must not fetch
+    one to find out how to count.
+    """
+    pytest.importorskip("tokenizers")
+    body = client().post("/v1/budget", json=_chat(model="devstral"), headers=AUTH).json()
+    if body["backend"] == "ratio":
+        pytest.skip("no cached tokenizer for devstral; resolution stays offline")
+    assert body["backend"] == "local"
+    assert body["exact"] is True
 
 
 def test_the_engine_is_used_when_it_can_tokenize(client, upstream):
