@@ -45,6 +45,8 @@ def all_text() -> str:
 PROSE = [
     ROOT / "README.md",
     ROOT / "LISEZMOI.md",
+    ROOT / "docs" / "RULES.md",
+    ROOT / "docs" / "REGLES.md",
     ROOT / "EXAMPLES.md",
     ROOT / "EXEMPLES.md",
     WEB / "DEPLOY.md",

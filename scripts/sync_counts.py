@@ -38,6 +38,8 @@ SOURCES = [
     WEB / "pages" / "start.fr.py",
     ROOT / "README.md",
     ROOT / "LISEZMOI.md",
+    ROOT / "docs" / "RULES.md",
+    ROOT / "docs" / "REGLES.md",
     ROOT / "EXAMPLES.md",
     ROOT / "EXEMPLES.md",
     WEB / "DEPLOY.md",

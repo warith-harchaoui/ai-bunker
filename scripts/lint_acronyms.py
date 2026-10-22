@@ -56,6 +56,8 @@ FILES: list[tuple[str, str]] = [
     ("CONTRIBUTING.md", "en"),
     ("CHANGELOG.md", "en"),
     ("docs/SIZING.md", "en"),
+    ("docs/RULES.md", "en"),
+    ("docs/REGLES.md", "fr"),
     ("clients/README.md", "en"),
     ("web/DEPLOY.md", "en"),
     ("web/llms.txt", "en"),

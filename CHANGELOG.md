@@ -616,6 +616,35 @@ before the upgrade rather than after.
   the example inside a fence would edit documentation to stop a fetch that was
   never going to happen.
 
+### The README stops doing what this project tells models not to do
+
+- **`## The rules` was 50,000 characters of a 100,000-character `README.md`** —
+  half the file, and a reference rather than a narrative. A project whose
+  thesis is *index, do not concatenate* was asking every reader to load its
+  whole rule engine before the installation instructions. Moved to
+  `docs/RULES.md` and `docs/REGLES.md`, with a summary and a link left behind.
+  `README.md` went from 101,025 characters to 51,568; `LISEZMOI.md` from
+  112,612 to 57,246.
+- Nothing was dropped: all 62 headings on each side survive, verified by
+  comparing the sets before and after. Headings inside the moved text were
+  demoted one level so the extracted file reads as a document rather than as
+  an orphaned section.
+- The extraction had to be registered in **three** explicit lists —
+  `lint_acronyms.FILES`, `sync_counts.SOURCES` and `test_site.PROSE`. That
+  those are explicit is what made this safe: a moved file silently escaping
+  its guards is the failure, and none of the three can be missed by accident.
+- It surfaced the cost immediately, which is the point of a per-file rule: the
+  expansions of `API`, `HTTP` and `JSON` lived inside the moved section, so
+  the remaining README used all three before explaining them. Restored at
+  first use on both sides — an abbreviation is explained in **that** file, in
+  **that** language, which is exactly why the rule is per-file.
+- A measurement mistake worth recording: the first pass at sizing the sections
+  split on `^## ` without respecting code fences, and reported a 29,000-character
+  French section inside the English README. There was no such section — it was the
+  example output of `ai-bunker charter --index --lang fr` inside a fenced
+  block. The tool was wrong, not the file, and acting on it would have
+  "fixed" a problem that did not exist.
+
 ### The layer that prints the numbers, finally tested
 
 - **`report.py` went from 21% covered to 95%**, which it should not have been
