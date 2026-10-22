@@ -62,10 +62,13 @@ fonts, and counted five `_shell/` partials that are never served.
 
 Three things it deliberately does:
 
-- **Refuses a cached answer** (`Cache-Control: no-cache`). This site has
-  already been bitten by `max-age=604800` without revalidation, which is why
-  `dashboard.png` had to be renamed rather than replaced. A verifier that
-  accepts a cached body reports success about bytes nobody is serving.
+- **Never reports drift on one request.** `Cache-Control: no-cache` is only a
+  hint and this host ignores it: `deraison.ai` is behind Varnish, which drops
+  a client's cache-control by design. So a mismatch is re-fetched with a unique
+  query string, which changes the cache key and reaches the origin. If the
+  origin agrees with the repository the upload was fine and the edge is merely
+  behind — reported as `edge-stale`, which exits **zero**, because re-uploading
+  is exactly the wrong thing to do about it.
 - **Separates `unreachable` from `missing`.** A timeout means the check did not
   happen; a 404 means the upload did not. Calling the first one "missing" would
   blame the deployment for the network.
@@ -87,6 +90,6 @@ header, footer, theme script — is shared, so the
 header is edited once rather than eight times.
 
 The pages are **written by hand**, not generated from the Markdown. That is a
-deliberate choice and it carries a risk: the figures quoted here (1098 tests,
+deliberate choice and it carries a risk: the figures quoted here (1105 tests,
 27 rules, 218 assertions) can drift from the repository. `tests/test_site.py`
 asserts they match.

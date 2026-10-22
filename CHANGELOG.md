@@ -607,7 +607,17 @@ before the upgrade rather than after.
 - `unreachable` is a separate verdict from `missing`, because a timeout means
   the check did not happen and a 404 means the upload did not — calling the
   first one "missing" blames the deployment for the network.
-- Requests refuse a cached answer, for the reason this site already paid for:
+- **A mismatch is never reported on one request**, which is the correction
+  that matters: `Cache-Control: no-cache` is a hint, and this host ignores it
+  (Varnish drops a client's cache-control by design). The first version
+  reported `llms.txt` as a stale upload immediately after a correct one — right
+  at the origin, nineteen minutes old at the edge. A cache can serve content
+  that is too old but cannot invent content that is too new, so a mismatch is
+  re-fetched with a unique query string that reaches the origin. Agreement
+  there means `edge-stale`, which **exits zero**: the upload was right and
+  re-uploading is the wrong response. Telling an operator to redo work they
+  did correctly is how a checker teaches people to ignore it.
+- Requests still refuse a cached answer, for the reason this site already paid for:
   `max-age=604800` without revalidation is why `dashboard.png` had to be
   renamed rather than replaced, and a verifier that accepts a cached body
   reports success about bytes nobody serves. **Measured consequence:** that

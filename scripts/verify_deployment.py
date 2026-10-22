@@ -42,13 +42,31 @@ remembering it existed, which does not scale and is not a check. The honest
 statement of scope is: everything the repository declares is live, reachable,
 and byte-for-byte what the repository holds.
 
-Requests are sent with `Cache-Control: no-cache` and `Accept-Encoding:
-identity`, both deliberately. This site has already been bitten once by
-`max-age=604800` without revalidation -- that is why `dashboard.png` had to be
-renamed rather than replaced -- and a verifier that accepts a cached answer
-reports success about bytes nobody is serving any more. Asking for an
-unencoded body keeps the comparison on the bytes themselves rather than on
-whatever the transfer layer decided to do with them.
+Caches, and why asking nicely is not enough
+-------------------------------------------
+Requests carry `Cache-Control: no-cache` and `Accept-Encoding: identity`. The
+second keeps the comparison on the bytes themselves. The first is a **hint,
+and this site proved it is only a hint**: `deraison.ai` sits behind Varnish,
+which ignores a client's `Cache-Control` by default -- deliberately, because
+honouring it would let anyone force origin traffic at will.
+
+So the first version of this script reported `llms.txt` as a stale upload
+immediately after a correct one. The file was right at the origin and the edge
+was serving a copy 19 minutes old. Telling an operator to re-upload a file
+they had just uploaded correctly is the failure mode that teaches people to
+ignore a checker, which is the same reason `global.generic_secret` carries an
+allow-list for the word `example`.
+
+The fix uses the one thing a cache cannot do. **A cache can serve content that
+is too old; it cannot invent content that is too new.** So a mismatch is never
+reported on its own: it is re-fetched with a unique query string, which changes
+the cache key and reaches the origin. If the origin agrees with the repository,
+the upload was fine and the edge is merely behind -- a different fact, with a
+different name (`edge-stale`) and a different exit code.
+
+The busting fetch runs **only** on a mismatch, so an ordinary verification is
+still cache-friendly and does not litter the cache with one entry per file per
+run.
 
 Author
 ------
@@ -63,6 +81,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -98,13 +117,22 @@ class Result:
     """One file, and whether production agrees with the repository."""
 
     path: str
-    #: ``identical``, ``differs``, ``missing`` or ``unreachable``.
+    #: ``identical``, ``edge-stale``, ``differs``, ``missing`` or
+    #: ``unreachable``.
     verdict: str
     detail: str = ""
 
     @property
     def ok(self) -> bool:
-        return self.verdict == "identical"
+        """Whether the upload is correct.
+
+        ``edge-stale`` counts as correct, and that is the judgement call this
+        type exists to record. The operator uploaded the right bytes; a cache
+        in front of them is serving an older copy and will stop on its own.
+        Calling that a failed deployment would be false, and would send someone
+        to re-upload a file that is already right.
+        """
+        return self.verdict in {"identical", "edge-stale"}
 
 
 def shipped_files() -> list[str]:
@@ -121,6 +149,18 @@ def base_url() -> str:
     import publish
 
     return str(publish.BASE).rstrip("/")
+
+
+def bust(url: str) -> str:
+    """The same URL with a unique query string, to reach past a cache.
+
+    The query string is part of the cache key, so this is the one request a
+    shared cache has to pass through. The value only has to be unlikely to
+    repeat within a cache's lifetime; it is not a secret and it is never
+    compared.
+    """
+    joiner = "&" if "?" in url else "?"
+    return f"{url}{joiner}ai-bunker-verify={uuid.uuid4().hex[:12]}"
 
 
 def _fetch(url: str) -> tuple[int, bytes]:
@@ -177,6 +217,17 @@ def verify_one(path: str, base: str, fetch=_fetch) -> Result:
     if here == there:
         return Result(path, "identical")
 
+    # A mismatch is never reported on the strength of one request. A cache can
+    # serve content that is too old; it cannot invent content that is too new
+    # -- so a second fetch that reaches the origin settles which of the two
+    # this is. Only on a mismatch, so an ordinary run stays cache-friendly.
+    try:
+        origin_status, origin_body = fetch(bust(url))
+    except (urllib.error.URLError, TimeoutError, OSError):
+        origin_status, origin_body = 0, b""
+    if origin_status == 200 and hashlib.sha256(origin_body).hexdigest() == here:
+        return Result(path, "edge-stale", "correct at the origin, cache serving an older copy")
+
     # Compared by hash, and reported by hash when the lengths agree -- which
     # they usually do, and that is the point. The first real drift this script
     # caught was a quoted test count going from 1071 to 1093: four characters
@@ -197,16 +248,23 @@ def verify(paths: list[str], base: str, fetch=_fetch) -> list[Result]:
 def report(results: list[Result], base: str, *, quiet: bool = False) -> int:
     """Print the verdict and return the exit code.
 
-    Non-zero on any drift. A check that reports a failure and exits zero is not
-    a check -- the same reason `ai-bunker budget --gate` makes the verdict the
-    exit code.
+    Non-zero on anything the operator has to act on. A check that reports a
+    failure and exits zero is not a check -- the same reason
+    `ai-bunker budget --gate` makes the verdict the exit code. The corollary
+    matters just as much here: a check that reports a failure the operator has
+    already fixed is one they learn to ignore, which is why `edge-stale` exits
+    zero.
     """
     drift = [r for r in results if not r.ok]
+    stale = [r for r in results if r.verdict == "edge-stale"]
 
     if not quiet:
         for result in results:
-            if result.ok:
+            if result.verdict == "identical":
                 print(f"  identical    {result.path}")
+
+    for result in stale:
+        print(f"  EDGE-STALE   {result.path}  ({result.detail})")
 
     for result in drift:
         print(f"  {result.verdict.upper():<12} {result.path}  ({result.detail})")
@@ -216,7 +274,13 @@ def report(results: list[Result], base: str, *, quiet: bool = False) -> int:
     print(f"\n{len(results)} file(s) at {base}: {summary}")
 
     if not drift:
-        print("production matches the repository")
+        if stale:
+            print(
+                "the upload is correct; a cache in front of it is still serving older\n"
+                "copies of the file(s) above, and will stop when they expire"
+            )
+        else:
+            print("production matches the repository")
         return 0
 
     # Named rather than counted, because the three mean different things to

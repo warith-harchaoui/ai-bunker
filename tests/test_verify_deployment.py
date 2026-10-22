@@ -297,3 +297,101 @@ def test_the_request_refuses_a_cached_answer(vd):
     # Unencoded, so the comparison is on the bytes rather than on whatever the
     # transfer layer decided to do with them.
     assert '"Accept-Encoding": "identity"' in source
+
+
+# ---------------------------------------------------------------------------
+# A cache in front of the origin. Found on the real site, the hard way.
+# ---------------------------------------------------------------------------
+
+
+def test_a_stale_cache_is_not_a_failed_upload(vd):
+    """The false positive this verdict exists for, reproduced.
+
+    `deraison.ai` sits behind Varnish, which ignores a client's
+    `Cache-Control` by default -- so `no-cache` is a hint, not a guarantee.
+    The first version reported `llms.txt` as a stale upload immediately after
+    a correct one: right at the origin, 19 minutes old at the edge.
+
+    Telling an operator to re-upload a file they just uploaded correctly is
+    how a checker teaches people to ignore it.
+    """
+    local = (ROOT / "web" / "llms.txt").read_bytes()
+    seen: list[str] = []
+
+    def cached_then_origin(url):
+        seen.append(url)
+        # The edge answers the plain URL with yesterday's copy; the query
+        # string changes the cache key and reaches the origin.
+        return (200, local) if "ai-bunker-verify=" in url else (200, local.replace(b"0.2", b"0.1"))
+
+    result = vd.verify_one("llms.txt", "https://example.test", cached_then_origin)
+    assert result.verdict == "edge-stale"
+    assert result.ok, "the upload was correct; only the cache is behind"
+    assert len(seen) == 2, "the origin must be consulted before drift is reported"
+    assert "ai-bunker-verify=" in seen[1]
+
+
+def test_real_drift_survives_the_origin_check(vd):
+    """A cache can serve content that is too old; it cannot invent content
+    that is too new. So when the origin disagrees too, it is a real stale
+    upload and must still be reported."""
+    result = vd.verify_one("llms.txt", "https://example.test", lambda _url: (200, b"genuinely old"))
+    assert result.verdict == "differs"
+    assert not result.ok
+
+
+def test_the_origin_check_runs_only_on_a_mismatch(vd):
+    """Otherwise an ordinary run doubles its requests and litters the cache
+    with one entry per file per run."""
+    local = (ROOT / "web" / "llms.txt").read_bytes()
+    seen: list[str] = []
+
+    def agree(url):
+        seen.append(url)
+        return 200, local
+
+    assert vd.verify_one("llms.txt", "https://example.test", agree).verdict == "identical"
+    assert len(seen) == 1
+    assert "ai-bunker-verify=" not in seen[0]
+
+
+def test_an_unreachable_origin_does_not_promote_drift_to_stale(vd, monkeypatch):
+    """If the busting fetch fails, nothing was learned, so the mismatch stands
+    as drift. Silently calling it a cache would hide a real stale upload."""
+    monkeypatch.setattr(vd, "RETRY_PAUSE", 0)
+
+    def edge_then_nothing(url):
+        if "ai-bunker-verify=" in url:
+            raise TimeoutError("timed out")
+        return 200, b"old bytes"
+
+    assert vd.verify_one("llms.txt", "https://example.test", edge_then_nothing).verdict == "differs"
+
+
+def test_bust_keeps_the_path_and_adds_a_unique_key(vd):
+    url = "https://example.test/ai-bunker/llms.txt"
+    first, second = vd.bust(url), vd.bust(url)
+    assert first.startswith(url + "?ai-bunker-verify=")
+    assert first != second, "a repeated key would be cached like the original"
+    assert vd.bust(url + "?x=1").startswith(url + "?x=1&ai-bunker-verify=")
+
+
+def test_edge_stale_exits_zero_and_says_the_upload_was_fine(vd, capsys):
+    """The exit code is what a script acts on, and re-uploading is exactly the
+    wrong action here."""
+    results = [vd.Result("llms.txt", "edge-stale", "correct at the origin")]
+    assert vd.report(results, "https://example.test") == 0
+    out = capsys.readouterr().out
+    assert "EDGE-STALE" in out
+    assert "the upload is correct" in out
+
+
+def test_edge_stale_beside_real_drift_still_exits_non_zero(vd, capsys):
+    results = [
+        vd.Result("llms.txt", "edge-stale", "correct at the origin"),
+        vd.Result("index.html", "differs", "x"),
+    ]
+    assert vd.report(results, "https://example.test") == 1
+    out = capsys.readouterr().out
+    assert "EDGE-STALE" in out
+    assert "re-upload the tree" in out

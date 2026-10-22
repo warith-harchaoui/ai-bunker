@@ -126,7 +126,7 @@ EXTRA_HEAD = r"""
           "name": "Is ai-bunker production ready?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "No. It is 0.2.0-alpha, with 1098 tests and a green CI gate, next to projects with years of production use. The design is grounded in measurements from a GPU that served 6,565 messages under these constraints, but the code is new and the public interface can still move."
+            "text": "No. It is 0.2.0-alpha, with 1105 tests and a green CI gate, next to projects with years of production use. The design is grounded in measurements from a GPU that served 6,565 messages under these constraints, but the code is new and the public interface can still move."
           }
         }
       ]
@@ -159,7 +159,7 @@ BODY = (
         <a href="https://github.com/warith-harchaoui/ai-bunker"
           class="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-6 py-3 font-medium hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:border-neutral-700 dark:hover:border-neutral-600">Read
           the source</a>
-        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 1098 tests · 0.2.0-alpha</span>
+        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 1105 tests · 0.2.0-alpha</span>
       </div>
     </section>
 
