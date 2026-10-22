@@ -29,10 +29,18 @@ list. Each of those is stated in the code and in the README, because a
 guarantee that quietly does not hold is worse than one that was never offered.
 
 And when a limitation is closed, **the statement of it goes too**. Command
-screening did not apply to a stream; it does since 0.2.0, and the four places
-that said otherwise were corrected in the same commit. A published limitation
-that is no longer true is worse than either — it is a measurement of something
-that has changed.
+screening did not apply to a stream; it does since 0.2.0. Eight files said
+otherwise, seven were corrected, and the two site pages were missed — so the
+published site advertised a hole that no longer existed for five commits. A
+published limitation that is no longer true is worse than either: it is a
+measurement of something that has changed.
+
+That is what `scripts/lint_claims.py` is for. It holds a load-bearing claim to
+one answer across every file that states it, the way `sync_counts.py` does for
+figures. **Closing a limitation means registering it there**, which is a line
+in `CLAIMS` and the price of the claim staying true. `CHANGELOG.md` is exempt:
+it records what was true on the day it was written, and a struck-through
+sentence is a withdrawal rather than a drift.
 
 **An abbreviation is spelled out before it is used.** In place, at first use,
 in that file and in that language — not in a glossary. A glossary explains a
@@ -68,6 +76,7 @@ ai-bunker rules --check              # the rules against their own examples
 python scripts/audit_contrast.py     # the dashboard's WCAG gate
 python scripts/lint_a11y.py          # the dashboard's static a11y gate
 python scripts/lint_acronyms.py      # no abbreviation used before it is explained
+python scripts/lint_claims.py        # no claim that stopped being true
 python scripts/sync_counts.py        # rewrite every quoted figure from its source
 ```
 
