@@ -50,6 +50,20 @@ from typing import Any
 #: The sentinel that ends a Server-Sent Events stream in the OpenAI protocol.
 DONE = "[DONE]"
 
+#: Most this will assemble before giving up on a tool call, per choice.
+#:
+#: The same figure the rule engine uses for the text it is willing to examine,
+#: and reused rather than invented so there is one answer in the project to
+#: "how much untrusted text will you hold".
+#:
+#: It needs saying why this exists at all: the first version had **no bound**.
+#: `MAX_SCREEN_CHARS` caps the screening input and does not reach the
+#: assembler, so an upstream emitting `arguments` forever grew this without
+#: limit -- measured at 2,000,000 characters and 2 MB of held frames from 401
+#: chunks, per request, in memory. An unbounded buffer introduced in the path
+#: that had just been advertised as closing a bypass.
+MAX_ASSEMBLED_CHARS = 200_000
+
 
 def parse(line: str) -> dict[str, Any] | None:
     """The JSON object in one `data:` line, or ``None``.
@@ -131,6 +145,10 @@ class Assembler:
     response_id: str = ""
     created: int = 0
     finish_reason: str = ""
+    #: Set when a tool call grew past `MAX_ASSEMBLED_CHARS`. The caller must
+    #: refuse the turn: a call too large to assemble is a call too large to
+    #: judge, and releasing an unjudged one is the bypass this module closed.
+    overflowed: bool = False
 
     def feed(self, line: str) -> bool:
         """Take one raw SSE line. Returns ``True`` if it must be held back.
@@ -188,6 +206,20 @@ class Assembler:
         if function.get("name"):
             call["function"]["name"] = function["name"]
         if function.get("arguments"):
+            # The RESULTING length, not the length so far. Checking what is
+            # already stored lets the first fragment through whatever its size,
+            # so one chunk carrying ten megabytes was accepted whole and the
+            # bound only engaged from the second fragment onward. Caught by the
+            # test for this very bound, one commit after writing it.
+            if (
+                len(call["function"].get("arguments", "")) + len(function["arguments"])
+                > MAX_ASSEMBLED_CHARS
+            ):
+                # Stop accumulating and remember. Truncating silently would
+                # hand the screening a prefix of a command, which decides the
+                # wrong question confidently.
+                self.overflowed = True
+                return
             # Concatenated, never replaced: the arguments are a JSON document
             # delivered in slices, and assigning would keep only the last one.
             call["function"]["arguments"] = (

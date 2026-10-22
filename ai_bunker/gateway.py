@@ -817,6 +817,37 @@ async def _stream(
         yield "data: [DONE]\n\n"
         return
 
+    if assembler.overflowed:
+        # A call too large to assemble is a call too large to judge, and
+        # releasing an unjudged one is exactly the bypass this path closed.
+        # Refused rather than truncated: screening a prefix of a command
+        # decides the wrong question confidently.
+        osh.warning(
+            "[gateway] a streamed tool call exceeded "
+            f"{streaming.MAX_ASSEMBLED_CHARS:,} characters and was refused "
+            "without being assembled."
+        )
+        yield _sse(
+            {
+                "id": assembler.response_id or "chatcmpl-stream",
+                "object": "chat.completion.chunk",
+                "created": assembler.created or 0,
+                "model": assembler.model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                "ai_bunker": {
+                    "refused_by": "stream.oversized_tool_call",
+                    "reason": (
+                        "A tool call arrived larger than "
+                        f"{streaming.MAX_ASSEMBLED_CHARS:,} characters. It was not "
+                        "assembled and not forwarded: a call too large to screen "
+                        "cannot be allowed to run. Ask for a narrower command."
+                    ),
+                },
+            }
+        )
+        yield "data: [DONE]\n\n"
+        return
+
     if not s.enforce_commands:
         for held in assembler.held:
             yield held + "\n\n"

@@ -419,3 +419,88 @@ def test_the_rescued_frame_does_not_close_the_message():
     )
     payload = json.loads(assembler.spoken[0][len("data: ") :])
     assert payload["choices"][0]["finish_reason"] is None
+
+
+# ---------------------------------------------------------------------------
+# The assembler had no size bound. Found by assessing my own work rather than
+# the product's, which is the one direction this session had not looked.
+# ---------------------------------------------------------------------------
+
+
+def test_an_unbounded_tool_call_is_bounded():
+    """`MAX_SCREEN_CHARS` caps the screening input and does not reach here, so
+    the first version of this module grew without limit: measured at 2,000,000
+    characters and 2 MB of held frames from 401 chunks, per request, in memory.
+    An unbounded buffer introduced in the path advertised as closing a bypass.
+    """
+    assembler = streaming.Assembler()
+    assembler.feed(opening())
+    for _ in range(400):
+        assembler.feed(
+            frame(
+                {
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "tool_calls": [{"index": 0, "function": {"arguments": "A" * 5000}}]
+                            },
+                            "finish_reason": None,
+                        }
+                    ]
+                }
+            )
+        )
+    arguments = assembler.tool_calls()[0]["function"]["arguments"]
+    assert len(arguments) <= streaming.MAX_ASSEMBLED_CHARS
+    assert assembler.overflowed
+
+
+def test_an_ordinary_tool_call_does_not_overflow(rules):
+    """The bound must not refuse real work. A shell command is a few dozen
+    characters against a cap of two hundred thousand."""
+    assembler = streaming.Assembler()
+    for line in stream_of("rm -rf /tmp/cache", pieces=5):
+        assembler.feed(line)
+    assert not assembler.overflowed
+    assert apply_outbound(assembler.as_response(), rules=rules).refusal is None
+
+
+def test_the_bound_is_the_one_the_rule_engine_already_uses():
+    """One answer in the project to "how much untrusted text will you hold".
+    Two different limits is two things to reason about and one to forget."""
+    from ai_bunker.rules import MAX_SCREEN_CHARS
+
+    assert streaming.MAX_ASSEMBLED_CHARS == MAX_SCREEN_CHARS
+
+
+def test_an_oversized_streamed_call_is_refused_not_truncated(client_factory=None):
+    """Refusing beats truncating, and the distinction is the whole point:
+    screening a prefix of a command decides the wrong question confidently.
+    `rm -rf /tmp/safe` truncated to `rm -rf /` is a refusal of something
+    nobody asked for; the reverse is worse."""
+    assembler = streaming.Assembler()
+    assembler.feed(opening())
+    assembler.feed(
+        frame(
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "function": {
+                                        "arguments": "A" * (streaming.MAX_ASSEMBLED_CHARS + 10)
+                                    },
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ]
+            }
+        )
+    )
+    assert assembler.overflowed, "the caller needs to know it cannot judge this"

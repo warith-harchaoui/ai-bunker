@@ -77,6 +77,29 @@ before the upgrade rather than after.
   does not name breaks when the constant is corrected, and then looks like the
   correction was wrong.
 
+### The streamed assembler had no size bound
+
+- **Found by assessing my own work rather than the product's**, which is the
+  one direction this session had not looked. `MAX_SCREEN_CHARS` caps the text
+  the rule engine will examine and does not reach the assembler, so the module
+  written to close the streaming bypass grew without limit: measured at
+  **2,000,000 characters and 2 MB of held frames from 401 chunks**, per
+  request, in memory. An unbounded buffer in the path that had just been
+  advertised as safe.
+- Bounded at `MAX_SCREEN_CHARS` — the same figure, reused rather than
+  invented, so the project has one answer to "how much untrusted text will you
+  hold" instead of two to keep in agreement.
+- **Refused, not truncated.** A call too large to assemble is a call too large
+  to judge, and releasing an unjudged one is the bypass this path closed.
+  Truncating would be worse than either: screening a prefix of a command
+  decides the wrong question confidently, and `rm -rf /tmp/safe` cut short is
+  `rm -rf /`.
+- The first fix had a hole of its own, caught by the test for the bound one
+  commit after writing it: it compared the length *already stored* rather than
+  the resulting length, so the opening fragment passed whatever its size and
+  a single chunk carrying ten megabytes was accepted whole. Verified at three
+  edges now — one huge chunk, just over, just under.
+
 ### Streaming is screened, which closes the bypass
 
 - **`stream: true` used to skip command screening entirely.** That is the mode
