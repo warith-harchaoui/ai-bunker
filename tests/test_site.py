@@ -165,19 +165,19 @@ def _collected_tests() -> int:
     return sum(counts)
 
 
-def test_the_quoted_test_count_is_real(all_text):
-    """The figure most likely to rot, since it changes on every commit.
+def test_the_site_quotes_no_test_count(all_text):
+    """Inverted on purpose, rather than deleted.
 
-    `{3,}` and a word boundary, not `{3}`: the suite passed a thousand tests
-    and a fixed three-digit match read `007` out of `1007`, so this guard
-    failed on a figure that was correct. A check that reports a drift which is
-    not there spends the same trust as one that misses a drift that is.
+    The site used to quote the exact number of tests. It changes on every
+    commit that adds one, so the deployed site went stale after every commit
+    and the operator paid an upload to correct a figure no reader acts on --
+    "a green CI gate" is the claim, and it does not rot.
+
+    This asserts the number stays off the site, because the natural thing for
+    someone to do when writing a new page is to put it back.
     """
-    quoted = {int(n) for n in re.findall(r"\b(\d{3,}) tests", all_text)}
-    assert quoted, "the site no longer quotes a test count; drop this test too"
-    actual = _collected_tests()
-    for n in quoted:
-        assert n == actual, f"the site says {n} tests; the suite has {actual}"
+    quoted = re.findall(r"\b\d{3,} tests\b", all_text)
+    assert not quoted, f"the site quotes a test count again: {quoted[:3]}"
 
 
 def test_the_quoted_rule_counts_are_real(all_text):

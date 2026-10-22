@@ -42,7 +42,7 @@ refusal that names the component responsible.
 
 ## Honest limits
 
-- `0.2.0-alpha`. 1105 tests and a green CI gate, but the public interface can still move.
+- `0.2.0-alpha`. A green CI gate, but the public interface can still move.
 - Command screening does not apply to streamed completions: a tool call arrives in fragments, and refusing it would mean buffering the whole response.
 - The accessibility lint on the dashboard is static only; a browser audit catches what a rendered page reveals.
 - Provider breadth is far behind LiteLLM. ai-bunker can sit in front of it rather than compete.

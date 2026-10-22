@@ -101,22 +101,10 @@ def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
     rules, assertions = rule_figures()
     scenarios = scenario_count()
     return [
-        (re.compile(r"\b\d+ tests · "), f"{tests} tests · ", f"{tests} tests (site footer)"),
-        (
-            re.compile(r"\b\d+ tests and a green"),
-            f"{tests} tests and a green",
-            "tests (prose and FAQ)",
-        ),
-        (
-            re.compile(r"\b\d+ tests et une porte"),
-            f"{tests} tests et une porte",
-            "tests (fr)",
-        ),
-        (
-            re.compile(r"\(\d+ tests,"),
-            f"({tests} tests,",
-            "tests (deploy note)",
-        ),
+        # The site deliberately quotes NO test count: it moved on every commit
+        # that added a test, which made the deployed site stale after every
+        # commit and bought nothing a green CI gate does not already say. Only
+        # the READMEs carry the number, where correcting it costs no upload.
         (re.compile(r"\|\s*\d+ tests, `ruff`"), f"| {tests} tests, `ruff`", "tests (checklist)"),
         (re.compile(r"^(\s*rules loaded\s+)\d+$", re.M), rf"\g<1>{rules}", "rules loaded"),
         (re.compile(r"^(\s*assertions passed\s+)\d+$", re.M), rf"\g<1>{assertions}", "assertions"),

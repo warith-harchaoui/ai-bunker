@@ -90,6 +90,12 @@ header, footer, theme script — is shared, so the
 header is edited once rather than eight times.
 
 The pages are **written by hand**, not generated from the Markdown. That is a
-deliberate choice and it carries a risk: the figures quoted here (1105 tests,
-27 rules, 218 assertions) can drift from the repository. `tests/test_site.py`
+deliberate choice and it carries a risk: the figures quoted here
+(27 rules, 218 assertions) can drift from the repository. `tests/test_site.py`
 asserts they match.
+
+The **test count is deliberately not on the site**. It changes on every commit
+that adds a test, so quoting it made the deployment stale after every commit
+and bought nothing: "a green continuous-integration (CI) gate" is the claim a
+reader cares about, and it does not rot. `README.md` and `LISEZMOI.md` still
+carry the number, where correcting it costs no upload.
