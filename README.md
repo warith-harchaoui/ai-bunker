@@ -1428,11 +1428,15 @@ purpose), and which of the three enforcement stages are actually live.
 
 ### Stated limitations
 
-- **Command screening does not apply to a stream.** A tool call arrives in
-  fragments across many chunks; refusing it would mean buffering the whole
-  response, which is the one thing streaming exists to avoid. A client that
-  wants stage 4 asks for a non-streamed completion on tool-calling turns.
-  Stages 1 to 3 apply to streams unchanged, and `/health` reports which
+- ~~Command screening does not apply to a stream.~~ **Closed in 0.2.0.** It
+  used to be true, and it was the largest hole in the claim this gateway
+  makes: `stream: true` is what every agent client asks for by default, so
+  the one guarantee being sold was off exactly where it mattered. The
+  argument for leaving it — that refusing a fragmented tool call means
+  buffering the whole answer — does not follow, because **no client can act on
+  half a tool call**. Content deltas stream through untouched; only the
+  tool-call fragments are held, assembled, judged by the same `apply_outbound`
+  the atomic path uses, and then released. `/health` still reports which
   guarantees are live.
 - **The shell-tool vocabulary is a default, not a claim to completeness.** A
   gateway cannot know every client's tool names; `SHELL_TOOLS` is overridable.
@@ -1841,7 +1845,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1105 tests, `ruff` clean | ✅ |
+| 1143 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

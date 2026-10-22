@@ -1527,13 +1527,16 @@ réellement actives.
 
 ### Limites assumées
 
-- **Le filtrage des commandes ne s'applique pas au streaming.** Un appel
-  d'outil arrive en fragments sur de nombreux morceaux ; le refuser
-  impliquerait de tamponner toute la réponse, c'est-à-dire la seule chose que
-  le streaming existe pour éviter. Un client qui veut l'étape 4 demande une
-  complétion non streamée sur les tours à appel d'outil. Les étapes 1 à 3
-  s'appliquent au streaming sans changement, et `/health` dit lesquelles sont
-  actives.
+- ~~Le filtrage des commandes ne s'applique pas au streaming.~~ **Fermé en
+  0.2.0.** C'était vrai, et c'était le plus gros trou dans ce que cette
+  passerelle promet : `stream: true` est ce que tout client d'agent demande
+  par défaut, donc la seule garantie vendue était absente exactement là où
+  elle comptait. L'argument pour la laisser — refuser un appel fragmenté
+  obligerait à tamponner toute la réponse — ne tient pas, car **aucun client
+  ne peut agir sur un demi-appel d'outil**. Les deltas de contenu passent
+  intacts ; seuls les fragments d'appel sont retenus, assemblés, jugés par le
+  même `apply_outbound` que la voie atomique, puis relâchés. `/health` dit
+  toujours quelles garanties sont actives.
 - **Le vocabulaire d'outils shell est un défaut, pas une prétention à
   l'exhaustivité.** `SHELL_TOOLS` est surchargeable.
 - **Écoute sur localhost par défaut.** Un outil de souveraineté qui écoute sur
@@ -1972,7 +1975,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1105 tests, `ruff` propre | ✅ |
+| 1143 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

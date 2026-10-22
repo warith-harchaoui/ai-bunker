@@ -843,3 +843,189 @@ def test_an_ordinary_configuration_says_nothing_about_duplicates(tmp_path, caplo
     with caplog.at_level("WARNING"):
         load_settings(str(path))
     assert "declared" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# A streamed completion is screened too. It used to be the way around all of
+# this: ask for `stream: true` and the command rules never ran.
+# ---------------------------------------------------------------------------
+
+
+def _sse_stream(command: str, *, said: str = "Working on it.") -> bytes:
+    """A streamed tool call, sliced the way an engine slices one."""
+    arguments = json.dumps({"command": command})
+    half = len(arguments) // 2
+    frames = [
+        {
+            "id": "c1",
+            "model": "local-model",
+            "created": 1,
+            "choices": [
+                {"index": 0, "delta": {"role": "assistant", "content": said}, "finish_reason": None}
+            ],
+        },
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {"name": "bash", "arguments": ""},
+                            }
+                        ]
+                    },
+                    "finish_reason": None,
+                }
+            ]
+        },
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [{"index": 0, "function": {"arguments": arguments[:half]}}]
+                    },
+                    "finish_reason": None,
+                }
+            ]
+        },
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [{"index": 0, "function": {"arguments": arguments[half:]}}]
+                    },
+                    "finish_reason": None,
+                }
+            ]
+        },
+        {"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]},
+    ]
+    body = "".join(f"data: {json.dumps(f)}\n\n" for f in frames) + "data: [DONE]\n\n"
+    return body.encode()
+
+
+@pytest.fixture
+def streaming_upstream(monkeypatch):
+    """An upstream that answers `/chat/completions` with Server-Sent Events."""
+    holder = {"command": "rm -rf /"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tokenize"):
+            return httpx.Response(404)
+        return httpx.Response(
+            200,
+            content=_sse_stream(holder["command"]),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    transport = httpx.MockTransport(handler)
+    real = httpx.AsyncClient
+
+    # A subclass rather than a lambda: `fastapi-mcp` evaluates
+    # `httpx.AsyncClient | None` in an annotation, and `function | None` raises.
+    # Replacing a class with a class keeps every use of it legal.
+    class Patched(real):
+        def __init__(self, *args, **kwargs):
+            kwargs["transport"] = transport
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", Patched)
+
+    def post(url, **kwargs):
+        with httpx.Client(transport=transport) as c:
+            return c.post(url, **kwargs)
+
+    monkeypatch.setattr(httpx, "post", post)
+    return holder
+
+
+def test_a_refused_command_does_not_reach_the_client_in_a_stream(client, streaming_upstream):
+    """The bypass, closed. `stream: true` used to skip command screening
+    entirely, which is the mode every agent client uses by default."""
+    streaming_upstream["command"] = "rm -rf /"
+    response = client().post(
+        "/v1/chat/completions",
+        json={
+            "model": "local-model",
+            "stream": True,
+            "messages": [{"role": "user", "content": "clean up"}],
+        },
+        headers=AUTH,
+    )
+    assert response.status_code == 200
+    body = response.text
+
+    assert "shell.destructive_rm" in body, "the stream was not screened"
+    assert "ai_bunker" in body
+    assert body.rstrip().endswith("[DONE]")
+
+
+def test_content_still_streams_while_the_tool_call_is_judged(client, streaming_upstream):
+    """What makes screening affordable: the reader's text is never held."""
+    streaming_upstream["command"] = "rm -rf /"
+    body = (
+        client()
+        .post(
+            "/v1/chat/completions",
+            json={
+                "model": "local-model",
+                "stream": True,
+                "messages": [{"role": "user", "content": "clean up"}],
+            },
+            headers=AUTH,
+        )
+        .text
+    )
+
+    content_at = body.index("Working on it.")
+    refusal_at = body.index("shell.destructive_rm")
+    assert content_at < refusal_at, "content must leave before the verdict is known"
+
+
+def test_an_allowed_command_streams_through_untouched(client, streaming_upstream):
+    """A gateway that refused everything would also pass the test above."""
+    streaming_upstream["command"] = "ls -la"
+    body = (
+        client()
+        .post(
+            "/v1/chat/completions",
+            json={
+                "model": "local-model",
+                "stream": True,
+                "messages": [{"role": "user", "content": "look"}],
+            },
+            headers=AUTH,
+        )
+        .text
+    )
+
+    assert "ai_bunker" not in body
+    assert "ls -la" in body, "the tool call must still be delivered"
+    assert body.rstrip().endswith("[DONE]")
+
+
+def test_a_stream_is_screened_only_when_enforcement_is_on(client, streaming_upstream):
+    """`enforce_commands: false` is a deployment's decision, and it has to mean
+    the same thing on both paths."""
+    streaming_upstream["command"] = "rm -rf /"
+    body = (
+        client(enforce_commands=False)
+        .post(
+            "/v1/chat/completions",
+            json={
+                "model": "local-model",
+                "stream": True,
+                "messages": [{"role": "user", "content": "clean up"}],
+            },
+            headers=AUTH,
+        )
+        .text
+    )
+    assert "shell.destructive_rm" not in body
+    assert "rm -rf /" in body

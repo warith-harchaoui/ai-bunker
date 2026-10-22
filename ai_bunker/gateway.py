@@ -59,7 +59,7 @@ import os_helper as osh
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from ai_bunker import __version__, i18n
+from ai_bunker import __version__, i18n, streaming
 from ai_bunker.a2a import agent_card, handle_message_send
 from ai_bunker.breaker import SESSION_HEADER, Breaker, session_of
 from ai_bunker.budget import Counter
@@ -587,7 +587,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         if body.get("stream"):
             return StreamingResponse(
-                _stream(state, applied.request, upstream),
+                _stream(state, applied.request, upstream, locale=locale, session=session),
                 media_type="text/event-stream",
             )
 
@@ -743,17 +743,33 @@ async def _forward(body: dict[str, Any], upstream: Any, path: str) -> dict[str, 
         return response.json()
 
 
-async def _stream(state: State, body: dict[str, Any], upstream: Any):
-    """Relay a streaming completion.
+async def _stream(
+    state: State,
+    body: dict[str, Any],
+    upstream: Any,
+    *,
+    locale: str = "en",
+    session: str = "",
+):
+    """Relay a streaming completion, screening the tool calls inside it.
 
-    Command screening is **not** applied to a stream, and that is a deliberate
-    limitation rather than an oversight. A tool call arrives in fragments
-    across many chunks; refusing it would mean buffering the whole response,
-    which is the one thing streaming exists to avoid. The honest arrangement:
-    a client that wants command enforcement asks for a non-streamed completion
-    for tool-calling turns, and `/health` reports which guarantees are live.
+    Screening used to be skipped here, on the argument that a tool call
+    arrives in fragments and refusing one would mean buffering the whole
+    answer. The first half is true; the second does not follow, because **no
+    client can act on half a tool call**. So content deltas stream through
+    untouched and only the tool-call fragments are held, assembled, judged
+    when the message ends, and then released. The reader sees the answer
+    appear exactly as before; what they do not see is a refused command
+    reaching their client.
+
+    The assembled calls are screened by `apply_outbound`, the same function
+    the non-streamed path uses, so `stream: true` and `stream: false` cannot
+    drift into two different enforcement behaviours.
     """
+    s = state.settings
+    assembler = streaming.Assembler()
     url = upstream.base_url.rstrip("/") + "/chat/completions"
+
     try:
         async with (
             httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT) as client,
@@ -764,9 +780,15 @@ async def _stream(state: State, body: dict[str, Any], upstream: Any):
                 yield _sse({"error": {"message": detail, "code": "upstream_error"}})
                 yield "data: [DONE]\n\n"
                 return
+
             async for line in response.aiter_lines():
-                if line:
+                if not line:
+                    continue
+                if line.strip() == "data: [DONE]":
+                    break
+                if not assembler.feed(line):
                     yield line + "\n\n"
+
     except httpx.HTTPError as exc:
         yield _sse(
             {
@@ -777,6 +799,46 @@ async def _stream(state: State, body: dict[str, Any], upstream: Any):
             }
         )
         yield "data: [DONE]\n\n"
+        return
+
+    # Nothing was held, so there is nothing to judge.
+    if not assembler.has_calls:
+        yield "data: [DONE]\n\n"
+        return
+
+    if not s.enforce_commands:
+        for held in assembler.held:
+            yield held + "\n\n"
+        yield "data: [DONE]\n\n"
+        return
+
+    outbound = apply_outbound(
+        assembler.as_response(),
+        rules=state.rules,
+        charter_fingerprint=state.charter.fingerprint[:16],
+        project_root=s.project_root or None,
+        check_payments=s.check_payments,
+        trust=state.trust(),
+        locale=locale,
+        breaker=state.breaker,
+        session=session,
+    )
+    state.audit(outbound.audit())
+
+    # Released either way, so the conversation stays well-formed -- the same
+    # arrangement the non-streamed path makes, where the assistant message
+    # keeps its `tool_calls` and the refusal travels beside them.
+    for held in assembler.held:
+        yield held + "\n\n"
+
+    if outbound.refusal is not None:
+        refusals = [
+            refusal_as_tool_result(call, outbound.refusal) for call in assembler.tool_calls()
+        ]
+        for frame in streaming.refusal_frames(assembler, outbound.refusal, refusals):
+            yield frame
+
+    yield "data: [DONE]\n\n"
 
 
 def _sse(payload: dict[str, Any]) -> str:

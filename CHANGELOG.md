@@ -5,8 +5,9 @@ Standardization's year-month-day order.
 
 ## [0.2.0] — 2026-10-22
 
-Four security fixes, the runtime and the charter in both languages, and the
-first check that looks at the deployed site rather than at the tree.
+Four security fixes, streamed completions screened at last, the runtime and
+the charter in both languages, and the first check that looks at the deployed
+site rather than at the tree.
 
 ### Upgrading from 0.1.0
 
@@ -29,6 +30,36 @@ before the upgrade rather than after.
   ships empty — so a README full of badges produces a `WARNING` note until the
   hosts are listed. Nothing is refused and nothing is edited unless
   `render.neutralise` is turned on.
+
+### Streaming is screened, which closes the bypass
+
+- **`stream: true` used to skip command screening entirely.** That is the mode
+  every agent client asks for by default, so the one guarantee this gateway
+  sells — a tool call refused before it runs, at a point no client can disable
+  — was off exactly where it mattered. A `rm -rf /` requested in fragments
+  reached the client intact.
+- The argument for leaving it was that a tool call arrives in pieces and
+  refusing one would mean buffering the whole answer. The first half is true;
+  the second does not follow, for a reason about clients rather than
+  protocols: **no client can act on half a tool call.** It executes one once it
+  is complete, so holding the fragments costs nothing anybody can perceive.
+- So the split is clean. Content deltas stream through untouched, token by
+  token. Tool-call deltas are held in `ai_bunker/streaming.py`, assembled, and
+  released once judged. The reader watches the answer appear exactly as
+  before; what they no longer see is a refused command reaching their client.
+- **The assembled call is screened by `apply_outbound`, the same function the
+  atomic path uses.** That reuse is the design rather than a convenience: two
+  screening implementations would agree the day they were written and drift
+  after, which is how `stream: true` became a bypass to begin with. A test
+  asserts both paths reach the same verdict on the same command.
+- The fiddly parts are where the bugs would be, so they are tested as such:
+  arguments are **concatenated, not replaced** (assigning keeps only the last
+  slice and yields a valid-looking command nobody sent); two interleaved calls
+  stay separate by index; a name and id that arrive once survive. Commands are
+  refused when cut into 1, 3 or 40 pieces — the slicing is the attacker's
+  choice and must not be a parameter of the defence.
+- A malformed chunk, a comment or a keep-alive degrades to "not screenable,
+  not held" rather than raising. The gateway is mid-answer and cannot throw.
 
 ### The runtime speaks both languages
 
@@ -782,7 +813,7 @@ client kits and a dashboard.
 
 - Command screening does not apply to streamed completions: a tool call arrives
   in fragments, and refusing it would mean buffering the whole response.
-  `/health` reports which guarantees are live.
+  `/health` reports which guarantees are live. **(Closed in 0.2.0.)**
 - The shell-tool vocabulary (`SHELL_TOOLS`) is an overridable default, not a
   claim to completeness.
 - The accessibility lint is static. Run a browser audit for what only a rendered
