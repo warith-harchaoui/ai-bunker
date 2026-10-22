@@ -306,6 +306,57 @@ def test_counts_are_merged_across_slices():
     assert result.violations[0].count == 2
 
 
+def test_screening_a_long_input_does_not_recurse_once_per_slice(monkeypatch):
+    """Depth must be set by the code, not by the size of the tool output.
+
+    `screen_output` applied `MAX_SCREEN_CHARS` by calling itself on the
+    untreated tail, so a tool result long enough to need a thousand slices
+    needed a thousand stack frames and raised `RecursionError` instead of
+    screening -- around 200 MB with the shipped bound. Nothing in the suite
+    noticed, because every test here is comfortably inside one slice or two.
+
+    The assertion is the *property* rather than a size: twenty-odd times the
+    input must not cost a single frame more. A test phrased as "200 MB is
+    fine" would allocate 200 MB to say less, and would still pass on the day
+    somebody halves the bound and doubles the depth.
+    """
+    import sys
+
+    import ai_bunker.rules as rules_module
+
+    rule = _rule(action={"type": "redact", "replacement": "<X>"})
+    assert rule is not None
+    monkeypatch.setattr(rules_module, "MAX_SCREEN_CHARS", 500)
+
+    depths: list[int] = []
+    one_slice = rules_module._screen_one_slice
+
+    def spy(text, rules):
+        depth, frame = 0, sys._getframe()
+        while frame is not None:
+            depth += 1
+            frame = frame.f_back
+        depths.append(depth)
+        return one_slice(text, rules)
+
+    monkeypatch.setattr(rules_module, "_screen_one_slice", spy)
+
+    def run(text):
+        depths.clear()
+        rules_module.screen_output(text, [rule])
+        return len(depths), max(depths)
+
+    short_slices, short_depth = run("filler\n" * 100)
+    long_slices, long_depth = run("filler\n" * 5000)
+
+    assert short_slices > 1, "the bound has to have been applied at all"
+    assert long_slices > short_slices * 20, (short_slices, long_slices)
+    assert long_depth == short_depth, (
+        f"{long_slices} slices sat {long_depth - short_depth} frames deeper "
+        f"than {short_slices}: the bound is being applied by recursion again"
+    )
+
+
 # ---------------------------------------------------------------------------
 # A note must never leak what it redacted.
 # ---------------------------------------------------------------------------

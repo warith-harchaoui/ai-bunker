@@ -808,6 +808,59 @@ def _apply(rule: Rule, deliver: str, shadow: str) -> tuple[str, int]:
     return deliver, hits
 
 
+def _screen_one_slice(text: str, rules: list[Rule]) -> Screened:
+    """Screen at most :data:`MAX_SCREEN_CHARS` of text; see `screen_output`.
+
+    Split out so that the bound can be applied by a loop. `screen_output` used
+    to call *itself* on the untreated tail, which cost one stack frame per
+    slice -- so the recursion depth was set by the size of the tool output,
+    and somewhere past 200 MB the interpreter ran out of stack and raised
+    instead of screening. The bound was never the problem; applying it by
+    recursion was.
+
+    The loop is **not** measurably faster, and the first version of this
+    comment claimed it was. Copying the remainder at every level is quadratic
+    on paper, but it is `memcpy` against a body that normalises and runs
+    twenty-seven patterns over every slice, and interleaved runs put the two
+    within noise of each other. What the loop buys is the crash, and a cost
+    that no longer has a term nobody bounded.
+    """
+    # De-obfuscate before matching anything. Characters with no glyph are
+    # removed from what the model will see -- they cannot carry meaning to a
+    # reader, so removing them cannot change meaning -- and a shadow copy is
+    # folded so a pattern written in Latin letters matches text spelled in
+    # look-alikes. Without this, every pattern below is one invisible
+    # character away from being bypassed, including the BLOCKERs.
+    normal = normalise(text)
+    out = normal.text
+    shadow = normal.shadow
+
+    violations: list[Violation] = [
+        Violation(rule=found) for found in hidden_rules(normal, scope="output")
+    ]
+
+    for rule in rules:
+        if rule.scope != "output":
+            continue
+
+        if rule.redact:
+            out, hits = _apply(rule, out, shadow)
+            if hits:
+                violations.append(Violation(rule=rule, count=hits))
+                # The delivered text just changed length, so its shadow has to
+                # be rebuilt before the next rule matches against it.
+                shadow = normalise(out).shadow
+        else:
+            # Against the text as it arrived, see the docstring -- but the
+            # undisguised reading of it, so a redaction upstream cannot hide a
+            # classification and neither can a homoglyph.
+            _, hits = _apply(rule, normal.text, normal.shadow)
+            if hits:
+                violations.append(Violation(rule=rule, count=hits))
+
+    return Screened(text=out, violations=violations)
+
+
 def screen_output(text: str, rules: list[Rule]) -> Screened:
     """Screen text on its way into the session.
 
@@ -847,53 +900,32 @@ def screen_output(text: str, rules: list[Rule]) -> Screened:
     # MAX_SCREEN_CHARS at a time. Slicing on a newline keeps a multiline
     # pattern (a private-key block, say) from being split mid-match more often
     # than necessary.
-    if len(text) > MAX_SCREEN_CHARS:
-        cut = text.rfind("\n", 0, MAX_SCREEN_CHARS)
-        cut = cut + 1 if cut > MAX_SCREEN_CHARS // 2 else MAX_SCREEN_CHARS
-        head = screen_output(text[:cut], rules)
-        tail = screen_output(text[cut:], rules)
-        merged: dict[str, Violation] = {}
-        for v in head.violations + tail.violations:
+    #
+    # `max(1, ...)` only so that a mis-set bound cannot turn the loop into a
+    # silent one: the constant is ours rather than anything a caller chooses,
+    # and a zero would otherwise hang the one function every tool result
+    # passes through.
+    step = max(1, MAX_SCREEN_CHARS)
+    if len(text) <= step:
+        return _screen_one_slice(text, rules)
+
+    pieces: list[str] = []
+    merged: dict[str, Violation] = {}
+    start = 0
+    while start < len(text):
+        end = start + step
+        if end < len(text):
+            cut = text.rfind("\n", start, end)
+            end = cut + 1 if cut > start + step // 2 else end
+        screened = _screen_one_slice(text[start:end], rules)
+        pieces.append(screened.text)
+        for v in screened.violations:
             if v.rule.id in merged:
                 merged[v.rule.id].count += v.count
             else:
                 merged[v.rule.id] = Violation(rule=v.rule, count=v.count)
-        return Screened(text=head.text + tail.text, violations=list(merged.values()))
-
-    # De-obfuscate before matching anything. Characters with no glyph are
-    # removed from what the model will see -- they cannot carry meaning to a
-    # reader, so removing them cannot change meaning -- and a shadow copy is
-    # folded so a pattern written in Latin letters matches text spelled in
-    # look-alikes. Without this, every pattern below is one invisible
-    # character away from being bypassed, including the BLOCKERs.
-    normal = normalise(text)
-    out = normal.text
-    shadow = normal.shadow
-
-    violations: list[Violation] = [
-        Violation(rule=found) for found in hidden_rules(normal, scope="output")
-    ]
-
-    for rule in rules:
-        if rule.scope != "output":
-            continue
-
-        if rule.redact:
-            out, hits = _apply(rule, out, shadow)
-            if hits:
-                violations.append(Violation(rule=rule, count=hits))
-                # The delivered text just changed length, so its shadow has to
-                # be rebuilt before the next rule matches against it.
-                shadow = normalise(out).shadow
-        else:
-            # Against the text as it arrived, see the docstring -- but the
-            # undisguised reading of it, so a redaction upstream cannot hide a
-            # classification and neither can a homoglyph.
-            _, hits = _apply(rule, normal.text, normal.shadow)
-            if hits:
-                violations.append(Violation(rule=rule, count=hits))
-
-    return Screened(text=out, violations=violations)
+        start = end
+    return Screened(text="".join(pieces), violations=list(merged.values()))
 
 
 def stated_purpose(command: str) -> str:
