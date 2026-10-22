@@ -113,6 +113,28 @@ def charter_floor() -> int:
     return sum(counter.count(block) for block in system_blocks(load_charter(ROOT / "charter")))
 
 
+def charter_ratio() -> tuple[float, int, int]:
+    """Index tokens against every page concatenated, for the shipped charter.
+
+    The thesis, measured on the charter a reader actually has. `charter.py`
+    quotes a real 37-page measurement from a deployment that is not in this
+    repository, and a number nobody can reach is the weakest kind this project
+    allows itself -- so the command prints this instead, and the figure is
+    owned here for the same reason the floor is.
+    """
+    sys.path.insert(0, str(ROOT))
+    from ai_bunker.budget import Counter
+    from ai_bunker.charter import build_index, load_charter
+
+    charter = load_charter(ROOT / "charter")
+    counter = Counter(allow_ratio=True)
+    concatenated = sum(
+        counter.count(page.path.read_text(encoding="utf-8")) for page in charter.pages
+    )
+    index_only = counter.count(build_index(charter)) or 1
+    return concatenated / index_only, concatenated, index_only
+
+
 def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
     """(pattern, replacement, label). Every pattern keeps its own context, so
     a number that means something else is never touched: `327 tests` inside a
@@ -121,7 +143,14 @@ def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
     rules, assertions = rule_figures()
     scenarios = scenario_count()
     floor = charter_floor()
+    ratio, concatenated, index_only = charter_ratio()
     return [
+        (
+            re.compile(r"index vs all\s+[\d.]+x\s+\([\d,]+ tokens[^)]*\)"),
+            f"index vs all {ratio:>5.1f}x  ({concatenated:,} tokens if every page "
+            f"were pasted in, {index_only:,} as an index)",
+            "charter index ratio",
+        ),
         (
             re.compile(r"floor cost\s+[\d,]+ tokens"),
             f"floor cost   {floor:,} tokens",

@@ -344,6 +344,7 @@ packs        3  (default, javascript, python)
 pages        5
 floor cost   972 tokens  (operating rules + index, every request)
 not loaded   2,608 characters across the pages, read on demand
+index vs all   4.6x  (1,043 tokens if every page were pasted in, 228 as an index)
 ```
 
 The index names the packs and their pages; the model opens the one page the

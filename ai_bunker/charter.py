@@ -19,6 +19,15 @@ window, and one page opened at the right moment cost another 2%. Concatenating
 the same 37 pages would have cost roughly 18,000 -- the whole window, before
 any work.
 
+**That charter is not in this repository**, and a number a reader cannot reach
+is the weakest kind this project allows itself. So the ratio is computed live
+on whatever charter is loaded: ``ai-bunker charter`` prints an ``index vs all``
+line comparing the index against every page pasted in. The five pages shipped
+here show 4.6x, which is a demonstration rather than the claim; a charter of
+real size shows an order of magnitude, and
+``tests/test_charter.py::test_the_index_costs_a_fraction_of_the_pages``
+reproduces that with thirty-six pages and asserts it.
+
 The index is also the only part a model cannot ignore, which makes its wording
 load-bearing: it has to say *when* to open a page, not just that pages exist.
 

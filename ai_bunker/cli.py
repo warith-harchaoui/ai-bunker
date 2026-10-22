@@ -327,6 +327,26 @@ def cmd_charter(args) -> int:
     print(f"floor cost   {cost:,} tokens  (operating rules + index, every request)")
     unopened = sum(p.chars for p in charter.pages)
     print(f"not loaded   {unopened:,} characters across the pages, read on demand")
+
+    # The thesis, measured on the charter in front of the reader rather than
+    # on the one it was discovered against.
+    #
+    # `charter.py` quotes a real measurement -- 37 pages, 1,088 tokens indexed
+    # against roughly 18,000 concatenated -- from the deployment this was built
+    # for. It is honest and a reader cannot reach it: clone this repository and
+    # you get five pages. A number with provenance nobody can reproduce is the
+    # weakest kind this project allows itself, so the ratio is computed here,
+    # live, on whatever charter is loaded. Five pages show 4.6x; a real one
+    # shows an order of magnitude, which is the claim.
+    concatenated = sum(
+        counter.count(page.path.read_text(encoding="utf-8")) for page in charter.pages
+    )
+    index_only = counter.count(build_index(charter)) or 1
+    print(
+        f"index vs all {concatenated / index_only:>5.1f}x  "
+        f"({concatenated:,} tokens if every page were pasted in, "
+        f"{index_only:,} as an index)"
+    )
     for warning in charter.warnings:
         print(f"⚠  {warning}")
     return 0
