@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 ![Python](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue)
 ![Local-first](https://img.shields.io/badge/local--first-yes-brightgreen)
-![Status](https://img.shields.io/badge/status-0.1.0--alpha-orange)
+![Status](https://img.shields.io/badge/status-0.2.0--alpha-orange)
 
 `ai-bunker` belongs to the **AI Helpers** suite, where AI is artificial
 intelligence. It is the sovereign serving layer: **one GPU, one charter, every
@@ -1831,7 +1831,7 @@ A missing dependency is not an error — the HTTP surface is complete on its own
 
 ## Status
 
-This is an honest `0.1.0-alpha` and the table says exactly where it stands.
+This is an honest `0.2.0-alpha` and the table says exactly where it stands.
 Nothing above is a claim about shipped code unless this table says so.
 
 | Component | State |

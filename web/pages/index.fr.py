@@ -93,7 +93,7 @@ BODY = (
         <a href="https://github.com/warith-harchaoui/ai-bunker"
           class="inline-flex min-h-11 items-center rounded-full border border-neutral-300 px-6 py-3 font-medium hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue dark:border-neutral-700 dark:hover:border-neutral-600">Lire
           le code</a>
-        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 1098 tests · 0.1.0-alpha</span>
+        <span class="text-sm text-neutral-500 dark:text-neutral-400">BSD-3-Clause · 1098 tests · 0.2.0-alpha</span>
       </div>
     </section>
 
@@ -204,7 +204,7 @@ BODY = (
               régulières versionnées. Relisibles et gratuites à l'exécution — un arbitrage, pas
               une victoire.</li>
             <li><strong class="font-semibold">Pas mature.</strong> C'est un
-              <span class="font-mono text-sm">0.1.0-alpha</span> à côté de projets qui ont des
+              <span class="font-mono text-sm">0.2.0-alpha</span> à côté de projets qui ont des
               années de production.</li>
           </ul>
           <p class="mt-6">

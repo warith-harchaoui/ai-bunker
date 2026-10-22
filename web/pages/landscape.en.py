@@ -121,7 +121,7 @@ BODY = r"""
         <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
           <dt class="font-semibold">Maturity</dt>
           <dd class="mt-2 leading-relaxed text-neutral-700 dark:text-neutral-300">This is
-            <span class="font-mono text-sm">0.1.0-alpha</span> next to projects with years of
+            <span class="font-mono text-sm">0.2.0-alpha</span> next to projects with years of
             production use.</dd>
         </div>
       </dl>

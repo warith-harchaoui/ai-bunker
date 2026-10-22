@@ -3,39 +3,32 @@
 Semantic versioning. Dates follow ISO 8601, the International Organization for
 Standardization's year-month-day order.
 
-## [0.1.0] — 2026-10-19
+## [0.2.0] — 2026-10-22
 
-First working version. Sizing, budget accounting, charter, rules, the gateway,
-client kits and a dashboard.
+Four security fixes, the runtime and the charter in both languages, and the
+first check that looks at the deployed site rather than at the tree.
 
-### Hardware sizing
+### Upgrading from 0.1.0
 
-- A memory-roofline model over a catalogue of models and accelerators, keyed on
-  the fact that decode speed is bounded by `bandwidth / active weight bytes`.
-  Validated against published DGX Spark measurements (13.6 tok/s on Qwen3 8B,
-  4.4 on Llama 70B Q4) to within the stated 70% efficiency assumption.
-- `ai-bunker recommend --team N` solves the inverse problem, sizing on the
-  **95th percentile** of a binomial rather than on the mean — a machine sized
-  for average load is overloaded half the time.
-- `sizing`, `compare`, `catalog`, `detect`. Every assumption is a flag.
-- `docs/SIZING.md`: the buying decision for a two-person team, costed on prices
-  surveyed 2026-10-19. The market for graphics processing units (GPUs) moved
-  ~80% in eighteen months; a 2026
-  sizing done on 2025 prices is wrong by a factor of two.
+Three changes alter what an existing deployment does, rather than only adding
+to it. None of them need a configuration change; all three are worth knowing
+before the upgrade rather than after.
 
-### Budget accounting
-
-- `ai-bunker budget` itemises a session's floor **by owner** and gates on it.
-  Three counting backends in descending order of trust (`server`, `local`,
-  `ratio`), and the result always says which produced the number.
-- `--gate` makes the verdict the exit code. A check that reports a failure and
-  exits zero is not a check.
-
-### Charter
-
-- Standards served as a ~600-token index rather than pasted into every prompt.
-  A page costs nothing until it is opened.
-- A content fingerprint, usable both as a prefix-cache key and as provenance.
+- **The charter fingerprint changed, once.** It now covers the locale, because
+  the index is rendered in the deployment's language and two deployments of the
+  same files can serve prompts that differ in bytes. Every decision-log entry
+  records that digest, so entries written before and after this release name
+  the same charter differently. The English index itself is byte-identical, so
+  a prefix cache warms exactly as it did.
+- **`git push --force-with-lease` now costs a sentence.** It was exempt from
+  the `shell.force_push` BLOCKER and passed in silence; it is `GATED`, which
+  means it runs once the agent writes a reason that is recorded. An automation
+  that force-pushes with a lease and never explains itself will stop.
+- **Tool output that fetches itself is now reported.** `render.beacon` notes
+  any auto-loading reference to a host outside `render.allow_hosts`, which
+  ships empty — so a README full of badges produces a `WARNING` note until the
+  hosts are listed. Nothing is refused and nothing is edited unless
+  `render.neutralise` is turned on.
 
 ### The runtime speaks both languages
 
@@ -592,6 +585,79 @@ client kits and a dashboard.
   the example inside a fence would edit documentation to stop a fetch that was
   never going to happen.
 
+### Checking the deployment
+
+- **`scripts/verify_deployment.py` checks the server rather than the tree.**
+  `tests/test_site.py` holds the pages to the repository's figures and
+  `publish.py --check` holds the tree to its own consistency; both pass
+  happily while the deployed site is a month old, because the upload is a
+  manual step over the SSH File Transfer Protocol (SFTP), SSH being Secure
+  Shell, and nothing closed that loop. This asks production for each of the 38
+  files `publish.py` would send and compares the bytes — the only
+  check here that can tell you the upload did not happen. Standard library
+  only, so it runs on a machine with no extras installed.
+- It takes its file list from `publish.py`'s own `shipped()` rather than
+  globbing, and **that is the bug it exists to avoid repeating**: the hand
+  check it replaced filtered by extension and was wrong in both directions —
+  it missed `js/theme.js`, `js/nav.js` and six `.woff2` fonts, which are
+  served, and counted five `_shell/` partials, a Tailwind input and three
+  favicon source sizes, which are not. It reported "39 files identical" about
+  a set sharing 31 members with reality. Three tests fail if anyone replaces
+  the list with a glob again.
+- `unreachable` is a separate verdict from `missing`, because a timeout means
+  the check did not happen and a 404 means the upload did not — calling the
+  first one "missing" blames the deployment for the network.
+- Requests refuse a cached answer, for the reason this site already paid for:
+  `max-age=604800` without revalidation is why `dashboard.png` had to be
+  renamed rather than replaced, and a verifier that accepts a cached body
+  reports success about bytes nobody serves. **Measured consequence:** that
+  makes every page an origin hit, 25s cold against 2–4s warm on this host, so
+  the first version reported eight pages unreachable on a site that was fine.
+  Four workers, a 45-second timeout and one retry, all three set from those
+  numbers rather than from taste.
+- Stated limit: it cannot find files on the server the repository does not
+  list, because HTTP cannot enumerate a directory. `img/dashboard.png` was
+  found by remembering it existed, which is not a check, so deleting a
+  superseded upload stays a manual job.
+- **Not a continuous-integration gate**, deliberately — it needs the network
+  and a deployment to exist. It runs after an upload. `CONTRIBUTING.md` says so
+  where it lists the gates, because a reader who finds a check missing from
+  that list deserves the reason.
+
+## [0.1.0] — 2026-10-19
+
+First working version. Sizing, budget accounting, charter, rules, the gateway,
+client kits and a dashboard.
+
+### Hardware sizing
+
+- A memory-roofline model over a catalogue of models and accelerators, keyed on
+  the fact that decode speed is bounded by `bandwidth / active weight bytes`.
+  Validated against published DGX Spark measurements (13.6 tok/s on Qwen3 8B,
+  4.4 on Llama 70B Q4) to within the stated 70% efficiency assumption.
+- `ai-bunker recommend --team N` solves the inverse problem, sizing on the
+  **95th percentile** of a binomial rather than on the mean — a machine sized
+  for average load is overloaded half the time.
+- `sizing`, `compare`, `catalog`, `detect`. Every assumption is a flag.
+- `docs/SIZING.md`: the buying decision for a two-person team, costed on prices
+  surveyed 2026-10-19. The market for graphics processing units (GPUs) moved
+  ~80% in eighteen months; a 2026
+  sizing done on 2025 prices is wrong by a factor of two.
+
+### Budget accounting
+
+- `ai-bunker budget` itemises a session's floor **by owner** and gates on it.
+  Three counting backends in descending order of trust (`server`, `local`,
+  `ratio`), and the result always says which produced the number.
+- `--gate` makes the verdict the exit code. A check that reports a failure and
+  exits zero is not a check.
+
+### Charter
+
+- Standards served as a ~600-token index rather than pasted into every prompt.
+  A page costs nothing until it is opened.
+- A content fingerprint, usable both as a prefix-cache key and as provenance.
+
 ### Rules
 
 - One format, two scopes (`output`, `command`), three severities, with the
@@ -666,42 +732,6 @@ client kits and a dashboard.
   light-scheme-only, which no amount of dark-mode review would have found.
 - Every number the site quotes is tested against the repository that produced
   it, so hand-written pages cannot drift from the code.
-- **`scripts/verify_deployment.py` checks the server rather than the tree.**
-  `tests/test_site.py` holds the pages to the repository's figures and
-  `publish.py --check` holds the tree to its own consistency; both pass
-  happily while the deployed site is a month old, because the upload is a
-  manual step over the SSH File Transfer Protocol (SFTP), SSH being Secure
-  Shell, and nothing closed that loop. This asks production for each of the 38
-  files `publish.py` would send and compares the bytes — the only
-  check here that can tell you the upload did not happen. Standard library
-  only, so it runs on a machine with no extras installed.
-- It takes its file list from `publish.py`'s own `shipped()` rather than
-  globbing, and **that is the bug it exists to avoid repeating**: the hand
-  check it replaced filtered by extension and was wrong in both directions —
-  it missed `js/theme.js`, `js/nav.js` and six `.woff2` fonts, which are
-  served, and counted five `_shell/` partials, a Tailwind input and three
-  favicon source sizes, which are not. It reported "39 files identical" about
-  a set sharing 31 members with reality. Three tests fail if anyone replaces
-  the list with a glob again.
-- `unreachable` is a separate verdict from `missing`, because a timeout means
-  the check did not happen and a 404 means the upload did not — calling the
-  first one "missing" blames the deployment for the network.
-- Requests refuse a cached answer, for the reason this site already paid for:
-  `max-age=604800` without revalidation is why `dashboard.png` had to be
-  renamed rather than replaced, and a verifier that accepts a cached body
-  reports success about bytes nobody serves. **Measured consequence:** that
-  makes every page an origin hit, 25s cold against 2–4s warm on this host, so
-  the first version reported eight pages unreachable on a site that was fine.
-  Four workers, a 45-second timeout and one retry, all three set from those
-  numbers rather than from taste.
-- Stated limit: it cannot find files on the server the repository does not
-  list, because HTTP cannot enumerate a directory. `img/dashboard.png` was
-  found by remembering it existed, which is not a check, so deleting a
-  superseded upload stays a manual job.
-- **Not a continuous-integration gate**, deliberately — it needs the network
-  and a deployment to exist. It runs after an upload. `CONTRIBUTING.md` says so
-  where it lists the gates, because a reader who finds a check missing from
-  that list deserves the reason.
 
 ### Security fixes found by running the real thing
 

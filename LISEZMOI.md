@@ -5,7 +5,7 @@
 ![Licence](https://img.shields.io/badge/licence-BSD--3--Clause-blue)
 ![Python](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue)
 ![Local-first](https://img.shields.io/badge/local--first-oui-brightgreen)
-![État](https://img.shields.io/badge/état-0.1.0--alpha-orange)
+![État](https://img.shields.io/badge/état-0.2.0--alpha-orange)
 
 `ai-bunker` fait partie de la suite **AI Helpers**, où AI est l'anglais pour
 intelligence artificielle. C'est la couche de service souveraine : **un GPU,
@@ -1961,7 +1961,7 @@ seule.
 
 ## État
 
-C'est un `0.1.0-alpha` honnête, et le tableau dit exactement où en est le
+C'est un `0.2.0-alpha` honnête, et le tableau dit exactement où en est le
 projet. Rien de ce qui précède n'est une affirmation sur du code livré, sauf si
 ce tableau le dit.
 

@@ -147,7 +147,7 @@ believes.
 - **Throughput: Bifrost.** Written in Go specifically to get out from under Python's
   global interpreter lock, with semantic caching. This is Python in the request path,
   and honest about it.
-- **Maturity.** This is `0.1.0-alpha` next to projects with years of production use.
+- **Maturity.** This is `0.2.0-alpha` next to projects with years of production use.
 
 ## Ideas taken from the field
 

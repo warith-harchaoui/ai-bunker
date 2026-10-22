@@ -151,7 +151,7 @@ et aucun moyen d'utiliser le modèle sans elle.
 - **Débit : Bifrost.** Écrit en Go précisément pour sortir de sous le verrou global de
   l'interpréteur Python, avec du cache sémantique. Ici c'est du Python sur le trajet de
   la requête, et c'est dit.
-- **Maturité.** C'est un `0.1.0-alpha` à côté de projets qui ont des années de
+- **Maturité.** C'est un `0.2.0-alpha` à côté de projets qui ont des années de
   production.
 
 ## Idées reprises au terrain
