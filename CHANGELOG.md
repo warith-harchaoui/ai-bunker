@@ -83,7 +83,8 @@ before the upgrade rather than after.
   one direction this session had not looked. `MAX_SCREEN_CHARS` caps the text
   the rule engine will examine and does not reach the assembler, so the module
   written to close the streaming bypass grew without limit: measured at
-  **2,000,000 characters and 2 MB of held frames from 401 chunks**, per
+  **2,000,000 characters of assembled arguments and as many again in held
+  frames, from 401 chunks**, per
   request, in memory. An unbounded buffer in the path that had just been
   advertised as safe.
 - Bounded at `MAX_SCREEN_CHARS` — the same figure, reused rather than
