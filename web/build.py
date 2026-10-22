@@ -59,6 +59,15 @@ def shell(page, *, slug: str, lang: str) -> str:
         nav = nav.replace(f'"{asset}', f'"{prefix}{asset}')
         foot = foot.replace(f'"{asset}', f'"{prefix}{asset}')
 
+    # The language toggle goes to *this* page in the other language. It used to
+    # be written into the shared shell as the other language's homepage, which
+    # is right on two pages out of eight and loses the reader's place on the
+    # six others -- while the `hreflang` links a dozen lines above have always
+    # named the correct counterpart. Telling a crawler more than a reader is
+    # backwards, and `fr/sizing.html` has existed the whole time.
+    counterpart = "index.html" if slug == "index" else f"{slug}.html"
+    nav = nav.replace("{{OTHER_LANG}}", f"{prefix or 'fr/'}{counterpart}")
+
     return f"""<!doctype html>
 <html lang="{lang}" data-color-scheme="light">
 

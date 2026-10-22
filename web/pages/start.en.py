@@ -163,6 +163,35 @@ Adopting ai-bunker into /path/to/project:
           <code class="font-mono text-sm">/health</code> reports which guarantees are live
           rather than implying all of them are.
         </p>
+        <h3 class="mt-7 font-serif text-base font-semibold tracking-tight">And what is still open</h3>
+        <ul class="mt-3 space-y-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+          <li>
+            <strong class="font-semibold text-neutral-900 dark:text-neutral-100">Counting blocks the event
+            loop.</strong> The tokenizer probe and the counts themselves are synchronous calls
+            inside asynchronous handlers, so while one runs the gateway serves nobody. It is
+            bounded rather than removed; moving the calls onto a thread pool is the real fix
+            and is not done. A deployment that expects concurrency should know this before it
+            depends on one.
+          </li>
+          <li>
+            <strong class="font-semibold text-neutral-900 dark:text-neutral-100">The audit log grows without
+            bound.</strong> Appended to, never rotated: rotation belongs to whatever already
+            rotates logs on that host, and nothing here will tell you the file is large.
+            In-memory state <em>is</em> bounded, oldest sessions evicted first.
+          </li>
+          <li>
+            <strong class="font-semibold text-neutral-900 dark:text-neutral-100">The shell-tool vocabulary is
+            a default, not a claim to completeness.</strong> A gateway cannot know every
+            client's tool names, so <code class="font-mono text-sm">SHELL_TOOLS</code> is
+            overridable — and a tool it does not recognise is a command it does not screen.
+          </li>
+        </ul>
+        <p class="mt-5 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+          A limitation nobody published is one somebody discovers. The exact bounds are quoted
+          once, where they can be checked against the code:
+          <a href="https://github.com/warith-harchaoui/ai-bunker/blob/main/README.md#stated-limitations"
+            class="font-medium text-brand-linktext hover:underline">stated limitations, in full →</a>
+        </p>
         <p class="mt-4">
           <a href="https://github.com/warith-harchaoui/ai-bunker/blob/main/EXAMPLES.md"
             class="font-medium text-brand-linktext hover:underline">Every command, with its real output →</a>

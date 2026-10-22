@@ -17,6 +17,7 @@ Warith Harchaoui
 from __future__ import annotations
 
 import functools
+import pathlib
 import re
 import subprocess
 import sys
@@ -409,3 +410,33 @@ def test_the_theme_toggle_is_wired_exactly_once(page):
     text = (WEB / page).read_text(encoding="utf-8")
     assert text.count('id="theme-toggle"') == 1, "more than one element claims the id"
     assert len(re.findall(r'<script[^>]+src="[^"]*js/theme\.js"', text)) == 1
+
+
+@pytest.mark.parametrize("page", [p.relative_to(WEB).as_posix() for p in PAGES])
+def test_the_language_toggle_goes_to_the_same_page_in_the_other_language(page):
+    """The flag must not cost the reader their place.
+
+    It was written into the shared header as the other language's homepage,
+    which is correct on `index.html` and wrong on the six other pages: a
+    reader half-way down "Sizing" who clicked 🇫🇷 landed on the French front
+    page and had to find their way back. Every counterpart has existed the
+    whole time, and the `hreflang` links in the same `<head>` have always
+    named the right one -- so the crawler was told more than the reader.
+
+    Asserted per page, and the target is asserted to exist: a toggle pointing
+    at a 404 is worse than one pointing at the homepage.
+    """
+    text = (WEB / page).read_text(encoding="utf-8")
+    label = "English version" if page.startswith("fr/") else "Version française"
+    found = re.search(rf'href="([^"]+)"[^>]*aria-label="{label}"', text)
+    assert found, f"{page} has no language toggle labelled {label!r}"
+
+    href = found.group(1)
+    target = (WEB / page).parent / href
+    assert target.resolve().is_file(), f"{page} sends the reader to {href}, which is not a page"
+
+    slug = pathlib.Path(page).name
+    assert pathlib.Path(href).name == slug, (
+        f"{page} sends the reader to {href} instead of the same page in the "
+        "other language"
+    )

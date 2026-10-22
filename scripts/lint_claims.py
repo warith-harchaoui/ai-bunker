@@ -92,6 +92,23 @@ SITE = (
     "web/pages/start.fr.py",
 )
 
+#: `required_somewhere` is satisfied by a single match anywhere in `files`, so
+#: a claim that must hold in *both* languages has to be registered twice, over
+#: the halves. The alternative -- one claim naming an English phrase and a
+#: French one -- passes while either half is missing, which is exactly the
+#: failure mode this file exists to stop.
+#:
+#: And the halves are the **built pages only**, not their sources. The first
+#: version of this included `pages/*.py`, and deleting the sentence from the
+#: shipped `.html` left it in the source, satisfied the claim, and reported
+#: green -- a guard that passes while the published page has lost the thing it
+#: guards. Checking the artefact the reader is served covers both directions,
+#: because a source that drops the sentence drops it from the page at the next
+#: build.
+_BUILT = tuple(f for f in SITE if f.endswith(".html"))
+SITE_EN = tuple(f for f in _BUILT if "/fr/" not in f)
+SITE_FR = tuple(f for f in _BUILT if "/fr/" in f)
+
 CODE = tuple(f"ai_bunker/{p.name}" for p in sorted((ROOT / "ai_bunker").glob("*.py")))
 
 
@@ -166,6 +183,29 @@ CLAIMS: tuple[Claim, ...] = (
         ),
         forbidden=("**The dashboard**, for now",),
         files=CODE,
+    ),
+    Claim(
+        name="the-site-publishes-its-open-limitations-en",
+        because=(
+            "The README stated five limitations and the website stated none, for "
+            "every release so far. That is this script's own defect running in "
+            "the other direction: the site once advertised a hole that no longer "
+            "existed, and it then advertised no holes that did. The reader "
+            "deciding whether to deploy reads the site, not the README."
+        ),
+        required_somewhere=("bounded rather than removed",),
+        files=SITE_EN,
+    ),
+    Claim(
+        name="the-site-publishes-its-open-limitations-fr",
+        because=(
+            "The French half of the claim above. Registered separately because "
+            "one phrase matching anywhere would let either language lose its "
+            "limitations silently -- and the French site is not a translation "
+            "nobody reads, it is the half this project's author writes in."
+        ),
+        required_somewhere=("C'est born\u00e9, pas supprim\u00e9",),
+        files=SITE_FR,
     ),
     Claim(
         name="the-budget-endpoint-is-a-post",
