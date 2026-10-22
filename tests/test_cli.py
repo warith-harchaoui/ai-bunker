@@ -18,6 +18,7 @@ Warith Harchaoui
 from __future__ import annotations
 
 import io
+import json
 import re
 
 import pytest
@@ -241,3 +242,113 @@ def test_the_screen_help_mentions_the_dash():
         if "--screen" in a.option_strings
     )
     assert "`-`" in action.help
+
+
+# ---------------------------------------------------------------------------
+# Running them, not only printing their help.
+#
+# Every subcommand's `--help` was exercised; none of the handlers were. That
+# left `cli.py` at 45% while the suite looked thorough, and the untested half
+# is the half a user actually runs. A command that cannot print its own help
+# is a bug nobody ships; a command that prints help and then raises is one
+# that ships easily.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["sizing", "--accelerator", "h100-80"],
+        ["sizing", "--accelerator", "rtx-4090"],  # does not fit: the other branch
+        ["sizing", "--accelerator", "h100-80", "--json"],
+        ["compare"],
+        ["compare", "--json"],
+        ["compare", "--no-prices"],
+        ["recommend", "--team", "2"],
+        ["recommend", "--team", "30", "--json"],
+        ["catalog"],
+        ["detect"],
+        ["charter", "--directory", "charter"],
+        ["charter", "--directory", "charter", "--index"],
+        ["charter", "--directory", "charter", "--json"],
+        ["charter", "--directory", "charter", "--lang", "fr", "--index"],
+        ["charter", "--directory", "charter", "--page", "python/10_style.md"],
+        ["rules", "--check"],
+        ["rules", "--check", "--json"],
+        ["rules", "--command", "ls -la"],
+        ["spec", "--run", "features"],
+    ],
+)
+def test_a_subcommand_runs_and_says_something(argv, capsys):
+    """Exit zero and print something. Both halves matter: a command that
+    succeeds silently has nothing to show for it, and one that prints an
+    answer while exiting non-zero lies to a shell script."""
+    assert main(argv) == 0, f"{' '.join(argv)} exited non-zero"
+    out = capsys.readouterr().out
+    assert out.strip(), f"{' '.join(argv)} printed nothing"
+
+
+def test_screening_a_tool_request_reads_the_file_it_is_given(tmp_path, capsys):
+    """`tools` takes a captured request body, which is how a rug pull is
+    caught against something a human approved."""
+    request = tmp_path / "request.json"
+    request.write_text(
+        json.dumps(
+            {
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {"name": "search", "description": "Search the web"},
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert main(["tools", str(request)]) in (0, 1)
+    assert capsys.readouterr().out.strip()
+
+
+def test_json_output_is_json(capsys):
+    """A `--json` flag that prints a table with braces in it is worse than no
+    flag: the caller only finds out at parse time, in production."""
+    for argv in (
+        ["sizing", "--accelerator", "h100-80", "--json"],
+        ["charter", "--directory", "charter", "--json"],
+        ["rules", "--check", "--json"],
+    ):
+        main(argv)
+        json.loads(capsys.readouterr().out)
+
+
+def test_an_unknown_accelerator_is_refused_and_lists_the_real_ones(capsys):
+    """Picking the nearest match would silently size the wrong machine, and
+    the report would look exactly as confident. Refusing is right; refusing
+    *and naming the alternatives* is what makes it actionable, because the
+    realistic cause is a typo rather than a wrong idea."""
+    assert main(["sizing", "--accelerator", "no-such-card-9000"]) != 0
+    # Read once: `readouterr()` drains, so a second call returns nothing and
+    # the assertion would be about an empty string.
+    captured = capsys.readouterr()
+    said = captured.out + captured.err
+    assert "no-such-card-9000" in said
+    assert "h100-80" in said, "the alternatives are what makes the refusal useful"
+
+
+def test_spec_exports_a_feature_file_per_rules_file(tmp_path, capsys):
+    """The export is what `features/` is regenerated from, and three
+    anti-drift tests fail when it is skipped after a rule changes."""
+    assert main(["spec", "--export", str(tmp_path)]) == 0
+    written = sorted(p.name for p in tmp_path.glob("*.feature"))
+    assert written, "nothing was exported"
+    assert "shell.feature" in written
+
+
+def test_doctor_reports_rather_than_raises(capsys):
+    """It runs against whatever is configured, including nothing. A diagnostic
+    that crashes when the thing it diagnoses is absent is useless exactly when
+    it is needed."""
+    code = main(["doctor"])
+    out = capsys.readouterr().out
+    assert "checks pass" in out
+    assert code in (0, 1), "doctor must report, not raise"

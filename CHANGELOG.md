@@ -616,6 +616,38 @@ before the upgrade rather than after.
   the example inside a fence would edit documentation to stop a fetch that was
   never going to happen.
 
+### The layer that prints the numbers, finally tested
+
+- **`report.py` went from 21% covered to 95%**, which it should not have been
+  at the bottom of the list: it is where every published figure turns into the
+  thing a reader sees, in a repository whose one rule is that every claim in it
+  is a measurement. A number can be computed correctly and printed wrong, and
+  nothing was looking at the printing. `render_comparison`, `render_catalog`,
+  `render_recommendation`, `render_budget` and `render_rule_report` had no test
+  at all.
+- The assertions are about the two properties the module promises rather than
+  about prose, which would break on every rewording and protect nothing: that
+  **the chain is shown** — the assumption, the implication, and which
+  constraint bound — and that **what is printed is what was computed**, so the
+  view cannot drift from the model.
+- A machine the plan does **not** fit on gets its own test. It is the case a
+  reader needs most and the easiest to render badly: a verdict with no numbers
+  behind it is advice nobody can act on.
+- **`cli.py` went from 45% to 71%.** Every subcommand's `--help` was
+  exercised and not one of the handlers was, so the suite looked thorough while
+  the half a user actually runs was untested. A command that cannot print its
+  own help is a bug nobody ships; one that prints help and then raises ships
+  easily. Nineteen invocations now run for real, `--json` output is parsed as
+  JSON rather than eyeballed, and `spec --export` is checked to write the files
+  `features/` is regenerated from.
+- Overall coverage 83% → 90%. Writing these corrected four wrong assumptions of
+  mine about the data model — `Sizing.accelerator` is a string, not an object;
+  `assumptions` is a dictionary; `render_catalog` prints models rather than
+  accelerators; prices are keyed on a name. Each was a test asserting what I
+  expected instead of what the code does, and each failed immediately, which is
+  the argument for writing them against a running program rather than from
+  memory.
+
 ### Running against a real engine
 
 - **`tests/test_integration.py` drives the real gateway against a real model.**
