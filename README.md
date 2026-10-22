@@ -495,6 +495,13 @@ purpose), and which of the three enforcement stages are actually live.
   tool-call fragments are held, assembled, judged by the same `apply_outbound`
   the atomic path uses, and then released. `/health` still reports which
   guarantees are live.
+- **Counting blocks the event loop.** The tokenizer probe and the counts
+  themselves are synchronous calls inside asynchronous handlers, so while one
+  runs the gateway serves nobody. The probe is bounded at five seconds per
+  dialect and the count at two minutes, which bounds the damage rather than
+  removing it. Moving the calls onto a thread pool is the real fix and is not
+  done. Stated because a deployment under concurrency should know, and because
+  a limitation nobody published is one somebody discovers.
 - **The shell-tool vocabulary is a default, not a claim to completeness.** A
   gateway cannot know every client's tool names; `SHELL_TOOLS` is overridable.
 - **Binds to localhost by default.** A sovereignty tool that listens on every
@@ -904,7 +911,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1349 tests, `ruff` clean | ✅ |
+| 1350 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

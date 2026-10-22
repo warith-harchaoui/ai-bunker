@@ -529,6 +529,14 @@ réellement actives.
   intacts ; seuls les fragments d'appel sont retenus, assemblés, jugés par le
   même `apply_outbound` que la voie atomique, puis relâchés. `/health` dit
   toujours quelles garanties sont actives.
+- **Le comptage bloque la boucle d'événements.** La sonde du tokenizer et les
+  comptages eux-mêmes sont des appels synchrones dans des gestionnaires
+  asynchrones : pendant qu'un tourne, la passerelle ne sert personne. La sonde
+  est bornée à cinq secondes par dialecte et le comptage à deux minutes, ce qui
+  borne les dégâts sans les supprimer. Déplacer ces appels sur un pool de
+  threads est le vrai correctif, et il n'est pas fait. Énoncé parce qu'un
+  déploiement avec de la concurrence doit le savoir, et parce qu'une limite que
+  personne ne publie est une limite que quelqu'un découvre.
 - **Le vocabulaire d'outils shell est un défaut, pas une prétention à
   l'exhaustivité.** `SHELL_TOOLS` est surchargeable.
 - **Écoute sur localhost par défaut.** Un outil de souveraineté qui écoute sur
@@ -969,7 +977,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1349 tests, `ruff` propre | ✅ |
+| 1350 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

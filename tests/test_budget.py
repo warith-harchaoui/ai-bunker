@@ -642,3 +642,50 @@ def test_measuring_does_not_send_unless_asked():
     counter = Counter(base_url="http://127.0.0.1:1/v1", model="anything", allow_ratio=True)
     assert counter.allow_engine_probe is False
     assert counter.backend == "ratio"
+
+
+def test_a_stalled_tokenizer_is_abandoned_quickly():
+    """A probe is a liveness check, not a measurement, and it had the
+    measurement's timeout.
+
+    `_server_works` asks each dialect to tokenize the word "ping". With
+    `TOKENIZE_TIMEOUT` that was two dialects times 120 seconds before the
+    gateway fell back -- and the call is synchronous inside an async handler,
+    so the event loop serves nobody for the duration. An engine that cannot
+    tokenize "ping" in five seconds is one to stop waiting for.
+
+    Measured against a socket that accepts and never answers, which is a
+    saturated engine rather than a dead one: 10.3 seconds instead of 240.
+    """
+    import socket
+    import threading
+    import time
+
+    from ai_bunker.budget import PROBE_TIMEOUT, TOKENIZE_TIMEOUT
+
+    assert PROBE_TIMEOUT < TOKENIZE_TIMEOUT, "a probe must not wait like a count"
+
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(8)
+    port = server.getsockname()[1]
+    accepted: list = []
+
+    def hold() -> None:
+        while True:
+            try:
+                accepted.append(server.accept()[0])
+            except OSError:
+                return
+
+    threading.Thread(target=hold, daemon=True).start()
+    try:
+        started = time.perf_counter()
+        counter = Counter(base_url=f"http://127.0.0.1:{port}/v1", model="m", allow_ratio=True)
+        elapsed = time.perf_counter() - started
+    finally:
+        server.close()
+
+    assert counter.backend == "ratio"
+    # Generous against the measured 10.3s, strict against the 240s it was.
+    assert elapsed < PROBE_TIMEOUT * 6, f"took {elapsed:.1f}s to give up"

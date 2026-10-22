@@ -93,6 +93,23 @@ CHARS_PER_TOKEN = 2.5
 #: observed taking 20 seconds. Waiting beats returning an estimate.
 TOKENIZE_TIMEOUT = 120
 
+#: And a much shorter one for the PROBE, which is a different question.
+#:
+#: `_server_works` asks each dialect to tokenize the word "ping". That is a
+#: liveness check, not a measurement, and it should answer in milliseconds on
+#: any engine that answers at all. Giving it the counting timeout meant three
+#: dialects x 120 seconds = **six minutes** of a stalled engine before the
+#: gateway fell back -- and the call is synchronous inside an async handler,
+#: so for that whole time the event loop serves nobody.
+#:
+#: Measured against a `/tokenize` that sleeps six seconds: the first request
+#: took 18 seconds, three probes deep, before this was separated.
+#:
+#: An engine that cannot tokenize "ping" in five seconds is an engine this
+#: should stop waiting for and label an estimate, which is the honest answer
+#: and the fast one.
+PROBE_TIMEOUT = 5
+
 
 Backend = Literal["server", "local", "ratio"]
 
@@ -196,7 +213,7 @@ class Counter:
             return False
         for name, key in TOKENIZE_DIALECTS:
             try:
-                if self._count_server("ping", key) > 0:
+                if self._count_server("ping", key, probe=True) > 0:
                     self._dialect = key
                     osh.debug(f"Server tokenizer speaks the {name} dialect.")
                     return True
@@ -333,7 +350,7 @@ class Counter:
 
     # -- counting ---------------------------------------------------------
 
-    def _count_server(self, text: str, key: str | None = None) -> int:
+    def _count_server(self, text: str, key: str | None = None, *, probe: bool = False) -> int:
         """Ask the serving engine to count.
 
         Uses ``httpx`` when it is installed and ``urllib`` otherwise. Not
@@ -344,13 +361,14 @@ class Counter:
         unverified long enough to ship broken.
         """
         url = f"{self._tokenize_root()}/tokenize"
+        budget = PROBE_TIMEOUT if probe else TOKENIZE_TIMEOUT
         # `model` is harmless to the engines that ignore it and required by
         # the ones that do not.
         body = {"model": self.model, key or self._dialect: text}
         try:
             import httpx  # optional: part of the [api] extra
 
-            response = httpx.post(url, json=body, timeout=TOKENIZE_TIMEOUT)
+            response = httpx.post(url, json=body, timeout=budget)
             response.raise_for_status()
             payload = response.json()
         except ImportError:
@@ -359,7 +377,7 @@ class Counter:
                 data=json.dumps(body).encode(),
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(request, timeout=TOKENIZE_TIMEOUT) as response:
+            with urllib.request.urlopen(request, timeout=budget) as response:
                 payload = json.load(response)
         # vLLM returns {"count": n, "tokens": [...]}; be tolerant of either.
         if "count" in payload:
