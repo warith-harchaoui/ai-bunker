@@ -22,11 +22,17 @@ provenance is not.
 of the shipped patterns were wrong on first write, and the examples caught all
 three.
 
-**A limitation is published, not implied.** Command screening does not apply
-to a stream. The shell-tool vocabulary is a default, not a claim to
-completeness. The dashboard's accessibility lint is static only. Each of those
-is stated in the code and in the README, because a guarantee that quietly does
-not hold is worse than one that was never offered.
+**A limitation is published, not implied.** The shell-tool vocabulary is a
+default, not a claim to completeness. The dashboard's accessibility lint is
+static only. The deployment checker cannot see files the repository does not
+list. Each of those is stated in the code and in the README, because a
+guarantee that quietly does not hold is worse than one that was never offered.
+
+And when a limitation is closed, **the statement of it goes too**. Command
+screening did not apply to a stream; it does since 0.2.0, and the four places
+that said otherwise were corrected in the same commit. A published limitation
+that is no longer true is worse than either — it is a measurement of something
+that has changed.
 
 **An abbreviation is spelled out before it is used.** In place, at first use,
 in that file and in that language — not in a glossary. A glossary explains a
@@ -67,7 +73,21 @@ python scripts/sync_counts.py        # rewrite every quoted figure from its sour
 
 CI runs exactly these, on Python 3.10 through 3.13.
 
-One check is deliberately **not** in that list:
+Two checks are deliberately **not** in that list.
+
+```bash
+pytest tests/test_integration.py   # the gateway against a real engine
+```
+
+Every other test talks to a stub, which is right for almost everything and
+means the suite agrees with a fixture somebody wrote. These drive the real
+gateway against a real model over real Server-Sent Events, and they skip when
+no engine is reachable — so they run on a developer's machine and not in
+continuous integration. Point them anywhere with `AI_BUNKER_TEST_ENGINE`;
+with nothing set they look for Ollama. Nothing in there is the only test of
+anything: each has a stubbed twin.
+
+And:
 
 ```bash
 python3 scripts/verify_deployment.py   # does production match the repository?

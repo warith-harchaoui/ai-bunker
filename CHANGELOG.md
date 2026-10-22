@@ -616,6 +616,29 @@ before the upgrade rather than after.
   the example inside a fence would edit documentation to stop a fetch that was
   never going to happen.
 
+### Running against a real engine
+
+- **`tests/test_integration.py` drives the real gateway against a real model.**
+  Everything else in the suite talks to a stub, which is right for almost all
+  of it and means the suite agrees with a fixture its author wrote. Skipped
+  when no engine answers, so it runs on a developer's machine and not in
+  continuous integration; `AI_BUNKER_TEST_ENGINE` points it anywhere, and with
+  nothing set it looks for Ollama.
+- **It paid for itself on the first run, twice.** The streamed-tool-call
+  fixtures were written to the shape OpenAI documents — an opening chunk, then
+  `arguments` in slices. Ollama sends the whole call in **one** chunk and puts
+  `content` in the same delta. The first difference the assembler already
+  handled; the second was a real flaw, because a chunk carrying both had its
+  text held behind a verdict it had nothing to do with. Content is now rescued
+  out of such a chunk and released immediately.
+- It also caught a documentation lie: the gateway's module docstring listed
+  `GET /v1/budget` and the route is a `POST`. Corrected, with the reason —
+  it measures a request body rather than fetching a resource.
+- What it asserts is what a stub cannot: that a real engine accepts the
+  injected charter, that the budget against an engine with no `/tokenize`
+  reports `ratio` rather than claiming exactness, and that a command a model
+  actually chose gets the same verdict from the streamed and atomic paths.
+
 ### Checking the deployment
 
 - **`scripts/verify_deployment.py` checks the server rather than the tree.**

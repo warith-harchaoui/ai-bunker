@@ -84,6 +84,37 @@ def finished(chunk: dict[str, Any]) -> bool:
     return any((choice.get("finish_reason") is not None) for choice in chunk.get("choices") or [])
 
 
+def _spoken_text(chunk: dict[str, Any]) -> str:
+    """The non-empty content in a chunk, if any."""
+    out = ""
+    for choice in chunk.get("choices") or []:
+        out += str((choice.get("delta") or {}).get("content") or "")
+    return out
+
+
+def _content_only(chunk: dict[str, Any]) -> dict[str, Any] | None:
+    """The same chunk carrying only its content, or ``None`` if it has none."""
+    if not _spoken_text(chunk):
+        return None
+    out = json.loads(json.dumps(chunk))
+    for choice in out.get("choices") or []:
+        delta = choice.get("delta") or {}
+        delta.pop("tool_calls", None)
+        choice["delta"] = delta
+        choice["finish_reason"] = None
+    return out
+
+
+def _without_content(chunk: dict[str, Any]) -> dict[str, Any]:
+    """The same chunk with its content removed, so it is not sent twice."""
+    out = json.loads(json.dumps(chunk))
+    for choice in out.get("choices") or []:
+        delta = choice.get("delta") or {}
+        delta.pop("content", None)
+        choice["delta"] = delta
+    return out
+
+
 @dataclass
 class Assembler:
     """Reassembles the tool calls scattered across a streamed completion.
@@ -98,6 +129,9 @@ class Assembler:
     calls: dict[int, dict[int, dict[str, Any]]] = field(default_factory=dict)
     #: Chunks held back because they carried tool-call fragments.
     held: list[str] = field(default_factory=list)
+    #: Content rescued from a chunk that carried both. Emitted immediately by
+    #: the caller, so text is never delayed by a tool call beside it.
+    spoken: list[str] = field(default_factory=list)
     model: str = ""
     response_id: str = ""
     created: int = 0
@@ -126,10 +160,23 @@ class Assembler:
             for fragment in (choice.get("delta") or {}).get("tool_calls") or []:
                 self._merge(index, fragment)
 
-        if carries_tool_call(chunk):
-            self.held.append(line)
+        if not carries_tool_call(chunk):
+            return False
+
+        # A chunk can carry both. Ollama sends `content: ""` beside a whole
+        # tool call in one frame -- harmless because the content is empty, but
+        # an engine that put real text there would have it held behind a
+        # verdict it has nothing to do with. Found by streaming from a real
+        # engine rather than from the fixtures in the tests, which were
+        # written to the OpenAI shape and never put the two together.
+        spoken = _content_only(chunk)
+        if spoken is not None:
+            self.held.append(sse(_without_content(chunk)).rstrip("\n"))
+            self.spoken.append(sse(spoken).rstrip("\n"))
             return True
-        return False
+
+        self.held.append(line)
+        return True
 
     def _merge(self, choice_index: int, fragment: dict[str, Any]) -> None:
         """Fold one fragment into the call it belongs to."""

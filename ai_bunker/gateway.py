@@ -18,8 +18,9 @@ Surface
     Atomic and streaming. Runs the full pipeline.
 ``POST /v1/embeddings``
     Proxied with the same authentication and routing.
-``GET /v1/budget``
+``POST /v1/budget``
     What a session costs before it works. The measurement, as an endpoint.
+    A POST because it measures a request body rather than fetching a resource.
 ``GET /v1/charter`` and ``GET /v1/charter/{ref}``
     The index, and one page on demand.
 ``GET /v1/decisions``
@@ -788,6 +789,11 @@ async def _stream(
                     break
                 if not assembler.feed(line):
                     yield line + "\n\n"
+                    continue
+                # A frame that carried text beside the tool call: the text is
+                # released now, the call waits for its verdict.
+                while assembler.spoken:
+                    yield assembler.spoken.pop(0) + "\n\n"
 
     except httpx.HTTPError as exc:
         yield _sse(
