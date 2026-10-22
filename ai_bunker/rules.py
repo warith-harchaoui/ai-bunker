@@ -444,8 +444,17 @@ def _is_safe_pattern(pattern: re.Pattern[str], rule_id: str) -> bool:
 
     Honest about what this is: a heuristic, not a proof. No static analysis
     catches every pathological pattern. The guarantee that does not depend on
-    getting this right is :data:`MAX_SCREEN_CHARS`, which bounds the input and
-    therefore bounds the damage.
+    getting this right is :data:`MAX_SCREEN_CHARS`, which bounds how much text
+    any one pattern is ever applied to.
+
+    Precisely that, and this sentence used to overstate it -- "bounds the
+    input and therefore bounds the damage". It bounds a **slice**. A tool
+    result arrives in as many slices as its length requires, so a pattern that
+    costs too much on 200,000 characters costs that much again per slice, and
+    nothing here bounds the total. What the cap buys is that the cost is
+    *linear* in the output's length rather than whatever the pattern would
+    have done to the whole of it -- which is the difference between expensive
+    and unbounded, and is worth having. It is not a ceiling.
     """
     construct = nested_quantifier(pattern.pattern)
     if construct:
