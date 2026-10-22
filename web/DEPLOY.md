@@ -91,7 +91,7 @@ header is edited once rather than eight times.
 
 The pages are **written by hand**, not generated from the Markdown. That is a
 deliberate choice and it carries a risk: the figures quoted here
-(27 rules, 218 assertions) can drift from the repository. `tests/test_site.py`
+(27 rules, 247 assertions) can drift from the repository. `tests/test_site.py`
 asserts they match.
 
 The **test count is deliberately not on the site**. It changes on every commit

@@ -118,7 +118,7 @@ So a rule carries its own examples, and they run in CI.
 ```text
 $ ai-bunker rules --check
   rules loaded                          27
-  assertions passed                    218
+  assertions passed                    247
   assertions failed                      0
   rules carrying evidence            100%
 ```
@@ -686,7 +686,7 @@ on a developer's machine arrived. Same risk, different base rate, so one is
 refused and the other recorded — the reasoning `deps.unpinned_install` already
 runs on.
 
-**27 rules, 218 assertions, 277 scenarios.** Each of the eleven is a table
+**27 rules, 247 assertions, 306 scenarios.** Each of the eleven is a table
 entry in `tests/test_rules.py` and not a comment, because a bypass that is only
 described comes back; each was checked against the previous rule set to confirm
 it fails there. The near misses are a table too — `eval "$(ssh-agent -s)"`,

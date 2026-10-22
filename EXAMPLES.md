@@ -322,7 +322,7 @@ quoting the secret it redacted has redacted nothing.
 ```bash
 $ ai-bunker rules --check
   rules loaded                          27
-  assertions passed                    218
+  assertions passed                    247
   assertions failed                      0
   rules carrying evidence            100%
 ```

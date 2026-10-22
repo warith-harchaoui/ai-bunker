@@ -77,18 +77,45 @@ TOOLS = [
 
 
 def _engine_is_up() -> bool:
+    """Whether the engine will actually answer, not whether it lists the model.
+
+    It used to stop at the model list, and the two are not the same thing. On
+    the machine this was written on, `qwen2.5:3b` was listed and answered
+    every request with HTTP 200, an empty role, an empty content and zero
+    tokens -- Ollama's shape for a model it cannot load. The suite then failed
+    three times with "the engine answered nothing", which reads like a defect
+    in the gateway and is a defect in the engine.
+
+    A skip guard that lies about why it did not skip is worse than a slow one,
+    so this asks for one token and requires something back. It costs one short
+    generation per session, once.
+    """
     try:
-        response = httpx.get(f"{ENGINE}/models", timeout=3.0)
+        listed = httpx.get(f"{ENGINE}/models", timeout=3.0)
+        if listed.status_code != 200:
+            return False
+        if MODEL not in {m.get("id") for m in (listed.json().get("data") or [])}:
+            return False
+        answer = httpx.post(
+            f"{ENGINE}/chat/completions",
+            json={
+                "model": MODEL,
+                "messages": [{"role": "user", "content": "ok"}],
+                "max_tokens": 4,
+            },
+            timeout=60.0,
+        )
     except (httpx.HTTPError, OSError):
         return False
-    if response.status_code != 200:
+    if answer.status_code != 200:
         return False
-    names = {m.get("id") for m in (response.json().get("data") or [])}
-    return MODEL in names
+    choices = answer.json().get("choices") or [{}]
+    return bool((choices[0].get("message") or {}).get("content"))
 
 
 pytestmark = pytest.mark.skipif(
-    not _engine_is_up(), reason=f"no engine at {ENGINE} serving {MODEL}"
+    not _engine_is_up(),
+    reason=f"no engine at {ENGINE} answering as {MODEL}",
 )
 
 

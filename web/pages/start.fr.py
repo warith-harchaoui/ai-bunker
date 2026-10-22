@@ -89,7 +89,7 @@ export AI_BUNKER_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urls
 $ ai-bunker doctor
   [ok  ] charter carries operating rules
   [ok  ] 27 rules loaded
-  [ok  ] 218 rule assertions pass
+  [ok  ] 247 rule assertions pass
   [ok  ] 100% of rules carry evidence
   [WARN] upstream local answers at http://127.0.0.1:8001/v1   not reachable
   [ok  ] no route leaves this network
