@@ -513,7 +513,7 @@ $ ai-bunker charter --lang fr
 language     fr
 fingerprint  5c9ea71b30522ed44f469581a8c525c05fb04f0c
 pages        5
-floor cost   723 tokens  (operating rules + index, every request)
+floor cost   972 tokens  (operating rules + index, every request)
 ```
 
 Une traduction qui prend du retard est le mode de défaillance normal d'une
@@ -530,7 +530,7 @@ lire n'importe quel segment de deux lettres comme une langue ferait de
 disparaîtrait de l'index pour payer l'astuce.
 
 La charte française coûte ce qu'elle coûte, et le chiffre est au-dessus : le
-plancher passe de 607 à 723 jetons par requête, 19 % de plus, parce que le
+plancher passe de 972 à 1 157 jetons par requête, 19 % de plus, parce que le
 français est plus long que l'anglais. C'est le prix de standards lisibles par
 l'équipe qui les a écrits, énoncé plutôt que caché.
 

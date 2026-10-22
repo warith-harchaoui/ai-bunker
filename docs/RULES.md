@@ -480,7 +480,7 @@ $ ai-bunker charter --lang fr
 language     fr
 fingerprint  5c9ea71b30522ed44f469581a8c525c05fb04f0c
 pages        5
-floor cost   723 tokens  (operating rules + index, every request)
+floor cost   972 tokens  (operating rules + index, every request)
 ```
 
 A translation falling behind is the normal failure mode of a translation, so
@@ -496,7 +496,7 @@ two-letter segment as a language would turn `api.v2.md` into a translation of
 to pay for the cleverness.
 
 The French charter costs what it costs, and the figure is above: the floor goes
-from 607 to 723 tokens per request, 19% more, because French is longer than
+from 972 to 1,157 tokens per request, 19% more, because French is longer than
 English. That is the price of the standards being readable by the team that
 wrote them, stated rather than hidden.
 

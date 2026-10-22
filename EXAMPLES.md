@@ -230,11 +230,11 @@ charter      charter
 fingerprint  aa9fcf72c7ff3e40ef72b92d659c589f40fbdfee
 packs        3  (default, javascript, python)
 pages        5
-floor cost   607 tokens  (operating rules + index, every request)
+floor cost   972 tokens  (operating rules + index, every request)
 not loaded   2,608 characters across the pages, read on demand
 ```
 
-The last two lines are the design: **607 tokens paid on every request, 2,608
+The last two lines are the design: **972 tokens paid on every request, 2,608
 characters not paid for at all** until a page is opened. Pasting the pages
 instead would spend the window before the first question.
 

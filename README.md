@@ -342,7 +342,7 @@ charter      charter
 fingerprint  aa9fcf72c7ff3e40ef72b92d659c589f40fbdfee
 packs        3  (default, javascript, python)
 pages        5
-floor cost   607 tokens  (operating rules + index, every request)
+floor cost   972 tokens  (operating rules + index, every request)
 not loaded   2,608 characters across the pages, read on demand
 ```
 
@@ -903,7 +903,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1348 tests, `ruff` clean | ✅ |
+| 1349 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

@@ -95,6 +95,24 @@ def scenario_count() -> int:
     return len(load_scenarios(ROOT / "features"))
 
 
+def charter_floor() -> int:
+    """Tokens the charter costs on every request, from the charter itself.
+
+    Deterministic -- it is a token count over files in this repository -- and
+    it moved by 60% when `CHARS_PER_TOKEN` was corrected from 4.0 to 2.5.
+    Eight documents quoted the old 607 as real command output and nothing
+    noticed: `sync_counts` did not own this figure and `lint_claims` guards
+    sentences rather than numbers, so it fell between the two guards that
+    exist to prevent exactly this.
+    """
+    sys.path.insert(0, str(ROOT))
+    from ai_bunker.budget import Counter
+    from ai_bunker.charter import load_charter, system_blocks
+
+    counter = Counter(allow_ratio=True)
+    return sum(counter.count(block) for block in system_blocks(load_charter(ROOT / "charter")))
+
+
 def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
     """(pattern, replacement, label). Every pattern keeps its own context, so
     a number that means something else is never touched: `327 tests` inside a
@@ -102,7 +120,29 @@ def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
     tests = collected_tests()
     rules, assertions = rule_figures()
     scenarios = scenario_count()
+    floor = charter_floor()
     return [
+        (
+            re.compile(r"floor cost\s+[\d,]+ tokens"),
+            f"floor cost   {floor:,} tokens",
+            "charter floor (command output)",
+        ),
+        (
+            re.compile(r"\*\*[\d,]+ tokens paid on every request"),
+            f"**{floor:,} tokens paid on every request",
+            "charter floor (prose)",
+        ),
+        # And the French twin. Writing this substitution English-only was the
+        # same mistake this script already carries a comment about, made again
+        # in the same file: `LISEZMOI.md` quoted 25 rules for three sessions
+        # because every pattern was English. A figure in a translated document
+        # is still a figure, and apparently that has to be checked each time
+        # rather than remembered.
+        (
+            re.compile(r"\*\*[\d,]+ tokens payés à chaque"),
+            f"**{floor:,} tokens payés à chaque",
+            "charter floor (prose, fr)",
+        ),
         # The site deliberately quotes NO test count: it moved on every commit
         # that added a test, which made the deployed site stale after every
         # commit and bought nothing a green CI gate does not already say. Only

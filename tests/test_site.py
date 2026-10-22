@@ -212,6 +212,30 @@ def test_the_quoted_charter_figures_are_real(all_text):
         assert n == pages, f"the site says {n:,} characters of pages; the charter has {pages:,}"
 
 
+def test_the_quoted_charter_floor_is_real(all_prose):
+    """The figure that drifted without anybody noticing.
+
+    `CHARS_PER_TOKEN` was corrected from 4.0 to 2.5 and the charter's floor
+    moved from 607 to 972 tokens -- 60% -- while eight documents went on
+    quoting 607 as real command output. `sync_counts` did not own the figure
+    and `lint_claims` guards sentences rather than numbers, so it fell exactly
+    between the two guards built to prevent this.
+    """
+    from ai_bunker.budget import Counter
+    from ai_bunker.charter import system_blocks
+
+    counter = Counter(allow_ratio=True)
+    charter = load_charter(ROOT / "charter")
+    actual = sum(counter.count(block) for block in system_blocks(charter))
+
+    quoted = {
+        int(n.replace(",", "")) for n in re.findall(r"floor cost\s+([\d,]+) tokens", all_prose)
+    }
+    assert quoted, "no document quotes the charter floor any more; drop this test too"
+    for n in quoted:
+        assert n == actual, f"the documentation says a floor of {n}; it is {actual}"
+
+
 def test_the_quoted_version_is_real(all_text):
     from ai_bunker import __version__
 

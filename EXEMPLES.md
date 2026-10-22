@@ -234,11 +234,11 @@ charter      charter
 fingerprint  aa9fcf72c7ff3e40ef72b92d659c589f40fbdfee
 packs        3  (default, javascript, python)
 pages        5
-floor cost   607 tokens  (operating rules + index, every request)
+floor cost   972 tokens  (operating rules + index, every request)
 not loaded   2,608 characters across the pages, read on demand
 ```
 
-Les deux dernières lignes sont la conception même : **607 tokens payés à chaque
+Les deux dernières lignes sont la conception même : **972 tokens payés à chaque
 requête, 2 608 caractères pas payés du tout** tant qu'une fiche n'est pas
 ouverte. Coller les fiches à la place dépenserait la fenêtre avant la première
 question.
