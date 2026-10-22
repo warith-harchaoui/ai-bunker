@@ -272,7 +272,18 @@ def write_skill(skill: Skill, out_dir: str | Path, *, force: bool = False) -> li
 def read_skill(directory: str | Path) -> Skill:
     """Parse a skill from disk, for validating one this project did not write."""
     root = Path(directory)
-    source = (root / "SKILL.md").read_text(encoding="utf-8")
+    manifest = root / "SKILL.md"
+    # Reported rather than raised. `--check` exists to say whether a directory
+    # somebody else wrote is a valid skill, and "there is no SKILL.md" is the
+    # commonest answer -- it came back as an unhandled `FileNotFoundError`
+    # traceback, which is a validator that cannot deliver its most likely
+    # verdict. A gate that crashes instead of failing is not a gate.
+    osh.check(
+        manifest.is_file(),
+        f"{root} is not a skill: no SKILL.md. A skill is a directory with a "
+        "SKILL.md carrying YAML frontmatter.",
+    )
+    source = manifest.read_text(encoding="utf-8")
     osh.check(source.startswith("---"), f"{root}/SKILL.md has no YAML frontmatter")
 
     _, _, rest = source.partition("---")
