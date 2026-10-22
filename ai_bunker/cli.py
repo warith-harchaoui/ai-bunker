@@ -373,10 +373,35 @@ def cmd_doctor(args) -> int:
     rules = load_rules(settings.rules_dir)
     report = test_rules(rules)
 
-    checks: list[tuple[bool, str, str]] = []
+    # (ok, label, detail, fatal). The fourth field is the round-11 addition:
+    # this command printed WARN for nine of its ten checks and returned 0
+    # unless a rule's own example failed, so the continuous-integration step
+    # named "Deployment claims" tested the one thing `rules --check` already
+    # tested one step earlier.
+    #
+    # The original reasoning is kept because it is right about most of them:
+    # "an open gateway on a trusted network is a choice, a rule whose own
+    # example fails is a bug." A *choice* should be reported and not refused.
+    # What it does not cover is a **mistake** -- and a key the loader does not
+    # read is never a choice, because an operator who writes one believes it
+    # is in effect.
+    checks: list[tuple[bool, str, str, bool]] = []
 
-    def check(ok: bool, label: str, detail: str = "") -> None:
-        checks.append((ok, label, detail))
+    def check(ok: bool, label: str, detail: str = "", *, fatal: bool = False) -> None:
+        checks.append((ok, label, detail, fatal))
+
+    # First, because every check below is measured against the settings this
+    # file produced. A key the loader does not read is not a tidiness problem:
+    # `served_kontext: 32768` parsed, loaded, and left the gateway declaring
+    # 104,857 tokens to clients against an engine serving 32,768 -- the
+    # incident this project was built after, by one letter and in silence. It
+    # warned on load, and `doctor` still exited 0.
+    check(
+        not settings.config_strays,
+        "every key in the configuration is read",
+        "; ".join(settings.config_strays),
+        fatal=True,
+    )
 
     check(
         bool(charter.operating_rules),
@@ -474,18 +499,22 @@ def cmd_doctor(args) -> int:
         "command screening is off: a refused command would run",
     )
 
-    width = max(len(label) for _, label, _ in checks) + 2
+    width = max(len(label) for _, label, _, _ in checks) + 2
     failed = 0
-    for ok, label, detail in checks:
-        mark = "ok  " if ok else "WARN"
+    fatal = 0
+    for ok, label, detail, is_fatal in checks:
+        mark = "ok  " if ok else ("FAIL" if is_fatal else "WARN")
         print(f"  [{mark}] {label:<{width}} {detail if not ok else ''}".rstrip())
         failed += 0 if ok else 1
+        fatal += 0 if ok or not is_fatal else 1
     print()
     print(f"  {len(checks) - failed}/{len(checks)} checks pass")
-    # Everything here is a warning rather than a failure except a broken rule
-    # set: an open gateway on a trusted network is a choice, a rule whose own
-    # example fails is a bug.
-    return 1 if not report.ok else 0
+    # Said out loud rather than left to be inferred from an exit code. A
+    # reader who sees "9/10 checks pass" next to a zero exit is entitled to
+    # know which of the two numbers the gate is actually made of.
+    if failed and not fatal:
+        print("  WARN is a report, not a refusal: these are deployment choices.")
+    return 1 if fatal or not report.ok else 0
 
 
 def cmd_skill(args: argparse.Namespace) -> int:

@@ -114,6 +114,30 @@ enforcement:
   # deployment whose clients all speak plain HTTP can reasonably turn it off.
   mcp: true
 
+# ---------------------------------------------------------------------------
+# Rendered output
+# ---------------------------------------------------------------------------
+# Untrusted text that a client renders as HTML or Markdown can make the
+# *reader's* browser fetch a URL the model chose -- an image, a stylesheet, a
+# video poster -- and the fetch itself carries the exfiltrated data in its
+# path. The `render.beacon` rule reports that, and these two decide what else
+# happens to it.
+#
+# `allow_hosts` is the content-security-policy model: hosts a fetch may name.
+# Empty means every host is reported and none is privileged.
+#
+# `neutralise` rewrites the offending attribute so the fetch cannot happen --
+# `src` becomes `data-ai-bunker-blocked-src`. Nothing is deleted and every URL
+# stays readable, which is why it is still an edit and why the operator has to
+# ask for it.
+#
+# This section was read by the loader and undocumented here for several
+# releases, while the loader ALSO warned "unknown key `render` is being
+# ignored" at the one placement that works. Both halves are fixed.
+render:
+  allow_hosts: []           # e.g. ["img.internal.example"]
+  neutralise: false
+
 # Where to append the decision log, one JSON object per line. Empty disables
 # it, which a governance deployment should not do.
 audit_log: logs/decisions.jsonl

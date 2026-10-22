@@ -17,7 +17,9 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import difflib
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -110,6 +112,12 @@ class Settings:
     #: fetches. Nothing is deleted and every URL stays readable, but it is
     #: still an edit, so the operator asks for it.
     render_neutralise: bool = False
+    #: Keys in the configuration file that the loader does not read, carried
+    #: here so `ai-bunker doctor` can refuse rather than only warn. A warning
+    #: is read by whoever happens to be watching the log; `doctor` exists to
+    #: be read on purpose, and the defect that prompted this exited 0 with the
+    #: wrong context window in effect.
+    config_strays: tuple[str, ...] = ()
     #: Whether to expose the charter over MCP. On by default, and worth a
     #: lever because importing `fastapi-mcp` costs ~24 seconds of startup on a
     #: cold interpreter -- measured, not guessed. A deployment whose clients
@@ -251,6 +259,13 @@ TOP_LEVEL_KEYS = frozenset(
         "mandates",
         "breaker",
         "language",
+        # Read at the bottom of `load_settings` (`render.allow_hosts`,
+        # `render.neutralise`) and missing from this set, so the *correct*
+        # placement warned "unknown key `render` is being ignored" while both
+        # settings took effect. `MISPLACED_KEYS` below already knows that
+        # `neutralise` belongs under `render:` -- the guard knew where to send
+        # the operator and called the destination unknown.
+        "render",
     }
 )
 
@@ -306,26 +321,154 @@ def _warn_about_duplicates(text: str, path: Path) -> None:
             )
 
 
-def _warn_about_strays(raw: dict[str, Any], path: Path) -> None:
-    """Say something about top-level keys the loader does not read.
+#: What each block accepts, so that a key one level down is checked the same
+#: way a top-level one is.
+#:
+#: This existed only for the top level, and the asymmetry was indefensible
+#: once measured. `upstreams.<name>.served_context` is the single most
+#: load-bearing figure in this project -- the budget is measured against it --
+#: and `served_kontext: 32768` parsed, loaded, and left the gateway believing
+#: the default 131,072. It then declared 104,857 tokens to every client
+#: against an engine serving 32,768, which is the incident this whole project
+#: was built after, reproduced by one letter and in silence.
+#:
+#: `routes` and `needs` are deliberately absent: their keys are names an
+#: operator chooses. A `needs` entry written in long form does have fixed
+#: keys, and those are checked.
+SECTION_KEYS: dict[str, frozenset[str]] = {
+    "gateway": frozenset({"api_key"}),
+    "budget": frozenset({"compaction_reserve", "declared_fraction", "min_working_tokens"}),
+    "enforcement": frozenset(
+        {
+            "budget",
+            "commands",
+            "mark_provenance",
+            "mcp",
+            "payments",
+            "project_root",
+            "tools_lock",
+        }
+    ),
+    "breaker": frozenset({"refusals", "window_s"}),
+    "telemetry": frozenset({"endpoint", "service_name"}),
+    "mandates": frozenset({"issuers", "jwks", "revocations"}),
+    "render": frozenset({"allow_hosts", "neutralise"}),
+}
+
+#: The keys of one upstream, and of one long-form `needs` entry.
+UPSTREAM_KEYS = frozenset({"api_key", "base_url", "model", "remote", "served_context", "tokenizer"})
+NEED_KEYS = frozenset({"model", "upstream"})
+
+
+#: Every block the loader expects to be a mapping of keys, plus the three that
+#: are mappings of operator-chosen names.
+_BLOCKS = (*SECTION_KEYS, "upstreams", "needs", "routes")
+
+
+def _mapping(value: Any) -> dict[str, Any]:
+    """A block, or an empty one if it was not written as a block.
+
+    `budget: true` at the top level used to raise ``AttributeError: 'bool'
+    object has no attribute 'get'`` out of the loader -- no file name, no key,
+    no hint -- and it is a plausible mistake rather than an exotic one: the
+    enforcement switch *is* called `budget`, one level down, and
+    `MISPLACED_KEYS` already anticipates that confusion for `commands`, `mcp`
+    and `mark_provenance`. It could not anticipate it for `budget`, because
+    `budget:` is also a real block.
+
+    `_warn_about_strays` has already said what happened by the time this
+    returns, so this only has to stop the crash.
+    """
+    return value if isinstance(value, dict) else {}
+
+
+def _did_you_mean(key: str, known: Iterable[str]) -> str:
+    """The nearest accepted spelling, when there is an obvious one.
+
+    A typo is more useful read next to what it was probably meant to be:
+    `served_kontext` against `served_context` is a one-character edit, and
+    saying so turns a warning into a fix.
+    """
+    near = difflib.get_close_matches(key, sorted(known), n=1, cutoff=0.6)
+    return f" Did you mean `{near[0]}`?" if near else ""
+
+
+def _warn_about_strays(raw: dict[str, Any], path: Path) -> tuple[str, ...]:
+    """Say something about keys the loader does not read, at any depth.
 
     Silence here is dangerous rather than tidy. YAML accepts any key; the
     loader ignores what it does not know; and the one most likely to be
     misplaced is the one whose absence leaves the gateway unauthenticated
     while its operator believes otherwise. Found exactly that way.
+
+    Returns what it found as well as warning about it, because a warning is
+    read by whoever happens to be watching the log and `ai-bunker doctor` is
+    the thing that exists to be read on purpose. A stray key makes `doctor`
+    exit non-zero; `osh.warning` alone made it exit 0 with a wrong context
+    window in effect.
     """
+    found: list[str] = []
+
+    def stray(message: str) -> None:
+        found.append(message)
+        osh.warning(f"[gateway] {path}: {message}")
+
     for key in raw:
         if key in TOP_LEVEL_KEYS:
             continue
         if key in MISPLACED_KEYS:
             where = MISPLACED_KEYS[key]
-            osh.warning(
-                f"[gateway] {path}: `{key}` is at the top level and is being "
-                f"IGNORED. It belongs under `{where}:`."
+            stray(
+                f"`{key}` is at the top level and is being IGNORED. "
+                f"It belongs under `{where}:`."
                 + (" The gateway is running unauthenticated." if key == "api_key" else "")
             )
         else:
-            osh.warning(f"[gateway] {path}: unknown key `{key}` is being ignored.")
+            stray(f"unknown key `{key}` is being ignored.{_did_you_mean(key, TOP_LEVEL_KEYS)}")
+
+    for block in _BLOCKS:
+        if block in raw and raw[block] is not None and not isinstance(raw[block], dict):
+            # Name the other place this word is a key, when there is one: an
+            # operator writing `budget: true` at the top level has almost
+            # certainly read `enforcement.budget` and put it one level too high.
+            elsewhere = [
+                f"`{owner}.{block}`" for owner, keys in SECTION_KEYS.items() if block in keys
+            ]
+            hint = f" Did you mean {elsewhere[0]}?" if elsewhere else ""
+            stray(
+                f"`{block}:` is written as a value and has to be a block of "
+                f"keys, so it is being IGNORED.{hint}"
+            )
+
+    for block, known in SECTION_KEYS.items():
+        section = raw.get(block)
+        if not isinstance(section, dict):
+            continue
+        for key in section:
+            if key not in known:
+                stray(f"unknown key `{block}.{key}` is being ignored." + _did_you_mean(key, known))
+
+    for name, spec in _mapping(raw.get("upstreams")).items():
+        if not isinstance(spec, dict):
+            continue
+        for key in spec:
+            if key not in UPSTREAM_KEYS:
+                stray(
+                    f"unknown key `upstreams.{name}.{key}` is being ignored."
+                    + _did_you_mean(key, UPSTREAM_KEYS)
+                )
+
+    for name, spec in _mapping(raw.get("needs")).items():
+        if not isinstance(spec, dict):
+            continue  # the shorthand is a plain upstream name
+        for key in spec:
+            if key not in NEED_KEYS:
+                stray(
+                    f"unknown key `needs.{name}.{key}` is being ignored."
+                    + _did_you_mean(key, NEED_KEYS)
+                )
+
+    return tuple(found)
 
 
 def _from_environment(key: str, label: str) -> str:
@@ -384,12 +527,12 @@ def load_settings(path: str | Path | None = None) -> Settings:
     else:
         osh.debug(f"[gateway] no config at {p}; using defaults and the environment.")
 
-    telemetry = raw.get("telemetry") or {}
-    mandates = raw.get("mandates") or {}
+    telemetry = _mapping(raw.get("telemetry"))
+    mandates = _mapping(raw.get("mandates"))
 
-    _warn_about_strays(raw, p)
+    strays = _warn_about_strays(raw, p)
 
-    gateway = raw.get("gateway") or {}
+    gateway = _mapping(raw.get("gateway"))
     api_key = str(gateway.get("api_key") or "")
     if api_key and not api_key.startswith("${"):
         osh.warning(
@@ -401,7 +544,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
         api_key = _from_environment("AI_BUNKER_API_KEY", "ai-bunker gateway")
 
     upstreams: dict[str, Upstream] = {}
-    for name, spec in (raw.get("upstreams") or {}).items():
+    for name, spec in _mapping(raw.get("upstreams")).items():
         spec = spec or {}
         key = str(spec.get("api_key") or "")
         if key.startswith("${") and key.endswith("}"):
@@ -416,24 +559,24 @@ def load_settings(path: str | Path | None = None) -> Settings:
             remote=_as_bool(spec.get("remote"), False),
         )
 
-    budget = raw.get("budget") or {}
-    enforcement = raw.get("enforcement") or {}
-    breaker = raw.get("breaker") or {}
-    render = raw.get("render") or {}
+    budget = _mapping(raw.get("budget"))
+    enforcement = _mapping(raw.get("enforcement"))
+    breaker = _mapping(raw.get("breaker"))
+    render = _mapping(raw.get("render"))
 
     settings = Settings(
         api_key=api_key,
         charter_dir=str(raw.get("charter_dir") or "charter"),
         rules_dir=str(raw.get("rules_dir") or "charter/rules"),
         upstreams=upstreams,
-        routes=dict(raw.get("routes") or {}),
+        routes=dict(_mapping(raw.get("routes"))),
         needs={
             str(k).strip().lower(): str(v.get("upstream") if isinstance(v, dict) else v)
-            for k, v in (raw.get("needs") or {}).items()
+            for k, v in _mapping(raw.get("needs")).items()
         },
         need_models={
             str(k).strip().lower(): str(v["model"])
-            for k, v in (raw.get("needs") or {}).items()
+            for k, v in _mapping(raw.get("needs")).items()
             if isinstance(v, dict) and v.get("model")
         },
         default_upstream=str(raw.get("default_upstream") or next(iter(upstreams), "")),
@@ -468,6 +611,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
             str(h).strip() for h in (render.get("allow_hosts") or []) if str(h).strip()
         ),
         render_neutralise=_as_bool(render.get("neutralise"), False),
+        config_strays=strays,
     )
 
     if not settings.sovereign:
