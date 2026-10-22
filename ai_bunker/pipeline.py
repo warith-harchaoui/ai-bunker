@@ -46,7 +46,13 @@ import os_helper as osh
 
 from ai_bunker import beacon
 from ai_bunker.breaker import as_rule as breaker_rule
-from ai_bunker.budget import Budget, Counter, measure_request
+from ai_bunker.budget import (
+    CEILING_CHARS_PER_TOKEN,
+    Budget,
+    Counter,
+    measure_request,
+    request_chars,
+)
 from ai_bunker.charter import Charter, system_blocks
 from ai_bunker.dependencies import as_note as dependency_note
 from ai_bunker.dependencies import as_rule as dependency_rule
@@ -98,6 +104,32 @@ class Applied:
 
     def audit(self) -> list[dict[str, Any]]:
         return [d.as_dict() for d in self.decisions]
+
+
+class RequestTooLarge(Exception):
+    """A request too large to be worth screening, refused before it is.
+
+    Raised rather than returned as a verdict on `Applied`, because there is no
+    honest verdict to return: nothing was measured. `Applied.ok` reads
+    `budget.verdict`, and manufacturing an "unusable" budget for a request no
+    counter ever saw would put a number in the audit log that nobody took --
+    in a project whose subject is the distance between an estimate and the
+    truth. An exception says what happened: this was refused unread.
+
+    A caller that forgets to handle it gets a 500 and notices. A caller that
+    could silently ignore a flag would screen the 40 MB anyway, which is the
+    thing being prevented.
+    """
+
+    def __init__(self, chars: int, ceiling: int) -> None:
+        self.chars = chars
+        self.ceiling = ceiling
+        super().__init__(
+            f"This request carries {chars:,} characters and this gateway reads "
+            f"at most {ceiling:,}. Screening is linear in what arrives, so a "
+            "request this far past anything the engine could serve is refused "
+            "without being read rather than after minutes of reading it."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -407,6 +439,21 @@ def apply_inbound(
         budget leaves no room to work must be refused here, where the reason
         can be named, rather than downstream as an opaque context-length error.
     """
+    # Before any stage, and cheaply: how much is there? Screening costs time
+    # linearly in the length of what arrives, synchronously inside an async
+    # handler, and until this check existed nothing bounded the total --
+    # `MAX_SCREEN_CHARS` bounds one slice and a tool result arrives in as many
+    # slices as its length requires. The budget does not catch it either, by
+    # design: `measure_request` counts the floor, and conversation is not the
+    # floor, so a 40 MB tool result passes the budget and is forwarded.
+    #
+    # `request_chars` is O(nodes) and reads no content, so the request pays
+    # one cheap pass to find out whether it is worth a hundred expensive ones.
+    size = request_chars(request)
+    ceiling = served_context * CEILING_CHARS_PER_TOKEN
+    if size > ceiling:
+        raise RequestTooLarge(size, ceiling)
+
     messages = list(request.get("messages") or [])
 
     # Stage 0, in effect: the tool list. It is read before the tool results

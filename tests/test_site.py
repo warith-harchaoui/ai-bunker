@@ -437,6 +437,5 @@ def test_the_language_toggle_goes_to_the_same_page_in_the_other_language(page):
 
     slug = pathlib.Path(page).name
     assert pathlib.Path(href).name == slug, (
-        f"{page} sends the reader to {href} instead of the same page in the "
-        "other language"
+        f"{page} sends the reader to {href} instead of the same page in the other language"
     )

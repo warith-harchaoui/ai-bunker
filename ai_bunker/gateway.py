@@ -69,6 +69,7 @@ from ai_bunker.config import Settings, load_settings
 from ai_bunker.i18n import negotiate
 from ai_bunker.mandates import Trust, load_trust
 from ai_bunker.pipeline import (
+    RequestTooLarge,
     apply_inbound,
     apply_outbound,
     refusal_as_tool_result,
@@ -346,7 +347,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         model = str(body.get("model") or "")
         need = request.headers.get("x-ai-bunker-need", "")
         upstream, resolved, _why = state.settings.route(model, need)
-        applied = _prepare(state, {**body, "model": resolved}, upstream)
+        try:
+            applied = _prepare(state, {**body, "model": resolved}, upstream)
+        except RequestTooLarge as exc:
+            # This endpoint's whole promise is to answer without sending
+            # anything anywhere, and it kept that promise by reading 40 MB for
+            # several minutes. Refused here too, with the ceiling named so a
+            # client can act on it rather than guess.
+            raise HTTPException(
+                status_code=413,
+                detail={
+                    "message": str(exc),
+                    "type": "invalid_request_error",
+                    "code": "request_too_large",
+                    "characters": exc.chars,
+                    "ceiling": exc.ceiling,
+                },
+            ) from exc
         assert applied.budget is not None
         return applied.budget.to_dict()
 
@@ -567,7 +584,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session = session_of(
             body, header=request.headers.get(SESSION_HEADER, ""), credential=s.api_key
         )
-        applied = _prepare(state, body, upstream, locale=locale, session=session)
+        try:
+            applied = _prepare(state, body, upstream, locale=locale, session=session)
+        except RequestTooLarge as exc:
+            # Refused unread. Nothing is audited, because nothing was
+            # screened and an audit line claiming otherwise would be the lie
+            # this gateway exists to avoid.
+            return _error(
+                413,
+                str(exc),
+                "request_too_large",
+                characters=exc.chars,
+                ceiling=exc.ceiling,
+            )
         state.audit(applied.audit())
 
         if s.enforce_budget and not applied.ok:

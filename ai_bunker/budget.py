@@ -110,6 +110,61 @@ TOKENIZE_TIMEOUT = 120
 #: and the fast one.
 PROBE_TIMEOUT = 5
 
+#: The largest request this gateway will *look at*, as characters per token of
+#: served context. Deliberately absurd: the measured floor is
+#: :data:`CHARS_PER_TOKEN` = 2.5, so a request at this ceiling is about
+#: thirteen times larger than the biggest one that could ever fit the engine.
+#:
+#: It exists because screening is linear in the length of what arrives and
+#: nothing else bounded the total. :data:`~ai_bunker.rules.MAX_SCREEN_CHARS`
+#: bounds a *slice*; a tool result arrives in as many slices as its length
+#: requires. One 40 MB tool result -- a tool that read a large file, no
+#: hostility required -- costs minutes of a synchronous screen inside an
+#: asynchronous handler, during which the gateway serves nobody, and is then
+#: forwarded to an engine that will refuse it for context length anyway.
+#:
+#: Note what this is *not*: it is not the budget verdict arriving earlier.
+#: `measure_request` counts the system messages and the tool schemas, because
+#: conversation is what compaction reduces -- so a request can be enormous,
+#: pass the budget, and be forwarded. This is a separate, stated bound of the
+#: same kind as `MAX_SCREEN_CHARS`, the breaker's 4,096 sessions and the 512
+#: tool pins: a published ceiling, not an inference about something else.
+#:
+#: Thirty-two rather than, say, four, because refusing a request that would
+#: have fitted is the worse failure. Real tokenizers run 2 to 6 characters per
+#: token on real text; long runs of one character can push a byte-pair encoder
+#: higher, and nobody should have to think about which side of this line their
+#: build log falls on.
+CEILING_CHARS_PER_TOKEN = 32
+
+
+def request_chars(request: Any) -> int:
+    """Every character a request body carries, keys included.
+
+    Iteratively, which is the point: a recursive walk over a request is a
+    stack whose depth the caller chooses, and the whole reason this function
+    exists is that a caller was choosing something unbounded. Two thousand
+    levels of nesting cost two thousand list entries here and no frames.
+
+    Keys are counted with values. They are characters the engine will tokenize
+    and a request made of a million one-character keys is not cheaper than one
+    made of a million one-character values.
+    """
+    total = 0
+    stack: list[Any] = [request]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            total += len(item)
+        elif isinstance(item, dict):
+            for key, value in item.items():
+                if isinstance(key, str):
+                    total += len(key)
+                stack.append(value)
+        elif isinstance(item, (list, tuple)):
+            stack.extend(item)
+    return total
+
 
 Backend = Literal["server", "local", "ratio"]
 

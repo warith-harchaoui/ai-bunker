@@ -545,6 +545,19 @@ réellement actives.
   threads est le vrai correctif, et il n'est pas fait. Énoncé parce qu'un
   déploiement avec de la concurrence doit le savoir, et parce qu'une limite que
   personne ne publie est une limite que quelqu'un découvre.
+- **Une requête au-delà de trente-deux caractères par token de contexte servi
+  est refusée sans être lue.** Le filtrage coûte du temps linéairement dans la
+  longueur de ce qui arrive, et rien d'autre ne bornait le total :
+  `MAX_SCREEN_CHARS` borne une *tranche*, et une sortie d'outil arrive en
+  autant de tranches que sa longueur l'exige. Le budget ne l'attrape pas non
+  plus, à dessein — `measure_request` compte le plancher, et la conversation
+  n'est pas le plancher — donc une seule sortie d'outil de 40 Mo passait le
+  budget, coûtait des minutes de filtrage synchrone pendant lesquelles la
+  passerelle ne servait personne, puis partait vers un moteur qui l'aurait
+  refusée pour longueur de contexte de toute façon. Le plafond est environ
+  treize fois la plus grande requête qui pourrait tenir, parce que refuser une
+  requête qui aurait tenu est le pire des deux échecs ; le 413 nomme les deux
+  nombres, pour qu'un client découpe sa requête au lieu de deviner.
 - **Le vocabulaire d'outils shell est un défaut, pas une prétention à
   l'exhaustivité.** `SHELL_TOOLS` est surchargeable.
 - **Écoute sur localhost par défaut.** Un outil de souveraineté qui écoute sur
@@ -985,7 +998,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1373 tests, `ruff` propre | ✅ |
+| 1384 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

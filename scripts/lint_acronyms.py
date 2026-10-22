@@ -231,6 +231,7 @@ NAMES = {
     "LICENSE",
     "LangChain",
     "LangGraph",
+    "LISEZMOI",  # a filename, like README and PAYSAGE above it
     "LiteLLM",
     "LlamaIndex",
     "ToolHive",

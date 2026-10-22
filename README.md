@@ -509,6 +509,18 @@ purpose), and which of the three enforcement stages are actually live.
   removing it. Moving the calls onto a thread pool is the real fix and is not
   done. Stated because a deployment under concurrency should know, and because
   a limitation nobody published is one somebody discovers.
+- **A request above thirty-two characters per token of served context is
+  refused unread.** Screening costs time linearly in the length of what
+  arrives, and nothing else bounded the total: `MAX_SCREEN_CHARS` bounds one
+  *slice*, and a tool result arrives in as many slices as its length requires.
+  The budget does not catch it either, by design — `measure_request` counts the
+  floor, and conversation is not the floor — so a single 40-megabyte tool result
+  used to pass the budget, cost minutes of a synchronous screen during which the
+  gateway served nobody, and then go upstream to an engine that would refuse it
+  for context length anyway. The ceiling sits around thirteen times the largest
+  request that could ever fit, because refusing one that would have fitted is
+  the worse failure, and the 413 names both numbers so a client can split the
+  request rather than guess.
 - **The shell-tool vocabulary is a default, not a claim to completeness.** A
   gateway cannot know every client's tool names; `SHELL_TOOLS` is overridable.
 - **Binds to localhost by default.** A sovereignty tool that listens on every
@@ -918,7 +930,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1373 tests, `ruff` clean | ✅ |
+| 1384 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
