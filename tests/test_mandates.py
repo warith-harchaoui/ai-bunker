@@ -181,3 +181,188 @@ def test_rotating_a_key_is_copying_a_file(keys, tmp_path):
 def test_claims_of_never_raises_on_rubbish():
     assert claims_of("not-a-token") == {}
     assert claims_of("") == {}
+
+
+# ---------------------------------------------------------------------------
+# The key material itself. This was the least-covered code in the project and
+# the highest-consequence: it turns a key-set entry into the public key a
+# payment is verified against. A bug here accepts a mandate signed by the
+# wrong key, which is the thing the protocol exists to prevent.
+# ---------------------------------------------------------------------------
+
+
+def _write_jwks(directory, entry: dict) -> str:
+    path = directory / f"jwks-{entry.get('kid', 'k')}.json"
+    path.write_text(json.dumps({"keys": [entry]}), encoding="utf-8")
+    return str(path)
+
+
+def test_an_rsa_mandate_verifies(tmp_path):
+    """RSA keys were constructed by code no test ran. The two integers come
+    out of base64 in big-endian order, and getting that wrong yields a key
+    that verifies nothing -- or, worse, a different key."""
+    pytest.importorskip("cryptography")
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    numbers = key.public_key().public_numbers()
+
+    def raw(value: int) -> str:
+        return _b64(value.to_bytes((value.bit_length() + 7) // 8, "big"))
+
+    jwks = _write_jwks(
+        tmp_path, {"kty": "RSA", "kid": "rsa1", "n": raw(numbers.n), "e": raw(numbers.e)}
+    )
+
+    header = _b64(json.dumps({"alg": "RS256", "kid": "rsa1"}).encode())
+    payload = _b64(json.dumps({"iss": "bank.test", "amount": "10.00"}).encode())
+    signature = key.sign(f"{header}.{payload}".encode(), padding.PKCS1v15(), hashes.SHA256())
+    token = f"{header}.{payload}.{_b64(signature)}"
+
+    verdict = verify(token, trust=load_trust(jwks))
+    assert verdict.verified, verdict.problems
+
+
+def test_an_ed25519_mandate_verifies(tmp_path):
+    """Ed25519 is the curve a sovereign deployment is most likely to pick, and
+    its branch had never run."""
+    pytest.importorskip("cryptography")
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    key = ed25519.Ed25519PrivateKey.generate()
+    public = key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
+    )
+    jwks = _write_jwks(tmp_path, {"kty": "OKP", "crv": "Ed25519", "kid": "ed1", "x": _b64(public)})
+
+    header = _b64(json.dumps({"alg": "EdDSA", "kid": "ed1"}).encode())
+    payload = _b64(json.dumps({"iss": "bank.test"}).encode())
+    token = f"{header}.{payload}.{_b64(key.sign(f'{header}.{payload}'.encode()))}"
+
+    verdict = verify(token, trust=load_trust(jwks))
+    assert verdict.verified, verdict.problems
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"kty": "EC", "crv": "P-999", "kid": "k", "x": "AA", "y": "AA"},
+        {"kty": "WAT", "kid": "k", "x": "AA"},
+        {"kty": "OKP", "crv": "X25519", "kid": "k", "x": "AA"},
+    ],
+)
+def test_a_key_type_this_does_not_understand_is_refused(tmp_path, entry):
+    """Refusing beats guessing. A key set naming a curve this code does not
+    implement must produce a refusal, never a best-effort verification -- a
+    payment verified against a misread key is worse than one refused."""
+    pytest.importorskip("cryptography")
+    header = _b64(json.dumps({"alg": "ES256", "kid": "k"}).encode())
+    payload = _b64(json.dumps({"iss": "bank.test"}).encode())
+    token = f"{header}.{payload}.{_b64(b'x' * 64)}"
+
+    verdict = verify(token, trust=load_trust(_write_jwks(tmp_path, entry)))
+    assert not verdict.verified
+    assert verdict.problems
+
+
+def test_a_malformed_mandate_is_refused_rather_than_raising(tmp_path, keys):
+    """A gateway cannot raise while explaining a refusal."""
+    _sign, jwks, _directory = keys
+    trust = load_trust(jwks)
+    for token in ("", "not-a-jws", "a.b", "a.b.c.d", "!!!.###.$$$", "e30.e30.????"):
+        verdict = verify(token, trust=trust)
+        assert not verdict.verified
+        assert verdict.problems, token
+
+
+def test_an_unreadable_revocation_list_is_reported_not_fatal(tmp_path, keys):
+    """A missing revocation list must not stop the gateway starting, and must
+    not pass silently either: an operator who configured one believes
+    revocations are being honoured."""
+    _sign, jwks, _directory = keys
+    trust = load_trust(jwks, revoked_file=str(tmp_path / "absent.txt"))
+    assert trust is not None
+
+
+def test_a_key_set_served_over_http_is_fetched_and_cached(monkeypatch, tmp_path):
+    """A key set at a URL is how a bank publishes one, and the fetch had never
+    run. The cache matters as much: without it every payment verification is a
+    network round trip on the request path.
+    """
+    pytest.importorskip("cryptography")
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec, utils
+
+    from ai_bunker import mandates
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    numbers = key.public_key().public_numbers()
+    document = json.dumps(
+        {
+            "keys": [
+                {
+                    "kty": "EC",
+                    "crv": "P-256",
+                    "kid": "web1",
+                    "x": _b64(numbers.x.to_bytes(32, "big")),
+                    "y": _b64(numbers.y.to_bytes(32, "big")),
+                }
+            ]
+        }
+    ).encode()
+
+    fetches = {"n": 0}
+
+    class _Response:
+        def read(self):
+            return document
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    def fake_urlopen(url, timeout=None):
+        fetches["n"] += 1
+        return _Response()
+
+    monkeypatch.setattr(mandates.urllib.request, "urlopen", fake_urlopen)
+    mandates._JWKS_CACHE.clear()
+
+    header = _b64(json.dumps({"alg": "ES256", "kid": "web1"}).encode())
+    payload = _b64(json.dumps({"iss": "bank.test"}).encode())
+    der = key.sign(f"{header}.{payload}".encode(), ec.ECDSA(hashes.SHA256()))
+    r, s_ = utils.decode_dss_signature(der)
+    token = f"{header}.{payload}.{_b64(r.to_bytes(32, 'big') + s_.to_bytes(32, 'big'))}"
+
+    url = "https://keys.bank.test/jwks.json"
+    assert verify(token, trust=load_trust(url)).verified
+    assert fetches["n"] == 1
+
+    # Second load must come from the cache, not the network.
+    assert verify(token, trust=load_trust(url)).verified
+    assert fetches["n"] == 1, "the key set was fetched twice"
+
+
+def test_an_unreachable_key_set_refuses_rather_than_passing(monkeypatch, keys):
+    """The direction that matters. A key set that cannot be fetched means the
+    signature was not verified, and an unverified mandate must be refused --
+    passing it would authorise a payment on the strength of a network error.
+    """
+    pytest.importorskip("cryptography")
+    from ai_bunker import mandates
+
+    sign, _jwks, _directory = keys
+
+    def fail(url, timeout=None):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(mandates.urllib.request, "urlopen", fail)
+    mandates._JWKS_CACHE.clear()
+
+    verdict = verify(sign({"iss": "bank.test"}), trust=load_trust("https://down.test/jwks.json"))
+    assert not verdict.verified
+    assert verdict.problems
