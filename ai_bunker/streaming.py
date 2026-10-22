@@ -79,11 +79,6 @@ def carries_tool_call(chunk: dict[str, Any]) -> bool:
     return False
 
 
-def finished(chunk: dict[str, Any]) -> bool:
-    """Whether this chunk closes a choice, whatever the reason."""
-    return any((choice.get("finish_reason") is not None) for choice in chunk.get("choices") or [])
-
-
 def _spoken_text(chunk: dict[str, Any]) -> str:
     """The non-empty content in a chunk, if any."""
     out = ""

@@ -306,3 +306,116 @@ def test_a_refusal_frame_carries_the_rule_and_not_the_command(rules):
     payload = json.loads(frames[0][len("data: ") :])
     assert payload["ai_bunker"]["refused_by"] == "shell.destructive_rm"
     assert payload["choices"][0]["finish_reason"] == "tool_calls"
+
+
+# ---------------------------------------------------------------------------
+# A chunk that carries content AND a tool call. Found against a real engine;
+# tested here, because the integration suite skips wherever there is no engine
+# and nothing in it is allowed to be the only test of anything.
+# ---------------------------------------------------------------------------
+
+
+def mixed(text: str, command: str) -> str:
+    """One frame carrying content and a whole tool call, the way Ollama does.
+
+    The fixtures above follow the shape OpenAI documents: content in its own
+    chunks, then an opening chunk, then `arguments` in slices. A real engine
+    does neither, and an assembler correct only against the documented shape
+    held this chunk's text behind a verdict it had nothing to do with.
+    """
+    return frame(
+        {
+            "id": "c1",
+            "model": "m",
+            "created": 1,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "role": "assistant",
+                        "content": text,
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "bash",
+                                    "arguments": json.dumps({"command": command}),
+                                },
+                            }
+                        ],
+                    },
+                    "finish_reason": None,
+                }
+            ],
+        }
+    )
+
+
+def test_text_beside_a_tool_call_is_released_and_the_call_is_not():
+    """The two halves go different ways, out of one frame."""
+    assembler = streaming.Assembler()
+    assert assembler.feed(mixed("One moment.", "rm -rf /")) is True
+
+    assert assembler.spoken, "the text must be released"
+    released = "".join(assembler.spoken)
+    assert "One moment." in released
+    assert "tool_calls" not in released, "the released frame must not carry the call"
+
+    assert assembler.held, "the call must be held"
+    withheld = "".join(assembler.held)
+    assert "tool_calls" in withheld
+    assert "One moment." not in withheld, "the text must not be sent twice"
+
+
+def test_a_tool_call_in_a_mixed_chunk_is_still_assembled_and_screened(rules):
+    """Rescuing the text must not lose the command."""
+    assembler = streaming.Assembler()
+    assembler.feed(mixed("Cleaning up.", "rm -rf /"))
+    assembler.feed(closing())
+
+    assert json.loads(assembler.tool_calls()[0]["function"]["arguments"]) == {"command": "rm -rf /"}
+    refusal = apply_outbound(assembler.as_response(), rules=rules).refusal
+    assert refusal is not None and refusal.id == "shell.destructive_rm"
+
+
+def test_an_empty_content_beside_a_tool_call_releases_nothing():
+    """What Ollama actually sends is `content: ""`. There is no text to rescue,
+    so emitting an empty frame would be noise on the wire for nothing."""
+    assembler = streaming.Assembler()
+    assert assembler.feed(mixed("", "ls -la")) is True
+    assert not assembler.spoken
+    assert assembler.held
+
+
+def test_the_rescued_frame_does_not_close_the_message():
+    """It carries text, not an ending. A rescued frame that kept a
+    `finish_reason` would tell the client the answer was over while the tool
+    call was still being judged."""
+    assembler = streaming.Assembler()
+    assembler.feed(
+        frame(
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "content": "Done.",
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "c",
+                                    "type": "function",
+                                    "function": {"name": "bash", "arguments": "{}"},
+                                }
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            }
+        )
+    )
+    payload = json.loads(assembler.spoken[0][len("data: ") :])
+    assert payload["choices"][0]["finish_reason"] is None
