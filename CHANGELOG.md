@@ -638,7 +638,7 @@ before the upgrade rather than after.
   the half a user actually runs was untested. A command that cannot print its
   own help is a bug nobody ships; one that prints help and then raises ships
   easily. Nineteen invocations now run for real, `--json` output is parsed as
-  JSON rather than eyeballed, and `spec --export` is checked to write the files
+  JavaScript Object Notation (JSON) rather than eyeballed, and `spec --export` is checked to write the files
   `features/` is regenerated from.
 - Overall coverage 83% → 90%. Writing these corrected four wrong assumptions of
   mine about the data model — `Sizing.accelerator` is a string, not an object;
