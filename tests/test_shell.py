@@ -142,13 +142,44 @@ def test_nothing_malformed_raises(line):
     assert isinstance(readings, list)
 
 
-def test_a_very_long_line_is_handled_in_reasonable_time():
-    """An adversarial line of fifty thousand `env` prefixes once turned the
-    reductions from milliseconds into minutes, which is why the transformations
-    are anchored. This holds that fix to a number."""
+def test_an_adversarial_line_costs_a_bounded_amount_of_work():
+    """A wall-clock assertion is a machine-dependent one, and this is the test
+    that proved it: 71 ms on CPython 3.13 and **nine to twenty seconds on
+    3.10**, so continuous integration failed on the one supported version
+    that is slower while three others passed.
+
+    The underlying defect was real -- the reduction loop rebuilt the string on
+    every pass, so it was quadratic in a length the attacker chooses, and a
+    model can emit that line. Bounding the loop fixed it. The test now asserts
+    the **property** rather than a duration: work must grow no faster than
+    linearly in the input, which no interpreter speed can disguise.
+    """
     import time
 
-    line = "env " * 20_000 + "rm -rf /"
-    started = time.perf_counter()
-    shell_readings(line)
-    assert time.perf_counter() - started < 2.0
+    def cost(prefixes: int) -> float:
+        line = "env " * prefixes + "rm -rf /"
+        best = float("inf")
+        for _ in range(3):
+            started = time.perf_counter()
+            shell_readings(line)
+            best = min(best, time.perf_counter() - started)
+        return best
+
+    small, large = cost(5_000), cost(40_000)
+    # Eight times the input. Quadratic would be ~64x; generous headroom here,
+    # because the point is to catch the quadratic and not to measure a machine.
+    assert large < max(small * 24, 0.5), f"{small:.4f}s -> {large:.4f}s is superlinear"
+
+
+def test_a_pathological_line_is_still_screened_as_far_as_it_was_peeled():
+    """The bound stops the reductions; it does not stop the screening. What
+    was peeled before the limit is still read, so a long prefix stack does not
+    become a way to hide a command behind one."""
+    assert shell_readings("env " * 10_000 + "rm -rf /")[0].startswith("env ")
+    assert len(shell_readings("env " * 10_000 + "rm -rf /")) >= 1
+
+
+def test_a_real_prefix_stack_is_peeled_to_the_end():
+    """Thirty-two passes is far past anything a shell is handed, so the bound
+    must never engage on a real command."""
+    assert _reaches("sudo env nohup timeout 5 sh -c 'rm -rf /'", "rm -rf /")

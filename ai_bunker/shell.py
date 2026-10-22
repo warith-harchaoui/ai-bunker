@@ -104,6 +104,19 @@ RUNNER_PREFIX = re.compile(
     re.VERBOSE,
 )
 
+#: Most times the reductions below will peel a single command.
+#:
+#: Each pass rebuilds the string, so the loop is quadratic in the length of its
+#: input -- and the input is whatever a model emitted. Twenty thousand stacked
+#: `env` prefixes cost 71 ms on CPython 3.13 and nine to twenty seconds on
+#: 3.10, a version this project supports; continuous integration failed on 3.10
+#: alone while 3.11, 3.12 and 3.13 passed.
+#:
+#: Thirty-two is far past anything real. `sudo env nohup timeout 5 sh -c '...'`
+#: is five deep, and a line needing more than thirty-two is not a command
+#: somebody wrote.
+MAX_REDUCTIONS = 32
+
 #: A leading directory on the command word. A shell runs ``/bin/rm -rf /`` and
 #: ``rm -rf /`` identically; a pattern anchored on ``rm`` sees only one of them.
 COMMAND_PATH = re.compile(r"^\s*(?:/|\./|\.\./)\S{0,120}?/(?=[A-Za-z0-9_.-]{1,40}(?:\s|$))")
@@ -216,13 +229,29 @@ def _as_the_shell_runs_it(segment: str) -> str:
     /"'`` is peeled however deep it goes. It terminates because every branch
     either shortens the string or leaves it alone, and the loop exits on the
     first pass that changes nothing.
+
+    **Bounded, because the input is the attacker's.** Each pass rebuilds the
+    string, so a line of twenty thousand stacked ``env`` prefixes is quadratic
+    in its length -- 71 ms on CPython 3.13 and **nine to twenty seconds on
+    3.10**, which this project supports and which failed in continuous
+    integration while the newer interpreters passed. A model can emit that
+    line, and screening freezing for twenty seconds is the same availability
+    defect as any other.
+
+    Thirty-two is far past anything a shell is ever handed: ``sudo env nohup
+    timeout 5 sh -c '...'`` is five. Past the bound the reductions stop and the
+    readings collected so far are returned, so a pathological line costs a
+    bounded amount of work and is still screened against everything peeled off
+    it before the limit.
     """
     out = segment.strip()
     # Quotes and escapes first and once: they are about the arguments, and a
     # quoted runner word has to be unquoted before it can be recognised.
     out = out.replace("\\", "").replace('"', "").replace("'", "")
     previous = None
-    while previous != out:
+    passes = 0
+    while previous != out and passes < MAX_REDUCTIONS:
+        passes += 1
         previous = out
         out = out.strip().strip("(){}").strip()
         out = without_env_prefix(out)
