@@ -237,3 +237,29 @@ def test_a_budget_report_says_which_backend_counted():
         served_context=8192,
     )
     assert budget.backend in render_budget(budget)
+
+
+def test_the_rule_set_cost_is_measured_and_kept_out_of_the_default_table():
+    """Nothing caps the number of rules, and the screening cost is linear in
+    it -- so a deployment importing a large charter pack pays proportionally
+    with no warning. A figure an operator can watch is cheaper than a limit
+    somebody has to argue about.
+
+    It stays out of the default table deliberately: seven documents quote that
+    block as real output, and a millisecond figure is machine-dependent. In
+    the default view it would give all seven a number that is wrong on every
+    other machine and that no drift guard could check.
+    """
+    from ai_bunker.report import render_rule_report, screen_cost_ms
+
+    rules = load_rules("charter/rules")
+    report = check_rules(rules)
+
+    cost = screen_cost_ms(rules)
+    assert cost > 0, "a measurement of zero is not a measurement"
+
+    plain = render_rule_report(report, rules)
+    assert "cost to screen" not in plain
+
+    asked = render_rule_report(report, rules, show_cost=True)
+    assert "cost to screen" in asked

@@ -366,7 +366,33 @@ def render_budget(budget) -> str:
     return "\n".join(out)
 
 
-def render_rule_report(report, rules) -> str:
+def screen_cost_ms(rules) -> float:
+    """Milliseconds to screen 100 KB of text through this rule set.
+
+    Published because nothing caps the number of rules. `MAX_SCREEN_CHARS`
+    bounds the input and the cost is linear in the rule count, so a deployment
+    that imports a large charter pack -- which `ai-bunker skill --import` makes
+    easy -- pays proportionally with no warning at all. A figure an operator
+    can watch is cheaper than a limit somebody has to argue about.
+
+    Measured on text with no match in it, which is the normal case and the
+    honest one: a result that triggers a rule costs more, and quoting the
+    cheaper number would understate what a busy session pays.
+    """
+    import time
+
+    from ai_bunker.rules import screen_output
+
+    sample = ("the quick brown fox jumps over the lazy dog. " * 2400)[:100_000]
+    best = float("inf")
+    for _ in range(3):
+        started = time.perf_counter()
+        screen_output(sample, rules)
+        best = min(best, (time.perf_counter() - started) * 1000)
+    return best
+
+
+def render_rule_report(report, rules, *, show_cost: bool = False) -> str:
     """Render the result of checking rules against their own examples."""
     out: list[str] = []
     w = out.append
@@ -378,6 +404,14 @@ def render_rule_report(report, rules) -> str:
     w(f"  assertions passed                 {report.passed:>6}")
     w(f"  assertions failed                 {len(report.failed):>6}")
     w(f"  rules carrying evidence           {report.coverage:>5.0%}")
+    if show_cost:
+        # Behind a flag, and out of the default table on purpose. Seven
+        # documents quote this block as real output, and a millisecond figure
+        # is machine-dependent: putting it in the default view would give all
+        # seven a number that is wrong on every other machine and that no
+        # drift guard can check. `--json` always carries it, because a script
+        # watching the cost of a growing rule set is the use that matters.
+        w(f"  cost to screen 100 KB             {screen_cost_ms(rules):>5.0f} ms")
     w("")
 
     by_scope: dict[str, list] = {}

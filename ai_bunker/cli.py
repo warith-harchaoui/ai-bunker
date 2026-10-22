@@ -36,6 +36,7 @@ from ai_bunker.report import (
     render_comparison,
     render_recommendation,
     render_rule_report,
+    screen_cost_ms,
 )
 from ai_bunker.rules import (
     load_rules,
@@ -246,12 +247,16 @@ def cmd_rules(args) -> int:
                         ],
                         "untested": report.untested,
                         "coverage": report.coverage,
+                        # Always in the machine-readable output: nothing caps
+                        # the rule count, the cost is linear in it, and a
+                        # script is what would notice a pack doubling it.
+                        "screen_cost_ms_per_100kb": round(screen_cost_ms(rules), 1),
                     },
                     indent=2,
                 )
             )
         else:
-            print(render_rule_report(report, rules))
+            print(render_rule_report(report, rules, show_cost=args.cost))
         # Evidence that does not gate anything is documentation, not evidence.
         return 0 if report.ok else 1
 
@@ -834,6 +839,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     r.add_argument("--command", help="Screen one shell command.")
     r.add_argument("--screen", help="Screen a file's content, or `-` for stdin (the default).")
+    r.add_argument(
+        "--cost",
+        action="store_true",
+        help=(
+            "With --check, also measure what this rule set costs to screen "
+            "100 KB. Machine-dependent, which is why it is not in the default "
+            "table; --json always carries it."
+        ),
+    )
     r.add_argument(
         "--provenance",
         metavar="SOURCE",

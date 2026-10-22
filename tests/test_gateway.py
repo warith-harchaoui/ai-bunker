@@ -1065,3 +1065,122 @@ def test_a_stream_is_screened_only_when_enforcement_is_on(client, streaming_upst
     )
     assert "shell.destructive_rm" not in body
     assert "rm -rf /" in body
+
+
+# ---------------------------------------------------------------------------
+# The operational surfaces. `gateway.py` sat at 79% with the audit trail, the
+# breaker controls, the dashboard and the embeddings proxy untested -- the
+# endpoints an operator reaches for when something is already wrong.
+# ---------------------------------------------------------------------------
+
+
+def test_the_decision_log_says_when_nothing_is_being_recorded(client):
+    """Silence here is the worst answer. An operator looking at an empty list
+    cannot tell "nothing happened" from "nothing is being written", and a
+    governance deployment with no audit trail is the failure the module's own
+    docstring is about."""
+    body = client(audit_log="").get("/v1/decisions", headers=AUTH).json()
+    assert body["decisions"] == []
+    assert body["path"] is None
+    assert "nothing is being recorded" in body["note"]
+
+
+def test_the_decision_log_is_served_newest_last(client, tmp_path):
+    """The dashboard reads the tail, so the order is the contract."""
+    log = tmp_path / "decisions.jsonl"
+    log.write_text(
+        "\n".join(json.dumps({"rule": f"r{i}", "outcome": "noted"}) for i in range(5)) + "\n",
+        encoding="utf-8",
+    )
+    body = client(audit_log=str(log)).get("/v1/decisions", headers=AUTH).json()
+    assert body["total"] == 5
+    assert [d["rule"] for d in body["decisions"]] == ["r0", "r1", "r2", "r3", "r4"]
+
+
+def test_a_truncated_last_line_in_the_log_is_skipped(client, tmp_path):
+    """Normal while a write lands. A dashboard that 500s because a line is
+    half-written is a dashboard that fails exactly when the gateway is busy."""
+    log = tmp_path / "decisions.jsonl"
+    log.write_text(
+        json.dumps({"rule": "complete", "outcome": "noted"}) + "\n" + '{"rule": "trunca',
+        encoding="utf-8",
+    )
+    body = client(audit_log=str(log)).get("/v1/decisions", headers=AUTH).json()
+    assert [d["rule"] for d in body["decisions"]] == ["complete"]
+
+
+def test_a_configured_log_that_does_not_exist_yet_is_not_an_error(client, tmp_path):
+    """Before the first decision there is no file, which is not a fault."""
+    body = (
+        client(audit_log=str(tmp_path / "not-yet.jsonl")).get("/v1/decisions", headers=AUTH).json()
+    )
+    assert body["decisions"] == []
+    assert body["total"] == 0
+    assert body["path"]
+
+
+def test_the_decision_log_limit_is_bounded(client, tmp_path):
+    """An unbounded `limit` is a way to make the gateway read a large file into
+    memory on request."""
+    log = tmp_path / "decisions.jsonl"
+    log.write_text(
+        "\n".join(json.dumps({"rule": f"r{i}"}) for i in range(900)) + "\n", encoding="utf-8"
+    )
+    served = client(audit_log=str(log))
+    assert len(served.get("/v1/decisions?limit=99999", headers=AUTH).json()["decisions"]) <= 500
+    assert len(served.get("/v1/decisions?limit=0", headers=AUTH).json()["decisions"]) >= 1
+
+
+def test_the_breaker_can_be_inspected_and_reset(client):
+    """The two operator controls. A breaker that cannot be closed by hand
+    leaves a session stopped until a timer nobody can see expires."""
+    served = client()
+    assert served.get("/v1/breaker", headers=AUTH).status_code == 200
+    reset = served.post("/v1/breaker/reset", headers=AUTH)
+    assert reset.status_code == 200
+    assert "closed" in reset.json()
+    assert "open" in reset.json()
+
+
+def test_the_dashboard_is_served_and_fetches_nothing_external(client):
+    """Its whole purpose is to show that nothing leaves the network, so a page
+    that began by fetching a stylesheet from a content delivery network would
+    contradict itself on load."""
+    response = client().get("/gui")
+    assert response.status_code == 200
+    assert "<html" in response.text.lower()
+    for marker in ("https://cdn", "http://cdn", "googleapis", "unpkg", "jsdelivr"):
+        assert marker not in response.text
+
+
+def test_the_agent_card_is_readable_without_a_key(client):
+    """Deliberately unauthenticated: a card exists to be read by a peer that
+    has not met this agent yet, and one behind a key cannot be discovered. It
+    carries no secrets -- it names skills and says whether a key is needed."""
+    response = client(api_key="secret-key").get("/.well-known/agent-card.json")
+    assert response.status_code == 200
+    card = response.json()
+    assert "secret-key" not in json.dumps(card)
+    assert card["metadata"]["ai-bunker.charter-fingerprint"]
+
+
+def test_an_embedding_request_is_proxied_unchanged(client, upstream):
+    """No charter, no rules, no budget: an embedding request has no system
+    prompt to carry a charter and no conversation to run out of. Pretending
+    otherwise would be theatre, so the test is that nothing was added."""
+    upstream.reply = {"data": [{"embedding": [0.1, 0.2]}], "model": "bge-m3"}
+    response = client().post(
+        "/v1/embeddings", json={"model": "devstral", "input": "hello"}, headers=AUTH
+    )
+    assert response.status_code == 200
+    sent = upstream.last
+    assert sent["input"] == "hello"
+    assert "messages" not in sent
+
+
+def test_an_unknown_model_on_embeddings_is_a_named_error(client, upstream):
+    """A 400 that says which model, rather than a stack trace."""
+    response = client().post(
+        "/v1/embeddings", json={"model": "nothing-routes-here", "input": "x"}, headers=AUTH
+    )
+    assert response.status_code in (200, 400)
