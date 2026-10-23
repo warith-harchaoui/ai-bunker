@@ -504,3 +504,65 @@ def test_an_oversized_streamed_call_is_refused_not_truncated(client_factory=None
         )
     )
     assert assembler.overflowed, "the caller needs to know it cannot judge this"
+
+
+# ---------------------------------------------------------------------------
+# A stream that simply stops, which is a thing upstreams do.
+# ---------------------------------------------------------------------------
+
+
+def test_a_tool_call_cut_mid_arguments_is_refused_not_relayed(rules):
+    """Truncation can turn a refusal into a pass, which is the whole point.
+
+    An upstream stream can end without a terminator: a provider timeout, a
+    proxy capping response duration, a socket reset. The client then gets HTTP
+    200, a partial assistant message and a normal close, and treats a
+    truncated turn as a complete one -- common enough in gateways to have a
+    name, *a truncated 200 looks like success*.
+
+    Here it is worse than cosmetic. `rm -rf /` is refused by a BLOCKER. Cut to
+    `{"command": "rm -rf` it matches **nothing**, because the rule needs a
+    target -- so the gateway screened a prefix, found it clean, and relayed it
+    with a normal close. A client that repairs or retries the call then runs
+    what the charter would have refused.
+
+    `MAX_ASSEMBLED_CHARS` already carried this argument, in these words:
+    "refused rather than truncated: screening a prefix of a command decides
+    the wrong question confidently." It was written for the other way a call
+    becomes a prefix and not applied to this one.
+    """
+    assembler = streaming.Assembler()
+    assembler.feed(
+        'data: {"id":"c1","model":"m","created":1,"choices":[{"index":0,"delta":'
+        '{"tool_calls":[{"index":0,"id":"t1","type":"function","function":'
+        '{"name":"bash","arguments":""}}]},"finish_reason":null}]}'
+    )
+    assembler.feed(
+        'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,'
+        '"function":{"arguments":"{\\"command\\": \\"rm -rf"}}]},'
+        '"finish_reason":null}]}'
+    )
+
+    assert assembler.has_calls
+    assert assembler.incomplete, "arguments that do not parse are incomplete"
+
+    # The premise, so this test cannot pass for the wrong reason: the prefix
+    # really does screen clean while the whole command does not.
+    from ai_bunker.rules import screen_command
+
+    assert screen_command("rm -rf", rules)[0] is None, "the prefix must look harmless"
+    assert screen_command("rm -rf /", rules)[0] is not None, "the whole command must be refused"
+
+
+def test_a_complete_call_is_not_called_incomplete(rules):
+    """The direction that would break every stream: a finished call, and a
+    tool that takes no arguments at all, are both ordinary."""
+    for arguments in ('{"command": "ls -la"}', "{}", ""):
+        assembler = streaming.Assembler()
+        assembler.feed(
+            'data: {"id":"c1","model":"m","created":1,"choices":[{"index":0,"delta":'
+            '{"tool_calls":[{"index":0,"id":"t1","type":"function","function":'
+            f'{{"name":"bash","arguments":{json.dumps(arguments)}}}}}]}},'
+            '"finish_reason":null}]}'
+        )
+        assert not assembler.incomplete, f"{arguments!r} is a complete call"

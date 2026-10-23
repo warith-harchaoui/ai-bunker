@@ -993,6 +993,39 @@ async def _stream(
         yield "data: [DONE]\n\n"
         return
 
+    if assembler.incomplete:
+        # The upstream stream ended mid-arguments. The same argument as the
+        # branch above, about the other way a call becomes a prefix -- and
+        # here it is not only unjudgeable but dangerous to relay: `rm -rf /`
+        # is refused, and cut to `{"command": "rm -rf` it matches nothing,
+        # because the rule needs a target. Passing that on with a normal close
+        # tells a client a truncated call was screened and is fine.
+        osh.warning(
+            "[gateway] a streamed tool call ended mid-arguments and was "
+            "refused rather than relayed: a verdict on a prefix is not a "
+            "verdict on the call."
+        )
+        yield _sse(
+            {
+                "id": assembler.response_id or "chatcmpl-stream",
+                "object": "chat.completion.chunk",
+                "created": assembler.created or 0,
+                "model": assembler.model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                "ai_bunker": {
+                    "refused_by": "stream.truncated_tool_call",
+                    "reason": (
+                        "The upstream stream ended before this tool call was "
+                        "complete, so its arguments do not parse. It was not "
+                        "forwarded: screening a prefix of a command answers the "
+                        "wrong question. Ask again."
+                    ),
+                },
+            }
+        )
+        yield "data: [DONE]\n\n"
+        return
+
     if not s.enforce_commands:
         for held in assembler.held:
             yield held + "\n\n"

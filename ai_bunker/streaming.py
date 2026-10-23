@@ -227,6 +227,45 @@ class Assembler:
             )
 
     @property
+    def incomplete(self) -> bool:
+        """Whether a held call's arguments stopped mid-way.
+
+        An upstream stream can simply end: a provider timeout, a proxy
+        capping response duration, a socket reset. The client then gets HTTP
+        200, a partial assistant message and a normal close, and treats a
+        truncated turn as a complete one -- a failure mode common enough in
+        gateways to have a name, *a truncated 200 looks like success*.
+
+        Here it is worse than cosmetic, because **truncation can turn a
+        refusal into a pass**. `rm -rf /` is refused by a BLOCKER; cut to
+        `{"command": "rm -rf` it matches nothing, since the rule needs a
+        target. The verdict was computed on a prefix and reported as a
+        verdict on the call.
+
+        `MAX_ASSEMBLED_CHARS` already got this argument, in those words:
+        "refused rather than truncated: screening a prefix of a command
+        decides the wrong question confidently." This is the same sentence
+        about the other way a call ends up a prefix.
+
+        Empty arguments are not incomplete: a tool that takes none is
+        ordinary, and `{}` or `""` is what that looks like on the wire.
+        """
+        # `calls` is keyed by choice and then by call index, so this walks two
+        # levels. The first version of it walked one, found nothing to parse,
+        # and reported every truncated call as complete -- a guard that is
+        # green because it is looking in the wrong place.
+        for by_index in self.calls.values():
+            for call in by_index.values():
+                arguments = (call.get("function") or {}).get("arguments") or ""
+                if not arguments.strip():
+                    continue
+                try:
+                    json.loads(arguments)
+                except (json.JSONDecodeError, ValueError):
+                    return True
+        return False
+
+    @property
     def has_calls(self) -> bool:
         return any(slot for slot in self.calls.values())
 
