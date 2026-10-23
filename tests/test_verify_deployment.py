@@ -31,12 +31,28 @@ from ai_bunker.adopt import site_root
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _site():
-    """The site's tree, or a skip. It lives outside this repository now."""
+#: The tree the byte-comparing tests read from, set by the `vd` fixture. Real
+#: when the site is on this machine, synthetic otherwise.
+_ROOT: Path | None = None
+
+
+def _site() -> Path:
+    """Whatever tree the current test is reading bytes from."""
+    if _ROOT is not None:
+        return _ROOT
     root = site_root()
-    if root is None:
+    if root is None:  # pragma: no cover - the `vd` fixture always sets _ROOT
         pytest.skip("the site is not on this machine (set AI_BUNKER_SITE)")
     return root
+
+
+#: For the five tests that need the *real* tree, because they import
+#: `publish.py` out of it and compare against its own `shipped()` and `BASE`.
+#: There is no honest synthetic version of "the list this project would
+#: upload": a fabricated one would verify this test file's idea of the site.
+real_site = pytest.mark.skipif(
+    site_root() is None, reason="the real site tree is not on this machine"
+)
 
 
 def _load():
@@ -51,10 +67,41 @@ def _load():
     return module
 
 
-@pytest.fixture(scope="module")
-def vd():
-    _site()  # skip the whole module when the site is elsewhere
-    return _load()
+# Function-scoped: it needs `tmp_path` and `monkeypatch`, and loading the
+# module is one `importlib` call on a single file.
+@pytest.fixture
+def vd(tmp_path, monkeypatch):
+    """The verifier, with a tree to read bytes from.
+
+    It used to skip the whole module when the site was absent, and that was
+    far too blunt: **twenty-three of these twenty-eight tests need bytes, not
+    this project's pages.** Four verdicts, cache-busting, retry-on-transport,
+    the origin re-check, the exit codes -- none of that is about `index.html`
+    in particular, and all of it stopped running in continuous integration
+    when the site moved out of the repository. That script's subtlest
+    behaviour is the Varnish re-check, which exists because its absence sent
+    the maintainer to re-upload a file twice for nothing; leaving it untested
+    is the worst place to lose coverage.
+
+    So: the real tree when it is here, and a synthetic one with the three
+    files these tests actually read when it is not.
+    """
+    module = _load()
+    root = site_root()
+    if root is None:
+        root = tmp_path / "site"
+        (root / "js").mkdir(parents=True)
+        # A four-digit run, because one test swaps it to prove that equal
+        # byte lengths are still compared by hash.
+        (root / "index.html").write_bytes(b"<!doctype html>\n<title>site 1071</title>\n")
+        # Carries a version string because one test simulates a stale edge by
+        # swapping `0.2` for `0.1`: a fixture has to contain whatever the
+        # tests perturb, or it reports "identical" and proves nothing.
+        (root / "llms.txt").write_bytes(b"# llms.txt\nversion: 0.2.0\n")
+        (root / "js" / "theme.js").write_bytes(b"// theme\n")
+        monkeypatch.setattr(module, "WEB", root)
+    monkeypatch.setitem(globals(), "_ROOT", root)
+    return module
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +109,7 @@ def vd():
 # ---------------------------------------------------------------------------
 
 
+@real_site
 def test_the_file_list_is_the_one_publish_would_upload(vd):
     """Reusing `publish.shipped()` rather than globbing here is the whole
     design, and this is the assertion that keeps it honest.
@@ -77,6 +125,7 @@ def test_the_file_list_is_the_one_publish_would_upload(vd):
     assert vd.shipped_files() == [str(p.relative_to(publish.HERE)) for p in publish.shipped()]
 
 
+@real_site
 def test_the_served_javascript_and_fonts_are_checked(vd):
     """The eight files the hand check missed, named so they cannot be lost
     again by a future change to how the list is built."""
@@ -86,6 +135,7 @@ def test_the_served_javascript_and_fonts_are_checked(vd):
     assert len([p for p in paths if p.endswith(".woff2")]) == 6
 
 
+@real_site
 def test_build_time_files_are_not_checked(vd):
     """`_shell/` partials, the Tailwind input and the favicon source sizes are
     not served, so asking production for them would report four-oh-fours as
@@ -97,6 +147,7 @@ def test_build_time_files_are_not_checked(vd):
     assert not [p for p in paths if p.endswith(".py")]
 
 
+@real_site
 def test_every_listed_file_exists_locally(vd):
     """`verify_one` reads the local file before asking the network, so a path
     that does not exist would be a crash rather than a verdict."""
@@ -104,6 +155,7 @@ def test_every_listed_file_exists_locally(vd):
         assert (_site() / path).is_file(), path
 
 
+@real_site
 def test_the_base_url_comes_from_publish(vd):
     sys.path.insert(0, str(_site()))
     import publish
