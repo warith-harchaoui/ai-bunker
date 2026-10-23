@@ -50,6 +50,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from pathlib import Path
@@ -58,6 +59,7 @@ from typing import Any
 import httpx
 import os_helper as osh
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from ai_bunker import __version__, i18n, streaming
@@ -102,6 +104,20 @@ class State:
         self.charter = load_charter(settings.charter_dir, locale=settings.language)
         self.rules = load_rules(settings.rules_dir)
         self.counters: dict[tuple[str, str], Counter] = {}
+        #: Serialises the inbound pipeline, which is now run off the event
+        #: loop. The two halves of that sentence belong together: moving
+        #: `_prepare` to a worker thread is what stops a stalled tokenizer
+        #: freezing the whole gateway, and it would also be the first time two
+        #: requests ran it *at once* -- over `counters`, `pins`,
+        #: `approved_tools` and the breaker, none of which has ever needed a
+        #: lock because nothing was ever concurrent. Trading an availability
+        #: defect for a data race is not a fix.
+        #:
+        #: So the pipeline stays serialised, exactly as serialised as it was
+        #: when it ran on the loop, and what changes is that the loop is free
+        #: while it runs: `/health`, `/v1/models`, the dashboard and every
+        #: stream already in flight keep answering.
+        self.pipeline = asyncio.Lock()
         self.breaker = Breaker(threshold=settings.breaker_refusals, window=settings.breaker_window)
         self.pins = Pins()
         self.approved_tools = (
@@ -348,7 +364,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         need = request.headers.get("x-ai-bunker-need", "")
         upstream, resolved, _why = state.settings.route(model, need)
         try:
-            applied = _prepare(state, {**body, "model": resolved}, upstream)
+            async with state.pipeline:
+                applied = await run_in_threadpool(
+                    _prepare, state, {**body, "model": resolved}, upstream
+                )
         except RequestTooLarge as exc:
             # This endpoint's whole promise is to answer without sending
             # anything anywhere, and it kept that promise by reading 40 MB for
@@ -585,7 +604,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             body, header=request.headers.get(SESSION_HEADER, ""), credential=s.api_key
         )
         try:
-            applied = _prepare(state, body, upstream, locale=locale, session=session)
+            async with state.pipeline:
+                applied = await run_in_threadpool(
+                    _prepare, state, body, upstream, locale=locale, session=session
+                )
         except RequestTooLarge as exc:
             # Refused unread. Nothing is audited, because nothing was
             # screened and an audit line claiming otherwise would be the lie

@@ -538,14 +538,20 @@ réellement actives.
   rien ici ne vous dira que le fichier est gros. L'état en mémoire, lui, **est**
   borné : le disjoncteur garde 4 096 sessions et les épingles d'outils 512, les
   plus anciennes évincées d'abord.
-- **Le comptage bloque la boucle d'événements.** La sonde du tokenizer et les
-  comptages eux-mêmes sont des appels synchrones dans des gestionnaires
-  asynchrones : pendant qu'un tourne, la passerelle ne sert personne. La sonde
-  est bornée à cinq secondes par dialecte et le comptage à deux minutes, ce qui
-  borne les dégâts sans les supprimer. Déplacer ces appels sur un pool de
-  threads est le vrai correctif, et il n'est pas fait. Énoncé parce qu'un
-  déploiement avec de la concurrence doit le savoir, et parce qu'une limite que
-  personne ne publie est une limite que quelqu'un découvre.
+- ~~Le comptage bloque la boucle d'événements.~~ **Fermé.** La sonde du
+  tokenizer et les comptages sont des appels synchrones, et ils tournaient dans
+  des gestionnaires asynchrones : mesuré contre une socket qui accepte et ne
+  répond jamais, `/health` mettait **9,73 secondes** pendant qu'une requête
+  était préparée — deux dialectes à la durée de sonde — donc pendant dix
+  secondes la passerelle ne servait personne. Le pipeline entrant tourne
+  maintenant dans un thread de travail et `/health` répond en 0,01 seconde sous
+  le même blocage. **Le comptage reste sérialisé**, par un verrou et à dessein :
+  `counters`, `pins`, `approved_tools` et le disjoncteur n'ont jamais eu besoin
+  de verrou parce que rien n'était jamais concurrent, et un correctif de
+  disponibilité payé par une course de données n'est pas un correctif. Ce qui
+  change, c'est que la boucle est libre pendant un comptage : `/health`,
+  `/v1/models`, le tableau de bord et chaque flux en cours continuent de
+  répondre.
 - **Une requête au-delà de trente-deux caractères par token de contexte servi
   est refusée sans être lue.** Le filtrage coûte du temps linéairement dans la
   longueur de ce qui arrive, et rien d'autre ne bornait le total :
@@ -999,7 +1005,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1408 tests, `ruff` propre | ✅ |
+| 1410 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

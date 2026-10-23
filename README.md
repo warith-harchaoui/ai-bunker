@@ -503,13 +503,19 @@ purpose), and which of the three enforcement stages are actually live.
   logs on that host, and `/v1/decisions` reads only the tail — but nothing
   here will tell you the file is large. In-memory state *is* bounded: the
   breaker keeps 4,096 sessions and the tool pins 512, both oldest-first.
-- **Counting blocks the event loop.** The tokenizer probe and the counts
-  themselves are synchronous calls inside asynchronous handlers, so while one
-  runs the gateway serves nobody. The probe is bounded at five seconds per
-  dialect and the count at two minutes, which bounds the damage rather than
-  removing it. Moving the calls onto a thread pool is the real fix and is not
-  done. Stated because a deployment under concurrency should know, and because
-  a limitation nobody published is one somebody discovers.
+- ~~Counting blocks the event loop.~~ **Closed.** The tokenizer probe and the
+  counts are synchronous calls, and they used to run inside asynchronous
+  handlers: measured against a socket that accepts and never answers,
+  `/health` took **9.73 seconds** while one request was being prepared — two
+  dialects at the probe timeout — so for ten seconds the gateway served
+  nobody. The inbound pipeline now runs in a worker thread and `/health`
+  answers in 0.01 seconds under the same stall. **Counting is still
+  serialised**, by a lock and deliberately: `counters`, `pins`,
+  `approved_tools` and the breaker have never needed one because nothing was
+  ever concurrent, and an availability fix paid for with a data race is not a
+  fix. What changed is that the loop is free while a count happens, so
+  `/health`, `/v1/models`, the dashboard and every stream in flight keep
+  answering.
 - **A request above thirty-two characters per token of served context is
   refused unread.** Screening costs time linearly in the length of what
   arrives, and nothing else bounded the total: `MAX_SCREEN_CHARS` bounds one
@@ -931,7 +937,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1408 tests, `ruff` clean | ✅ |
+| 1410 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

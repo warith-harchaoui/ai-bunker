@@ -195,7 +195,15 @@ CLAIMS: tuple[Claim, ...] = (
             "existed, and it then advertised no holes that did. The reader "
             "deciding whether to deploy reads the site, not the README."
         ),
-        required_somewhere=("bounded rather than removed",),
+        # Flipped when the limitation was closed. The phrase this used to
+        # require -- "bounded rather than removed" -- became false the moment
+        # `_prepare` moved to a worker thread, and this guard would have held
+        # the site to stating it: the same shape as the defect that produced
+        # this file, where the site advertised a hole that no longer existed.
+        # A `required_somewhere` claim is a claim about *today*, so closing a
+        # limitation means editing the claim, not only the prose.
+        forbidden=("bounded rather than removed", "is not done"),
+        required_somewhere=("availability fix paid for with a data race",),
         files=SITE_EN,
     ),
     Claim(
@@ -206,7 +214,8 @@ CLAIMS: tuple[Claim, ...] = (
             "limitations silently -- and the French site is not a translation "
             "nobody reads, it is the half this project's author writes in."
         ),
-        required_somewhere=("C'est born\u00e9, pas supprim\u00e9",),
+        forbidden=("C'est born\u00e9, pas supprim\u00e9", "il n'est pas fait"),
+        required_somewhere=("pay\u00e9 par une course de donn\u00e9es n'est pas un correctif",),
         files=SITE_FR,
     ),
     Claim(
