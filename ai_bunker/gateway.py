@@ -63,9 +63,9 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from ai_bunker import __version__, i18n, streaming
-from ai_bunker.a2a import agent_card, handle_message_send
+from ai_bunker.a2a import agent_card, handle_message_send, too_large_task
 from ai_bunker.breaker import SESSION_HEADER, Breaker, session_of
-from ai_bunker.budget import Counter
+from ai_bunker.budget import CEILING_CHARS_PER_TOKEN, Counter, request_chars
 from ai_bunker.charter import build_index, load_charter, read_page
 from ai_bunker.config import Settings, load_settings
 from ai_bunker.i18n import negotiate
@@ -418,12 +418,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """
         state: State = app.state.bunker
         body = await request.json()
-        result = handle_message_send(
-            body,
-            state.rules,
-            state.charter,
-            mark_provenance=state.settings.mark_provenance,
-        )
+
+        # The same ceiling `/v1/chat/completions` has had since round 10, and
+        # the same worker thread it got in round 15. Neither reached here, and
+        # this is the surface that takes text another agent wrote: four
+        # megabytes from a peer froze the gateway for 7.08 seconds, measured.
+        ceiling = state.settings.default_served_context * CEILING_CHARS_PER_TOKEN
+        size = request_chars(body)
+        if size > ceiling:
+            return JSONResponse(
+                too_large_task(size, ceiling, str(body.get("contextId") or "")),
+                status_code=413,
+                media_type="application/a2a+json",
+            )
+
+        # Under the pipeline lock, like the other screening path: the rules and
+        # the charter are read-only here, so this is for consistency rather
+        # than for safety -- one screen at a time, wherever it is started from.
+        async with state.pipeline:
+            result = await run_in_threadpool(
+                handle_message_send,
+                body,
+                state.rules,
+                state.charter,
+                mark_provenance=state.settings.mark_provenance,
+            )
         # Carried out of band by handle_message_send so the wire format stays
         # exactly what the specification describes.
         violations = result.pop("_violations", [])
@@ -683,6 +702,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """
         state: State = app.state.bunker
         body = await request.json()
+        # Nothing here is screened, so the thread pool would buy nothing. The
+        # ceiling still applies: a body no engine could accept should be
+        # refused rather than parsed, held in memory and forwarded.
+        ceiling = state.settings.default_served_context * CEILING_CHARS_PER_TOKEN
+        size = request_chars(body)
+        if size > ceiling:
+            return _error(
+                413,
+                f"This request carries {size:,} characters and this gateway reads "
+                f"at most {ceiling:,}.",
+                "request_too_large",
+                characters=size,
+                ceiling=ceiling,
+            )
         try:
             upstream = state.settings.upstream_for(str(body.get("model") or ""))
             return await _forward(body, upstream, "/embeddings")

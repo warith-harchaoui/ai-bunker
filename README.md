@@ -513,9 +513,14 @@ purpose), and which of the three enforcement stages are actually live.
   serialised**, by a lock and deliberately: `counters`, `pins`,
   `approved_tools` and the breaker have never needed one because nothing was
   ever concurrent, and an availability fix paid for with a data race is not a
-  fix. What changed is that the loop is free while a count happens, so
+  fix. What changed is that the loop is free while the gateway **waits**, so
   `/health`, `/v1/models`, the dashboard and every stream in flight keep
-  answering.
+  answering. **Not while it computes**: `re` holds the global interpreter
+  lock, so screening in a worker thread stalls the loop in slices rather than
+  not at all — measured at 35.8 ms of stall over 170 ms of pattern matching,
+  against 3.4 ms over a full second of waiting on a socket. What bounds that
+  is the request ceiling below, which is why it had to reach every surface
+  that carries a body.
 - **A request above thirty-two characters per token of served context is
   refused unread.** Screening costs time linearly in the length of what
   arrives, and nothing else bounded the total: `MAX_SCREEN_CHARS` bounds one
@@ -937,7 +942,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1410 tests, `ruff` clean | ✅ |
+| 1414 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

@@ -206,3 +206,49 @@ def _ignore_errors(call, *args, **kwargs):
         return call(*args, **kwargs)
     except Exception:
         return None
+
+
+def test_screening_a_peer_message_keeps_the_gateway_answering(served):
+    """The same surface neither earlier fix reached, and the honest property.
+
+    `/a2a/v1/message:send` screens text *another agent wrote* with the
+    output-scope rules, and it ran them on the event loop with no size
+    ceiling: four megabytes from a peer froze the gateway for 7.08 seconds,
+    measured, and screening is linear, so forty would have cost seventy.
+
+    **What a worker thread can and cannot buy**, measured rather than assumed:
+
+        work in a thread      worst event-loop stall
+        time.sleep(1.0)                      3.4 ms
+        re.findall x12                      35.8 ms  (over 0.17s of work)
+
+    `re` does not release the global interpreter lock. So moving screening to
+    a thread gives the loop slices between lock hand-offs and does **not**
+    free it -- unlike the tokenizer probe, which waits on a socket and whose
+    9.73-second freeze really did become 0.01. A ratio assertion here would
+    be asserting something false.
+
+    What actually bounds the stall is the **request ceiling**: that is why it
+    had to reach this surface, and why its absence here mattered more than it
+    looked. So this asserts liveness -- every `/health` answers, none times
+    out -- and `test_ceiling.py` asserts the bound.
+    """
+    big = "x" * 400_000
+    body = {"message": {"role": "ROLE_USER", "messageId": "m-1", "parts": [{"text": big}]}}
+    answered = []
+
+    def screen():
+        _ignore_errors(httpx.post, f"{served}/a2a/v1/message:send", json=body, timeout=60.0)
+
+    worker = threading.Thread(target=screen, daemon=True)
+    worker.start()
+    while worker.is_alive() and len(answered) < 12:
+        response = _ignore_errors(httpx.get, f"{served}/health", timeout=10.0)
+        answered.append(response is not None and response.status_code == 200)
+    worker.join(timeout=60)
+
+    assert answered, "the screen finished before a single /health went out"
+    assert all(answered), (
+        f"{answered.count(False)} of {len(answered)} /health calls failed while "
+        "a peer message was being screened"
+    )

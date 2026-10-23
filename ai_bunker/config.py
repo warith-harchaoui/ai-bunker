@@ -173,6 +173,17 @@ class Settings:
     audit_log: str = ""
 
     @property
+    def default_served_context(self) -> int:
+        """What the default upstream serves, for the surfaces with no model.
+
+        `/a2a/v1/message:send` and `/v1/embeddings` carry a body and name no
+        model this gateway routes on, so the request ceiling has to come from
+        somewhere: the engine a request would reach if it named nothing.
+        """
+        upstream = self.upstreams.get(self.default_upstream)
+        return upstream.served_context if upstream else 131_072
+
+    @property
     def sovereign(self) -> bool:
         """Whether any configured route can leave the local network."""
         return not any(u.remote for u in self.upstreams.values())

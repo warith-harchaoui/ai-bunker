@@ -549,9 +549,14 @@ réellement actives.
   `counters`, `pins`, `approved_tools` et le disjoncteur n'ont jamais eu besoin
   de verrou parce que rien n'était jamais concurrent, et un correctif de
   disponibilité payé par une course de données n'est pas un correctif. Ce qui
-  change, c'est que la boucle est libre pendant un comptage : `/health`,
-  `/v1/models`, le tableau de bord et chaque flux en cours continuent de
-  répondre.
+  change, c'est que la boucle est libre pendant que la passerelle **attend** :
+  `/health`, `/v1/models`, le tableau de bord et chaque flux en cours
+  continuent de répondre. **Pas pendant qu'elle calcule** : `re` garde le
+  verrou global de l'interpréteur, donc un filtrage en thread gèle la boucle
+  par tranches plutôt que pas du tout — mesuré à 35,8 ms de gel pour 170 ms de
+  recherche de motifs, contre 3,4 ms pour une seconde entière d'attente sur
+  une socket. Ce qui borne cela, c'est le plafond de requête ci-dessous, et
+  c'est pourquoi il devait atteindre chaque surface qui porte un corps.
 - **Une requête au-delà de trente-deux caractères par token de contexte servi
   est refusée sans être lue.** Le filtrage coûte du temps linéairement dans la
   longueur de ce qui arrive, et rien d'autre ne bornait le total :
@@ -1005,7 +1010,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1410 tests, `ruff` propre | ✅ |
+| 1414 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

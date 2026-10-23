@@ -261,6 +261,36 @@ def task_response(
     return {"task": task}
 
 
+def too_large_task(chars: int, ceiling: int, context_id: str = "") -> dict[str, Any]:
+    """A Task saying the message was refused unread, in this wire format.
+
+    `/v1/chat/completions` has had a size ceiling since it was measured that
+    screening costs time linearly in what arrives; this surface had neither
+    that ceiling nor the worker thread, and it is the one that takes text
+    *another agent wrote*. Four megabytes from a peer froze the gateway for
+    7.08 seconds, measured.
+
+    Expressed as a failed Task rather than as a bare HTTP error because a peer
+    that spoke A2A to get here should be answered in A2A -- the same reason
+    `_error` exists for the OpenAI-shaped surface.
+    """
+    return {
+        "task": {
+            "id": str(uuid.uuid4()),
+            "contextId": context_id or str(uuid.uuid4()),
+            "status": {"state": FAILED},
+            "metadata": {
+                "ai-bunker.error": (
+                    f"this message carries {chars:,} characters and this gateway "
+                    f"reads at most {ceiling:,}"
+                ),
+                "ai-bunker.characters": str(chars),
+                "ai-bunker.ceiling": str(ceiling),
+            },
+        }
+    }
+
+
 def handle_message_send(
     body: dict[str, Any],
     rules: list[Rule],
