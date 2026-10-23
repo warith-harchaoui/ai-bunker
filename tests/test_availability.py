@@ -350,10 +350,53 @@ def slow_engine():
     listener.listen(8)
 
     def handle(conn: socket.socket) -> None:
-        request = conn.recv(65536).decode("latin1", "replace")
+        # Read headers *and* body before deciding anything. The first version
+        # looked for `"stream"` in one `recv`, which holds the headers and not
+        # always the body, so every streamed request was served as an atomic
+        # one and the test failed on its own fixture rather than on the code.
+        raw = b""
+        while b"\r\n\r\n" not in raw:
+            piece = conn.recv(65536)
+            if not piece:
+                break
+            raw += piece
+        head, _, rest = raw.partition(b"\r\n\r\n")
+        length = 0
+        for line in head.split(b"\r\n"):
+            if line.lower().startswith(b"content-length:"):
+                length = int(line.split(b":")[1].strip() or 0)
+        while len(rest) < length:
+            piece = conn.recv(65536)
+            if not piece:
+                break
+            rest += piece
+        request = (head + b"\r\n\r\n" + rest).decode("latin1", "replace")
         path = request.split(" ")[1] if " " in request else "?"
         if "tokenize" in path:
             conn.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+            conn.close()
+            return
+        if '"stream"' in request or "'stream'" in request:
+            # Stream slowly and record when the write fails, which is the
+            # gateway hanging up.
+            conn.sendall(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n"
+            )
+            opened = time.perf_counter()
+            gone = None
+            while time.perf_counter() - opened < answer_after:
+                frame = (
+                    'data: {"choices":[{"index":0,"delta":{"content":"tok "},'
+                    '"finish_reason":null}]}\n\n'
+                )
+                try:
+                    conn.sendall(f"{len(frame):X}\r\n{frame}\r\n".encode())
+                except OSError:
+                    gone = time.perf_counter() - opened
+                    break
+                time.sleep(0.2)
+            seen["stream"] = gone
             conn.close()
             return
         started = time.perf_counter()
@@ -459,3 +502,74 @@ def test_a_client_that_gives_up_stops_the_engine(slow_engine, monkeypatch):
     assert hung_up < answer_after / 4, (
         f"the upstream kept the request for {hung_up:.1f}s after a client that left at 1s"
     )
+
+
+def test_a_streaming_client_that_walks_away_stops_the_engine(slow_engine):
+    """Round 20 asserted this in a docstring and did not measure it.
+
+    The claim was that the streaming path cancels on its own, because closing
+    the response generator closes `client.stream(...)` and the socket with it,
+    so only the awaited call needed watching. True -- the client left at 0.2 s
+    and the upstream saw the hang-up at 0.6 s -- and an unmeasured true claim
+    is a guess that happened to be right. This is what turns it back into a
+    fact.
+    """
+    port, seen, answer_after = slow_engine
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    local = probe.getsockname()[1]
+    probe.close()
+
+    settings = Settings(
+        api_key="",
+        charter_dir="charter",
+        rules_dir="charter/rules",
+        upstreams={
+            "local": Upstream(
+                name="local",
+                base_url=f"http://127.0.0.1:{port}/v1",
+                served_context=32768,
+                model="m",
+            )
+        },
+        default_upstream="local",
+        audit_log="",
+        enable_mcp=False,
+    )
+    server = uvicorn.Server(
+        uvicorn.Config(create_app(settings), host="127.0.0.1", port=local, log_level="critical")
+    )
+    threading.Thread(target=server.run, daemon=True).start()
+    base = f"http://127.0.0.1:{local}"
+    for _ in range(200):
+        try:
+            httpx.get(f"{base}/health", timeout=1.0)
+            break
+        except httpx.HTTPError:
+            time.sleep(0.05)
+
+    with (
+        contextlib.suppress(httpx.HTTPError),
+        httpx.Client(timeout=30) as client,
+        client.stream(
+            "POST",
+            f"{base}/v1/chat/completions",
+            json={"model": "m", "stream": True, "messages": [{"role": "user", "content": "hi"}]},
+        ) as response,
+    ):
+        for index, _line in enumerate(response.iter_lines()):
+            if index >= 3:
+                break  # read a little, then walk away
+
+    deadline = time.perf_counter() + answer_after + 2
+    while time.perf_counter() < deadline and "stream" not in seen:
+        time.sleep(0.1)
+    server.should_exit = True
+
+    assert "stream" in seen, "the stream never reached the upstream"
+    gone = seen["stream"]
+    assert gone is not None, (
+        f"the upstream streamed for the full {answer_after:.0f}s to a client "
+        "that had gone after a fraction of a second"
+    )
+    assert gone < answer_after / 4, f"the upstream kept streaming for {gone:.1f}s"
