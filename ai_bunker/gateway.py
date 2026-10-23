@@ -782,8 +782,25 @@ def _mount_mcp(app: FastAPI) -> None:
         return
 
     try:
+        from fastapi_mcp import AuthConfig
+
         mcp = FastApiMCP(
             app,
+            # The same key `/v1/charter` demands, on the surface that mirrors
+            # it. `/mcp` was open: an unauthenticated caller got a 200 on
+            # `initialize`, a session allocated server-side, and a
+            # `tools/list` enumerating `charter` and `charter_page`.
+            #
+            # The charter itself never leaked -- `tools/call` is proxied to the
+            # HTTP route and came back 401, which is the same structural
+            # property that makes CVE-2026-48710 inapplicable here: this
+            # gateway attaches authentication to the *route* rather than
+            # matching paths in middleware, so nothing that rewrites a path
+            # can shake the dependency loose. But disclosing the inventory and
+            # allocating state for an unauthenticated caller is not what the
+            # route next door does, and two answers to "is the charter behind
+            # a key" is one too many.
+            auth_config=AuthConfig(dependencies=[Depends(_authenticate)]),
             name="ai-bunker charter",
             description=(
                 "This project's standards. Read the index, then the one page for "

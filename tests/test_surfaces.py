@@ -24,6 +24,8 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import functools
+import importlib.util
 import inspect
 
 import pytest
@@ -64,7 +66,26 @@ EXPECTED: dict[tuple[str, str], tuple[bool, bool]] = {
     ("POST", "/v1/budget"): (True, True),
     ("POST", "/a2a/v1/message:send"): (True, True),
     ("POST", "/v1/embeddings"): (True, True),
+    # The MCP transport, on by default. The table never saw these: it built
+    # the application with `enable_mcp=False`, so three routes existed in
+    # every shipped deployment and in none of the assertions -- the same
+    # blind spot, one layer up, as the surface this file was written for.
+    #
+    # They were open. The charter never leaked, because `tools/call` is
+    # proxied to the HTTP route and came back 401, but an unauthenticated
+    # caller got a session allocated and a `tools/list` naming the tools.
+    # Bodies are JSON-RPC and bounded by nothing here, which is the library's
+    # call rather than this gateway's; `False` says so rather than claiming a
+    # ceiling that is not enforced.
+    ("GET", "/mcp"): (True, False),
+    ("POST", "/mcp"): (True, False),
+    ("DELETE", "/mcp"): (True, False),
 }
+
+#: Whether `fastapi-mcp` is installed. The surface is optional, and a
+#: checkout without the extra must not fail a test about routes it cannot
+#: mount.
+HAS_MCP = importlib.util.find_spec("fastapi_mcp") is not None
 
 
 def _settings(**over) -> Settings:
@@ -79,11 +100,20 @@ def _settings(**over) -> Settings:
         },
         default_upstream="local",
         audit_log="",
-        enable_mcp=False,
+        enable_mcp=HAS_MCP,
     )
     for key, value in over.items():
         setattr(base, key, value)
     return base
+
+
+@functools.lru_cache(maxsize=4)
+def _app(api_key: str = "test-key"):
+    """Built once per key. `fastapi-mcp` costs about 24 seconds to import on a
+    cold interpreter -- measured, and the gateway logs it for the same reason --
+    so building the application per test turned a 40-second suite into a
+    90-second one."""
+    return create_app(_settings(api_key=api_key))
 
 
 def _routes(app) -> dict[tuple[str, str], bool]:
@@ -114,8 +144,8 @@ def test_every_route_is_accounted_for():
     key and a ceiling. The one that did reach a release without that decision
     is the reason this file exists.
     """
-    served = set(_routes(create_app(_settings())))
-    declared = set(EXPECTED)
+    served = set(_routes(_app()))
+    declared = {route for route in EXPECTED if HAS_MCP or not route[1].startswith("/mcp")}
     assert served - declared == set(), (
         f"routes with no entry in EXPECTED: {sorted(served - declared)} -- decide "
         "whether each needs a key and a ceiling, then write it down"
@@ -126,7 +156,7 @@ def test_every_route_is_accounted_for():
 
 
 def test_the_routes_demand_a_key_exactly_where_the_table_says():
-    found = _routes(create_app(_settings()))
+    found = _routes(_app())
     wrong = {
         route: (guarded, EXPECTED[route][0])
         for route, guarded in found.items()
@@ -142,15 +172,17 @@ def test_nothing_that_reaches_the_model_or_reveals_state_is_open():
     own shell. Anything that forwards to an engine, reads the audit record or
     reports breaker state has to demand a key.
     """
-    open_routes = {
-        path for (_method, path), guarded in _routes(create_app(_settings())).items() if not guarded
-    }
+    open_routes = {path for (_method, path), guarded in _routes(_app()).items() if not guarded}
     assert open_routes == {
         "/health",
         "/.well-known/agent-card.json",
         "/gui",
         "/gui/i18n",
     }, f"an unexpected route is open: {sorted(open_routes)}"
+    assert "/mcp" not in open_routes, (
+        "the MCP transport mirrors `/v1/charter`, which demands a key; two "
+        "answers to 'is the charter behind a key' is one too many"
+    )
 
 
 @pytest.mark.parametrize(
@@ -166,7 +198,7 @@ def test_a_body_past_the_ceiling_is_refused_on_every_surface_that_bounds_one(met
     """
     from fastapi.testclient import TestClient
 
-    client = TestClient(create_app(_settings(api_key="")), raise_server_exceptions=False)
+    client = TestClient(_app(""), raise_server_exceptions=False)
     big = "x" * (CEILING + 1)
     bodies = {
         "/v1/chat/completions": {"model": "m", "messages": [{"role": "tool", "content": big}]},
@@ -190,7 +222,7 @@ def test_the_ceiling_is_not_vacuous():
     """
     from fastapi.testclient import TestClient
 
-    client = TestClient(create_app(_settings(api_key="")), raise_server_exceptions=False)
+    client = TestClient(_app(""), raise_server_exceptions=False)
     body = {
         "message": {
             "role": "ROLE_USER",
@@ -199,3 +231,41 @@ def test_the_ceiling_is_not_vacuous():
         }
     }
     assert client.post("/a2a/v1/message:send", json=body).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "example.com/",
+        "example.com/x",
+        "example.com?x",
+        "example.com#x",
+        "example.com/..",
+        "example.com/v1/decisions",
+        "a/b",
+        "::1/x",
+    ],
+)
+def test_a_malformed_host_header_does_not_shake_the_key_loose(host):
+    """CVE-2026-48710, and the reason this gateway is not exposed to it.
+
+    A `Host` header carrying `/`, `?` or `#` moves the boundary Starlette uses
+    to split host from path, so the path reported to **middleware** stops
+    matching the path the server received. A gateway that enforces
+    authentication by matching paths in middleware then serves a request it
+    meant to refuse -- reported against several, and the published exploit
+    path for one of them ends in reading the provider keys out of the proxy's
+    environment.
+
+    This gateway attaches the dependency to the **route**, so nothing that
+    rewrites a path string can detach it: by the time the dependency runs, the
+    router has already chosen the endpoint. That was a taste decision long
+    before the advisory existed, and this test is what stops it drifting --
+    the tempting refactor, one authentication check in middleware instead of a
+    dependency on fourteen routes, is exactly the shape that is vulnerable.
+    """
+    from fastapi.testclient import TestClient
+
+    client = TestClient(_app(), raise_server_exceptions=False)
+    assert client.get("/v1/decisions").status_code == 401, "the baseline must refuse"
+    assert client.get("/v1/decisions", headers={"Host": host}).status_code == 401
