@@ -672,7 +672,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
         try:
-            response = await _forward(applied.request, upstream, "/chat/completions")
+            response = await _forward(applied.request, upstream, "/chat/completions", request)
+        except ClientGone:
+            return _error(
+                499,
+                "The client disconnected before the engine answered; the upstream "
+                "call was cancelled.",
+                "client_disconnected",
+            )
         except httpx.HTTPError as exc:
             return _error(502, f"Upstream {upstream.name} is unreachable: {exc}", "upstream_error")
 
@@ -722,7 +729,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         try:
             upstream = state.settings.upstream_for(str(body.get("model") or ""))
-            return await _forward(body, upstream, "/embeddings")
+            return await _forward(body, upstream, "/embeddings", request)
+        except ClientGone:
+            return _error(
+                499,
+                "The client disconnected before the engine answered; the upstream "
+                "call was cancelled.",
+                "client_disconnected",
+            )
         except AssertionError as exc:
             return _error(400, str(exc), "model_not_found")
         except httpx.HTTPError as exc:
@@ -885,11 +899,61 @@ def read_tail(path: Path, limit: int) -> tuple[list[str], int]:
     return text, total
 
 
-async def _forward(body: dict[str, Any], upstream: Any, path: str) -> dict[str, Any]:
-    """Send a prepared request to an upstream and return its JSON."""
+class ClientGone(Exception):
+    """The client disconnected before the upstream answered.
+
+    Not an error to report -- there is nobody left to report it to. It exists
+    so the handler can stop instead of finishing work for an absent reader.
+    """
+
+
+#: How often to ask whether the client is still there, while an upstream call
+#: is in flight. A tenth of a second is far below any generation worth
+#: cancelling and far above the cost of asking.
+DISCONNECT_POLL = 0.1
+
+
+async def _client_left(request: Request) -> None:
+    """Return once the client has disconnected."""
+    while not await request.is_disconnected():
+        await asyncio.sleep(DISCONNECT_POLL)
+
+
+async def _forward(
+    body: dict[str, Any], upstream: Any, path: str, request: Request | None = None
+) -> dict[str, Any]:
+    """Send a prepared request to an upstream and return its JSON.
+
+    Cancelled when the client goes away, which on a single-graphics-processor
+    deployment is the whole point. Measured before this existed: a client that
+    gave up after one second left the engine free to generate for twenty, and
+    the upstream never saw the connection close. That engine is the one this
+    project exists to protect -- "one GPU, one charter" -- and it was being
+    spent on an answer nobody would read.
+
+    The streaming path already behaves: when the client disconnects, the
+    response generator is closed, `client.stream(...)` exits and the socket
+    goes with it. Only the awaited call needed watching, which is also what
+    the reports against other gateways say -- streaming cancels, the
+    non-streaming case keeps the engine busy until generation completes.
+    """
     url = upstream.base_url.rstrip("/") + path
     async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT) as client:
-        response = await client.post(url, json=body, headers=_headers(upstream))
+        call = asyncio.create_task(client.post(url, json=body, headers=_headers(upstream)))
+        if request is None:
+            response = await call
+        else:
+            watch = asyncio.create_task(_client_left(request))
+            done, _pending = await asyncio.wait({call, watch}, return_when=asyncio.FIRST_COMPLETED)
+            watch.cancel()
+            if call not in done:
+                # Cancelling the task closes the connection, which is the only
+                # thing the engine can act on: vLLM aborts a request whose
+                # HTTP connection goes away.
+                call.cancel()
+                osh.info("[gateway] client disconnected; upstream call cancelled.")
+                raise ClientGone
+            response = call.result()
         response.raise_for_status()
         return response.json()
 

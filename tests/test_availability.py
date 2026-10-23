@@ -290,3 +290,132 @@ def test_the_audit_tail_agrees_with_reading_the_whole_file(tmp_path):
             lines, total = read_tail(path, limit)
             assert lines == expected, f"{label} at limit {limit}"
             assert total == body.count("\n"), f"{label}: total"
+
+
+@pytest.fixture
+def slow_engine():
+    """An engine that answers `/tokenize` at once and a completion slowly.
+
+    The probe has to be fast or it spends `PROBE_TIMEOUT` before the forward
+    even starts -- which is how the first version of this measurement
+    concluded "the engine kept working" while watching the *tokenizer's*
+    connection and never seeing the completion reach the upstream at all.
+    """
+    answer_after = 20.0
+    seen: dict[str, float | None] = {}
+
+    listener = socket.socket()
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(8)
+
+    def handle(conn: socket.socket) -> None:
+        request = conn.recv(65536).decode("latin1", "replace")
+        path = request.split(" ")[1] if " " in request else "?"
+        if "tokenize" in path:
+            conn.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+            conn.close()
+            return
+        started = time.perf_counter()
+        conn.settimeout(0.1)
+        hung_up = None
+        while time.perf_counter() - started < answer_after:
+            try:
+                if conn.recv(1) == b"":
+                    hung_up = time.perf_counter() - started
+                    break
+            except TimeoutError:
+                continue
+            except OSError:
+                hung_up = time.perf_counter() - started
+                break
+        seen[path] = hung_up
+        conn.close()
+
+    def serve() -> None:
+        while True:
+            try:
+                connection, _ = listener.accept()
+            except OSError:
+                return
+            threading.Thread(target=handle, args=(connection,), daemon=True).start()
+
+    threading.Thread(target=serve, daemon=True).start()
+    yield listener.getsockname()[1], seen, answer_after
+    listener.close()
+
+
+def test_a_client_that_gives_up_stops_the_engine(slow_engine, monkeypatch):
+    """The defect this project's own thesis makes expensive.
+
+    `/v1/chat/completions` without `stream` awaited the upstream and watched
+    nothing. Measured: a client that gave up after **one second** left the
+    engine free to generate for **twenty**, and the upstream never saw the
+    connection close. On one graphics processor -- which is the deployment
+    this project is about -- that processor is then spending itself on an
+    answer nobody will read, and serving nobody else while it does.
+
+    Reported against several gateways with the same shape: streaming cancels
+    on its own, because closing the response generator closes the socket; the
+    awaited call is the one that keeps the engine busy until generation
+    completes.
+
+    Asserted on what the *engine* can act on -- whether its connection closed
+    -- rather than on what the gateway logged. vLLM aborts a request whose
+    HTTP connection goes away; a gateway that merely stops waiting has
+    cancelled nothing.
+    """
+    port, seen, answer_after = slow_engine
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    local = probe.getsockname()[1]
+    probe.close()
+
+    settings = Settings(
+        api_key="",
+        charter_dir="charter",
+        rules_dir="charter/rules",
+        upstreams={
+            "local": Upstream(
+                name="local",
+                base_url=f"http://127.0.0.1:{port}/v1",
+                served_context=32768,
+                model="m",
+            )
+        },
+        default_upstream="local",
+        audit_log="",
+        enable_mcp=False,
+    )
+    server = uvicorn.Server(
+        uvicorn.Config(create_app(settings), host="127.0.0.1", port=local, log_level="critical")
+    )
+    threading.Thread(target=server.run, daemon=True).start()
+    base = f"http://127.0.0.1:{local}"
+    for _ in range(200):
+        try:
+            httpx.get(f"{base}/health", timeout=1.0)
+            break
+        except httpx.HTTPError:
+            time.sleep(0.05)
+
+    _ignore_errors(
+        httpx.post,
+        f"{base}/v1/chat/completions",
+        json={"model": "m", "messages": [{"role": "user", "content": "hi"}]},
+        timeout=1.0,
+    )
+    deadline = time.perf_counter() + answer_after + 2
+    while time.perf_counter() < deadline and "/v1/chat/completions" not in seen:
+        time.sleep(0.1)
+    server.should_exit = True
+
+    assert "/v1/chat/completions" in seen, "the completion never reached the upstream"
+    hung_up = seen["/v1/chat/completions"]
+    assert hung_up is not None, (
+        f"the upstream never saw the connection close: it was free to generate "
+        f"for the full {answer_after:.0f}s for a client that left after 1s"
+    )
+    assert hung_up < answer_after / 4, (
+        f"the upstream kept the request for {hung_up:.1f}s after a client that left at 1s"
+    )
