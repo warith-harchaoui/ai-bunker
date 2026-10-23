@@ -527,8 +527,9 @@ réellement actives.
   obligerait à tamponner toute la réponse — ne tient pas, car **aucun client
   ne peut agir sur un demi-appel d'outil**. Les deltas de contenu passent
   intacts ; seuls les fragments d'appel sont retenus, assemblés, jugés par le
-  même `apply_outbound` que la voie atomique, puis relâchés. `/health` dit
-  toujours quelles garanties sont actives.
+  même `apply_outbound` que la voie atomique, puis relâchés : **le filtrage
+  des commandes s'applique au streaming exactement comme à l'atomique.**
+  `/health` dit toujours quelles garanties sont actives.
 - **Le journal d'audit grossit sans borne.** `audit_log` est ajouté, jamais
   rotaté : une passerelle qui tourne des mois écrit un objet JavaScript Object
   Notation (JSON) par décision
@@ -998,7 +999,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1407 tests, `ruff` propre | ✅ |
+| 1408 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

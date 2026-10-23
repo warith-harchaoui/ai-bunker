@@ -42,8 +42,15 @@ import re
 import sys
 from pathlib import Path
 
+from ai_bunker.adopt import site_root
+
 ROOT = Path(__file__).resolve().parent.parent
-CSS = ROOT / "web" / "css" / "tailwind-input.css"
+
+#: The stylesheet the figure tints are declared in. `None` when the site is
+#: not on this machine -- it lives outside this repository now, so this gate
+#: has nothing to audit rather than something to fail on.
+_SITE = site_root()
+CSS = (_SITE / "css" / "tailwind-input.css") if _SITE else None
 
 #: Page background per scheme, read from ``<body>``'s classes rather than a token.
 PAGE = {"light": (255, 255, 255), "dark": (0x0B, 0x0B, 0x0C)}
@@ -138,6 +145,9 @@ def audit(scheme: str) -> list[str]:
 
 
 def main() -> int:
+    if CSS is None:
+        print("the site is not on this machine; no figures to audit")
+        return 0
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true", help="only report failures")
     args = parser.parse_args()

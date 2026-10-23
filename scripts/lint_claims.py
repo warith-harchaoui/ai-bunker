@@ -51,6 +51,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ai_bunker.adopt import site_file
+
 ROOT = Path(__file__).resolve().parent.parent
 
 #: Everywhere a claim about behaviour can be stated. The site's built pages are
@@ -234,8 +236,8 @@ def _read(relative: str) -> str | None:
     and had a 100% false-positive rate on its first run, which is how a
     checker teaches people to ignore it.
     """
-    path = ROOT / relative
-    if not path.is_file():
+    path = site_file(relative) if relative.startswith("web/") else ROOT / relative
+    if path is None or not path.is_file():
         return None
     return _STRUCK.sub(" ", path.read_text(encoding="utf-8"))
 
@@ -245,10 +247,12 @@ def check() -> list[str]:
     problems: list[str] = []
     for claim in CLAIMS:
         seen_required = False
+        reachable = 0
         for relative in claim.files:
             text = _read(relative)
             if text is None:
                 continue
+            reachable += 1
             for phrase in claim.forbidden:
                 if phrase in text:
                     problems.append(
@@ -256,7 +260,14 @@ def check() -> list[str]:
                     )
             if any(phrase in text for phrase in claim.required_somewhere):
                 seen_required = True
-        if claim.required_somewhere and not seen_required:
+        # A claim whose files are all absent is not a stale claim, it is an
+        # unaskable question. The site left this repository, so the two claims
+        # over its built pages have nothing to read on a machine that does not
+        # carry it -- and reporting "nothing states the current position"
+        # there would make the gate permanently red for a reason that is not a
+        # defect. The distinction matters: a claim with *some* files present
+        # and the phrase missing from all of them is still a failure.
+        if claim.required_somewhere and not seen_required and reachable:
             problems.append(
                 f"'{claim.name}': nothing states the current position. One of "
                 f"{list(claim.required_somewhere)} must appear somewhere -- a "

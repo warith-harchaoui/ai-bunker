@@ -26,7 +26,17 @@ from pathlib import Path
 
 import pytest
 
+from ai_bunker.adopt import site_root
+
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _site():
+    """The site's tree, or a skip. It lives outside this repository now."""
+    root = site_root()
+    if root is None:
+        pytest.skip("the site is not on this machine (set AI_BUNKER_SITE)")
+    return root
 
 
 def _load():
@@ -43,6 +53,7 @@ def _load():
 
 @pytest.fixture(scope="module")
 def vd():
+    _site()  # skip the whole module when the site is elsewhere
     return _load()
 
 
@@ -60,7 +71,7 @@ def test_the_file_list_is_the_one_publish_would_upload(vd):
     it included build-time partials. A verifier with its own idea of what
     ships verifies its own idea.
     """
-    sys.path.insert(0, str(ROOT / "web"))
+    sys.path.insert(0, str(_site()))
     import publish
 
     assert vd.shipped_files() == [str(p.relative_to(publish.HERE)) for p in publish.shipped()]
@@ -90,11 +101,11 @@ def test_every_listed_file_exists_locally(vd):
     """`verify_one` reads the local file before asking the network, so a path
     that does not exist would be a crash rather than a verdict."""
     for path in vd.shipped_files():
-        assert (ROOT / "web" / path).is_file(), path
+        assert (_site() / path).is_file(), path
 
 
 def test_the_base_url_comes_from_publish(vd):
-    sys.path.insert(0, str(ROOT / "web"))
+    sys.path.insert(0, str(_site()))
     import publish
 
     assert vd.base_url() == publish.BASE.rstrip("/")
@@ -107,7 +118,7 @@ def test_the_base_url_comes_from_publish(vd):
 
 
 def test_matching_bytes_are_identical(vd):
-    local = (ROOT / "web" / "index.html").read_bytes()
+    local = (_site() / "index.html").read_bytes()
     result = vd.verify_one("index.html", "https://example.test", lambda _url: (200, local))
     assert result.verdict == "identical"
     assert result.ok
@@ -128,7 +139,7 @@ def test_drift_at_the_same_byte_length_is_still_drift(vd):
     have called them the same, which is the failure mode a deployment checker
     cannot have.
     """
-    local = (ROOT / "web" / "index.html").read_bytes()
+    local = (_site() / "index.html").read_bytes()
     # Any four-digit run, not the count of the day: writing `1071` here would
     # make this test pass only until the next test was added, which is the
     # drift it exists to catch, one layer up.
@@ -181,7 +192,7 @@ def test_a_transient_timeout_is_retried(vd, monkeypatch):
     """
     monkeypatch.setattr(vd, "RETRY_PAUSE", 0)
     calls: list[str] = []
-    body = (ROOT / "web" / "index.html").read_bytes()
+    body = (_site() / "index.html").read_bytes()
 
     def slow_first(url):
         calls.append(url)

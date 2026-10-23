@@ -42,6 +42,8 @@ import html
 import pathlib
 import re
 
+from ai_bunker.adopt import site_file
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 #: Every prose file that is read by a human, with the language it is written
@@ -426,12 +428,27 @@ def first_expansion(prose: Prose, spellings: list[str]) -> tuple[int, int] | Non
     return min(found) if found else None
 
 
+def _resolve(rel: str) -> pathlib.Path | None:
+    """One listed file, or None when it is not on this machine.
+
+    A `web/`-prefixed path follows the site, which now lives outside this
+    repository: the spelling stays `web/index.html` because that is what a
+    reader of `FILES` recognises and what the site still calls itself
+    internally. Everything else is in the repository and resolves against
+    `ROOT`.
+    """
+    if rel.startswith("web/"):
+        return site_file(rel)
+    path = ROOT / rel
+    return path if path.is_file() else None
+
+
 def gaps() -> list[tuple[str, str, int, int | None]]:
     """Every (file, term, used-on, explained-on) that breaks the rule."""
     out = []
     for rel, lang in FILES:
-        path = ROOT / rel
-        if not path.exists():
+        path = _resolve(rel)
+        if path is None:
             continue
         text = Prose(path)
         for term, by_lang in TERMS.items():
@@ -458,8 +475,8 @@ def unknown() -> list[tuple[str, str, int]]:
     token = re.compile(r"\b(?=[A-Za-z0-9]*[A-Z][A-Za-z0-9]*[A-Z])[A-Za-z][A-Za-z0-9]{1,11}\b")
     out = []
     for rel, _lang in FILES:
-        path = ROOT / rel
-        if not path.exists():
+        path = _resolve(rel)
+        if path is None:
             continue
         text = Prose(path)
         seen: set[str] = set()

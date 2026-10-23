@@ -86,8 +86,15 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from ai_bunker.adopt import site_root
+
 ROOT = Path(__file__).resolve().parent.parent
-WEB = ROOT / "web"
+
+#: The site's tree, which carries `publish.py` and therefore the file list
+#: this script compares against production. Without it there is no list, so
+#: this script says so and stops -- it cannot guess what the server should
+#: hold.
+WEB = site_root()
 
 #: Polite but identifiable. A request with urllib's default agent is refused by
 #: enough front-ends that a 403 here would read as a missing file.
@@ -135,8 +142,21 @@ class Result:
         return self.verdict in {"identical", "edge-stale"}
 
 
+class SiteNotHere(RuntimeError):
+    """The site's tree is not on this machine, so there is no file list.
+
+    Raised rather than guessed. This script's whole value is that its list
+    comes from `publish.py`'s own `shipped()` rather than from a glob written
+    here -- a comparison against a list this script invented would report
+    "production matches the repository" about files it chose, which is the
+    reassuring half of a wrong answer.
+    """
+
+
 def shipped_files() -> list[str]:
     """The paths `publish.py` would upload, relative to the site root."""
+    if WEB is None:
+        raise SiteNotHere("the site is not on this machine; set AI_BUNKER_SITE to its directory")
     sys.path.insert(0, str(WEB))
     import publish
 
@@ -145,6 +165,8 @@ def shipped_files() -> list[str]:
 
 def base_url() -> str:
     """Where `publish.py` says the site lives."""
+    if WEB is None:
+        raise SiteNotHere("the site is not on this machine; set AI_BUNKER_SITE to its directory")
     sys.path.insert(0, str(WEB))
     import publish
 
@@ -195,6 +217,8 @@ def verify_one(path: str, base: str, fetch=_fetch) -> Result:
     answer, and the second attempt is the one that lands because the first
     warmed whatever was cold.
     """
+    if WEB is None:
+        raise SiteNotHere("the site is not on this machine")
     local = (WEB / path).read_bytes()
     url = f"{base}/{path}"
 
@@ -307,10 +331,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quiet", action="store_true", help="Print only the drift.")
     args = parser.parse_args(argv)
 
-    base = (args.base_url or base_url()).rstrip("/")
-    paths = shipped_files()
+    try:
+        base = (args.base_url or base_url()).rstrip("/")
+        paths = shipped_files()
+    except SiteNotHere as exc:
+        # Exit 0: nothing is wrong with the deployment, this machine simply
+        # does not carry the site. A red gate here would be red on every
+        # continuous-integration run forever, and a gate that is always red
+        # is a gate nobody reads.
+        print(f"{exc}")
+        return 0
     if not paths:
-        print("publish.py lists nothing to ship; check web/ is intact")
+        print("publish.py lists nothing to ship; check the site tree is intact")
         return 1
 
     return report(verify(paths, base), base, quiet=args.quiet)

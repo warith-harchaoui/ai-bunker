@@ -24,6 +24,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,61 @@ from .i18n import available
 
 #: Repository root of this installation, so an adopt can find its own templates.
 ROOT = Path(__file__).resolve().parent.parent
+
+#: Environment variable naming where the website lives.
+#:
+#: The site used to be `web/` inside this repository and is now a directory
+#: the maintainer uploads from, outside it. That is a deliberate trade: the
+#: upload is a copy of one folder, and the site stops being versioned here.
+#: What it costs the repository is that five scripts and three test modules
+#: read the site, and all of them now have to be able to say "not on this
+#: machine" rather than fail -- a gate that is permanently red is a gate
+#: nobody reads, which this project learned the hard way in round 7.
+SITE_ENV = "AI_BUNKER_SITE"
+
+#: Searched in order when `AI_BUNKER_SITE` is unset. `web/` comes first so a
+#: checkout that still carries the site works unchanged; the second is the
+#: maintainer's own layout, where `~/web/deraison/` mirrors `deraison.ai` one
+#: directory per path. Hardcoding somebody's home directory in a library is
+#: ugly, and the honest alternative -- requiring an environment variable in
+#: every shell -- is the kind of friction that gets a check disabled.
+SITE_CANDIDATES = ("web", "~/web/deraison/ai-bunker")
+
+
+def site_root() -> Path | None:
+    """Where the website's tree is, or None when it is not here.
+
+    None is a real answer rather than an error: the site is no longer part of
+    this repository, so continuous integration runs without it and every
+    caller has to decide what that means for itself. A caller that cannot work
+    without the site should skip; one that only wanted to lint it should say
+    so and pass.
+    """
+    named = os.environ.get(SITE_ENV, "").strip()
+    if named:
+        candidate = Path(named).expanduser()
+        return candidate if candidate.is_dir() else None
+    for relative in SITE_CANDIDATES:
+        candidate = Path(relative).expanduser() if relative.startswith("~") else ROOT / relative
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def site_file(relative: str) -> Path | None:
+    """One file of the site, by the path it had when the site lived in `web/`.
+
+    Written so the file lists in `lint_claims.py` and `lint_acronyms.py` can
+    keep naming `web/index.html` -- the spelling a reader of those files
+    recognises, and the spelling the site still uses internally.
+    """
+    root = site_root()
+    if root is None:
+        return None
+    inside = relative[4:] if relative.startswith("web/") else relative
+    found = root / inside
+    return found if found.is_file() else None
+
 
 #: Written by default. Both are *code agents* -- somebody else's loop, which a
 #: kit has to reach into for the things that happen before a request exists.

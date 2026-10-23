@@ -27,24 +27,36 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-WEB = ROOT / "web"
+from ai_bunker.adopt import site_root
 
-#: Every file that quotes a figure, and is not generated from another.
+ROOT = Path(__file__).resolve().parent.parent
+
+#: Where the website is, or None when it is not on this machine. Every path
+#: below that reaches into it has to tolerate that: the figures in the
+#: repository's own prose are still owned here either way.
+WEB = site_root()
+
+#: Every file that quotes a figure, and is not generated from another. The
+#: site's share of them is only here when the site is: this repository still
+#: owns the figures in its own prose either way, and that half is the half
+#: continuous integration can check.
 SOURCES = [
-    WEB / "pages" / "index.en.py",
-    WEB / "pages" / "index.fr.py",
-    WEB / "pages" / "start.en.py",
-    WEB / "pages" / "start.fr.py",
     ROOT / "README.md",
     ROOT / "LISEZMOI.md",
     ROOT / "docs" / "RULES.md",
     ROOT / "docs" / "REGLES.md",
     ROOT / "EXAMPLES.md",
     ROOT / "EXEMPLES.md",
-    WEB / "DEPLOY.md",
-    WEB / "llms.txt",
 ]
+if WEB is not None:
+    SOURCES += [
+        WEB / "pages" / "index.en.py",
+        WEB / "pages" / "index.fr.py",
+        WEB / "pages" / "start.en.py",
+        WEB / "pages" / "start.fr.py",
+        WEB / "DEPLOY.md",
+        WEB / "llms.txt",
+    ]
 
 
 def collected_tests() -> int:
@@ -254,6 +266,9 @@ def main(argv: list[str] | None = None) -> int:
     if changed:
         for name in changed:
             print(f"  updated {name}")
+        if WEB is None:
+            print(f"{len(changed)} file(s) updated; the site is not here to rebuild")
+            return 0
         subprocess.run(
             [sys.executable, str(WEB / "build.py")], cwd=WEB, check=True, capture_output=True
         )

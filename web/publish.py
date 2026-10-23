@@ -205,6 +205,55 @@ def orphans() -> list[str]:
     return problems
 
 
+def why_not_replaceable(out: pathlib.Path) -> str | None:
+    """Why `--out` must not delete ``out``, or None when it may.
+
+    `--out` removes its destination before copying, which is right -- a stale
+    file left behind is how a site serves a page nobody can find in the
+    repository -- and it makes this function the only thing between a mistyped
+    path and somebody's work.
+
+    It was written once as "refuse when the destination is this tree, or
+    contains it, or is inside it". That is necessary and it is nowhere near
+    sufficient: `--out ~/web/deraison` is none of those three and deleted
+    forty-three entries of a directory this project has no business touching.
+    The test that would have caught it is not about where the destination sits
+    but about **what is in it**: an assembled tree contains only names this
+    tree produces, so anything else in there means the path is not an output
+    directory and never was.
+
+    Three refusals, in the order a mistake is likely:
+
+    1. A destination holding entries `publish.py` never ships. The directory
+       belongs to something else.
+    2. A destination that is this tree, an ancestor of it, or inside it.
+       `--out .` would delete the sources while reading them.
+    3. A destination that is not a directory at all.
+    """
+    here = HERE.resolve()
+    if out == here or out in here.parents or here in out.parents:
+        return (
+            f"{out} is this tree, or contains it, or is inside it. The sources "
+            "would be deleted while being read."
+        )
+    if not out.exists():
+        return None
+    if not out.is_dir():
+        return f"{out} exists and is not a directory."
+
+    produced = {entry.name for entry in HERE.iterdir() if entry.name not in EXCLUDE}
+    strangers = sorted(entry.name for entry in out.iterdir() if entry.name not in produced)
+    if strangers:
+        shown = ", ".join(strangers[:6]) + ("..." if len(strangers) > 6 else "")
+        return (
+            f"{out} holds {len(strangers)} entr{'y' if len(strangers) == 1 else 'ies'} "
+            f"this tree never produces ({shown}). `--out` deletes its "
+            "destination, and that directory is not one of this script's "
+            "outputs."
+        )
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Verify and stop.")
@@ -225,7 +274,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.check or not args.out:
         return 0
 
-    out = pathlib.Path(args.out)
+    out = pathlib.Path(args.out).expanduser().resolve()
+    refusal = why_not_replaceable(out)
+    if refusal:
+        print(f"refusing: {refusal}", file=sys.stderr)
+        return 1
+
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(

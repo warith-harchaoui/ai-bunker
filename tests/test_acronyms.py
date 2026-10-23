@@ -23,7 +23,7 @@ import sys
 
 import pytest
 
-from ai_bunker.adopt import ROOT
+from ai_bunker.adopt import ROOT, site_root
 
 LINTER = ROOT / "scripts" / "lint_acronyms.py"
 
@@ -102,9 +102,13 @@ def test_every_assembled_page_is_checked(lint):
     """The list of checked files is hand-written, which is the hole: a page
     added later and never listed is a page exempt from the rule, and nothing
     would say so. This closes it."""
-    web = ROOT / "web"
+    web = site_root()
+    if web is None:
+        pytest.skip("the site is not on this machine (set AI_BUNKER_SITE)")
+    # `FILES` names the site's pages as `web/...`, the spelling they had when
+    # the site lived in this repository and the one it still uses internally.
     pages = {
-        p.relative_to(ROOT).as_posix()
+        f"web/{p.relative_to(web).as_posix()}"
         for p in sorted(web.glob("*.html")) + sorted((web / "fr").glob("*.html"))
     }
     unchecked = pages - {rel for rel, _ in lint.FILES}

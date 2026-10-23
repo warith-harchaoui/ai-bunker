@@ -24,18 +24,33 @@ import sys
 
 import pytest
 
-from ai_bunker.adopt import ROOT
+from ai_bunker.adopt import ROOT, site_root
 from ai_bunker.charter import load_charter
 from ai_bunker.rules import load_rules
 from ai_bunker.rules import test_rules as check_rules
 from ai_bunker.spec import load as load_scenarios
 
-WEB = ROOT / "web"
-PAGES = sorted(WEB.glob("*.html")) + sorted((WEB / "fr").glob("*.html"))
+#: Where the website is, or None when it is not on this machine -- it lives
+#: outside this repository now. The tests below split cleanly in two: most of
+#: them read the site and skip without it, and five read *this repository's*
+#: prose and must keep running, because the figures in the README are still
+#: this repository's problem.
+WEB = site_root()
+PAGES = sorted(WEB.glob("*.html")) + sorted((WEB / "fr").glob("*.html")) if WEB else []
+
+#: Applied to every test that cannot answer its question without the site. A
+#: skip states why; a failure would be red on every continuous-integration run
+#: for a reason that is not a defect, and a gate that is always red is a gate
+#: nobody reads.
+needs_site = pytest.mark.skipif(
+    WEB is None, reason="the site is not on this machine (set AI_BUNKER_SITE)"
+)
 
 
 @pytest.fixture(scope="module")
 def all_text() -> str:
+    if WEB is None:
+        pytest.skip("the site is not on this machine (set AI_BUNKER_SITE)")
     return "\n".join(p.read_text(encoding="utf-8") for p in PAGES)
 
 
@@ -50,9 +65,9 @@ PROSE = [
     ROOT / "docs" / "REGLES.md",
     ROOT / "EXAMPLES.md",
     ROOT / "EXEMPLES.md",
-    WEB / "DEPLOY.md",
-    WEB / "llms.txt",
 ]
+if WEB is not None:
+    PROSE += [WEB / "DEPLOY.md", WEB / "llms.txt"]
 
 
 @pytest.fixture(scope="module")
@@ -100,6 +115,7 @@ def test_the_documentation_quotes_the_real_rule_counts(all_prose):
             assert n == actual, f"the documentation says {n} {label}; there are {actual}"
 
 
+@needs_site
 def test_the_documentation_quotes_the_real_test_count(all_prose):
     """Only claims about the present. A sentence like "the 327 tests of the
     time did not catch it" is a fact about a past moment and must keep its
@@ -111,6 +127,7 @@ def test_the_documentation_quotes_the_real_test_count(all_prose):
         assert n == actual, f"the documentation says {n} tests; pytest collects {actual}"
 
 
+@needs_site
 def test_the_site_has_both_languages():
     """A correspondence rather than a count. A page written in one language and
     forgotten in the other is the failure worth catching; a hard-coded 4 caught
@@ -271,6 +288,7 @@ def test_no_tracker(all_text):
         assert tracker not in all_text.lower(), f"found {tracker}"
 
 
+@needs_site
 def test_every_image_has_an_alt_that_is_not_the_caption():
     """An alt repeating the caption tells a screen-reader user nothing new."""
     for page in PAGES:
@@ -290,6 +308,7 @@ def test_every_image_has_an_alt_that_is_not_the_caption():
 # ---------------------------------------------------------------------------
 
 
+@needs_site
 def test_the_publish_checker_passes():
     result = subprocess.run(
         [sys.executable, str(WEB / "publish.py"), "--check"],
@@ -313,6 +332,7 @@ def test_every_page_passes_the_accessibility_lint(page):
     assert result.returncode == 0, result.stdout
 
 
+@needs_site
 def test_the_stylesheet_is_built_and_committed():
     """Deployment is a file upload; a missing stylesheet means a Node toolchain
     on the far end, which the person who owns the site should not need."""
@@ -324,6 +344,7 @@ def test_the_stylesheet_is_built_and_committed():
     assert ignored != 0, "app.css is gitignored; it must ship"
 
 
+@needs_site
 def test_the_figures_meet_their_contrast_floor():
     """The figures' text sits on tints of the brand colours themselves, so a
     token that passes against white can still fail against its own card."""
@@ -356,6 +377,7 @@ def test_the_figure_audit_can_fail():
     assert module.contrast((0x65, 0x65, 0x69), (255, 255, 255)) >= module.FLOOR
 
 
+@needs_site
 def test_the_figures_carry_no_hard_coded_colour():
     """A literal hex in a figure cannot know which scheme it is on. That is the
     bug this guards: the greys were fixed values tuned for dark, and the light
@@ -365,6 +387,7 @@ def test_the_figures_carry_no_hard_coded_colour():
     assert not literals, f"figures carry hard-coded colours: {sorted(set(literals))}"
 
 
+@needs_site
 def test_nothing_unreferenced_would_be_uploaded():
     """The dead-link check runs one way: every reference resolves to a file.
     This runs the other way, and only one of the two shows a symptom. An
@@ -389,6 +412,7 @@ def test_nothing_unreferenced_would_be_uploaded():
         stray.unlink()
 
 
+@needs_site
 def test_no_page_loads_a_script_twice():
     """A script included twice runs twice, and every listener it registers
     fires twice per event. The footer shell and the page template both emitted
@@ -439,3 +463,66 @@ def test_the_language_toggle_goes_to_the_same_page_in_the_other_language(page):
     assert pathlib.Path(href).name == slug, (
         f"{page} sends the reader to {href} instead of the same page in the other language"
     )
+
+
+@needs_site
+def test_out_refuses_a_destination_it_did_not_produce(tmp_path):
+    """`--out` deletes its destination, so this guard is the only thing
+    between a mistyped path and somebody's work.
+
+    It was written once as "refuse when the destination is this tree, or
+    contains it, or is inside it". That is necessary and nowhere near
+    sufficient: a sibling directory is none of those three. Pointed at one, the
+    command removed forty-three entries belonging to another project -- no
+    Time Machine, no snapshot, `rmtree` does not use the Trash.
+
+    The test that would have caught it does not ask where the destination sits.
+    It asks **what is in it**: an assembled tree holds only names this tree
+    produces, so anything else means the path is not an output directory and
+    never was.
+
+    Checked as a pure function against fabricated directories. A destructive
+    guard verified by running the destruction is not verified, it is used.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("publish", WEB / "publish.py")
+    publish = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(publish)
+
+    # The shape of the directory that was destroyed: somebody else's web root.
+    victim = tmp_path / "another-project"
+    victim.mkdir()
+    for name in ("4ml", "assets", "includes"):
+        (victim / name).mkdir()
+    for name in ("index.php", "config.php", "book.pdf"):
+        (victim / name).write_text("x", encoding="utf-8")
+    assert publish.why_not_replaceable(victim), (
+        "a directory holding files this tree never produces must be refused"
+    )
+
+    # A tree `--out` really did produce: only names it ships.
+    produced = tmp_path / "a-previous-out"
+    produced.mkdir()
+    for entry in publish.HERE.iterdir():
+        if entry.name in publish.EXCLUDE:
+            continue
+        if entry.is_dir():
+            (produced / entry.name).mkdir()
+        else:
+            (produced / entry.name).write_text("x", encoding="utf-8")
+    assert publish.why_not_replaceable(produced) is None, "its own output must be replaceable"
+
+    # Absent and empty are both fine; a file is not a destination.
+    assert publish.why_not_replaceable(tmp_path / "absent") is None
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert publish.why_not_replaceable(empty) is None
+    plain = tmp_path / "a-file"
+    plain.write_text("x", encoding="utf-8")
+    assert publish.why_not_replaceable(plain)
+
+    # And the three that were already guarded, which still have to hold.
+    here = publish.HERE.resolve()
+    for target in (here, here.parent, here / "css"):
+        assert publish.why_not_replaceable(target), f"{target} must be refused"
