@@ -237,7 +237,7 @@ def test_the_url_is_built_from_the_base_and_the_path(vd):
 
     def record(url):
         seen.append(url)
-        return 200, (ROOT / "web" / "js" / "theme.js").read_bytes()
+        return 200, (_site() / "js" / "theme.js").read_bytes()
 
     vd.verify_one("js/theme.js", "https://example.test/ai-bunker", record)
     assert seen == ["https://example.test/ai-bunker/js/theme.js"]
@@ -326,7 +326,7 @@ def test_a_stale_cache_is_not_a_failed_upload(vd):
     Telling an operator to re-upload a file they just uploaded correctly is
     how a checker teaches people to ignore it.
     """
-    local = (ROOT / "web" / "llms.txt").read_bytes()
+    local = (_site() / "llms.txt").read_bytes()
     seen: list[str] = []
 
     def cached_then_origin(url):
@@ -354,7 +354,7 @@ def test_real_drift_survives_the_origin_check(vd):
 def test_the_origin_check_runs_only_on_a_mismatch(vd):
     """Otherwise an ordinary run doubles its requests and litters the cache
     with one entry per file per run."""
-    local = (ROOT / "web" / "llms.txt").read_bytes()
+    local = (_site() / "llms.txt").read_bytes()
     seen: list[str] = []
 
     def agree(url):
