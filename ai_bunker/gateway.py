@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -117,7 +118,20 @@ class State:
         #: when it ran on the loop, and what changes is that the loop is free
         #: while it runs: `/health`, `/v1/models`, the dashboard and every
         #: stream already in flight keep answering.
-        self.pipeline = asyncio.Lock()
+        #: A **threading** lock, not an `asyncio` one, and the difference is a
+        #: defect this project shipped for a day. `async with lock: await
+        #: run_in_threadpool(...)` releases the lock when the await is
+        #: cancelled -- which uvicorn does the moment a client disconnects --
+        #: while the worker thread runs on, because a thread cannot be
+        #: cancelled. The next request then takes the lock and starts its own
+        #: `_prepare` beside the first. Measured: two concurrent, over exactly
+        #: the state the lock exists to protect.
+        #:
+        #: An asynchronous lock cannot guard work that outlives the await. So
+        #: the lock is taken *inside* the worker, by whoever is actually doing
+        #: the work, and a cancelled caller leaves it held until that work
+        #: finishes.
+        self.pipeline = threading.Lock()
         self.breaker = Breaker(threshold=settings.breaker_refusals, window=settings.breaker_window)
         self.pins = Pins()
         self.approved_tools = (
@@ -364,10 +378,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         need = request.headers.get("x-ai-bunker-need", "")
         upstream, resolved, _why = state.settings.route(model, need)
         try:
-            async with state.pipeline:
-                applied = await run_in_threadpool(
-                    _prepare, state, {**body, "model": resolved}, upstream
-                )
+            applied = await run_in_threadpool(
+                _prepare_serialised, state, {**body, "model": resolved}, upstream
+            )
         except RequestTooLarge as exc:
             # This endpoint's whole promise is to answer without sending
             # anything anywhere, and it kept that promise by reading 40 MB for
@@ -435,14 +448,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Under the pipeline lock, like the other screening path: the rules and
         # the charter are read-only here, so this is for consistency rather
         # than for safety -- one screen at a time, wherever it is started from.
-        async with state.pipeline:
-            result = await run_in_threadpool(
-                handle_message_send,
-                body,
-                state.rules,
-                state.charter,
-                mark_provenance=state.settings.mark_provenance,
-            )
+        result = await run_in_threadpool(_screen_peer_serialised, state, body)
         # Carried out of band by handle_message_send so the wire format stays
         # exactly what the specification describes.
         violations = result.pop("_violations", [])
@@ -627,10 +633,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             body, header=request.headers.get(SESSION_HEADER, ""), credential=s.api_key
         )
         try:
-            async with state.pipeline:
-                applied = await run_in_threadpool(
-                    _prepare, state, body, upstream, locale=locale, session=session
-                )
+            applied = await run_in_threadpool(
+                _prepare_serialised, state, body, upstream, locale=locale, session=session
+            )
         except RequestTooLarge as exc:
             # Refused unread. Nothing is audited, because nothing was
             # screened and an audit line claiming otherwise would be the lie
@@ -825,6 +830,30 @@ def _mount_mcp(app: FastAPI) -> None:
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
+
+
+def _prepare_serialised(
+    state: State, body: dict[str, Any], upstream: Any, *, locale: str = "en", session: str = ""
+):
+    """`_prepare`, one at a time, with the lock held by the thread doing it.
+
+    See `State.pipeline`: the lock has to be acquired here rather than around
+    the `await`, or a cancelled request releases it while its own screening is
+    still running.
+    """
+    with state.pipeline:
+        return _prepare(state, body, upstream, locale=locale, session=session)
+
+
+def _screen_peer_serialised(state: State, body: dict[str, Any]) -> dict[str, Any]:
+    """`handle_message_send`, under the same lock and for the same reason."""
+    with state.pipeline:
+        return handle_message_send(
+            body,
+            state.rules,
+            state.charter,
+            mark_provenance=state.settings.mark_provenance,
+        )
 
 
 def _prepare(

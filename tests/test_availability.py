@@ -36,6 +36,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import contextlib
 import socket
 import threading
 import time
@@ -171,19 +172,30 @@ def test_a_stalled_tokenizer_does_not_stop_the_gateway_answering(served):
     )
 
 
-def test_the_pipeline_is_serialised_rather_than_merely_moved(served):
-    """The other half, and the reason the lock is there.
+def test_the_pipeline_lock_survives_a_cancelled_request():
+    """Why the lock is a `threading` one, which cost a day to learn.
 
-    Nothing in `State` has ever needed a lock, because nothing was ever
-    concurrent: the pipeline ran on the event loop and therefore ran alone.
-    Moving it to a worker thread without one would have made two requests
-    mutate `counters`, `pins`, `approved_tools` and the breaker at the same
-    time -- an availability fix paid for with a data race.
+    Round 15 wrote `async with state.pipeline: await run_in_threadpool(...)`
+    and this test asserted `isinstance(..., asyncio.Lock)`, which was the
+    right assertion about the wrong design. Uvicorn cancels the handler the
+    moment a client disconnects; the `async with` then exits and **releases
+    the lock**, while the worker thread runs on, because a thread cannot be
+    cancelled. The next request takes the lock and starts its own `_prepare`
+    beside the first.
 
-    Asserted on the object rather than by trying to provoke a race, which no
-    test can do reliably: a race that does not reproduce is not absent.
+    Measured over the exact shape the gateway used, counting how many bodies
+    were inside the critical section at once:
+
+        async lock around the await        peak 2
+        threading lock inside the worker   peak 1
+
+    An asynchronous lock cannot guard work that outlives the await. The lock
+    belongs to whoever is doing the work.
     """
     import asyncio
+    import threading as threads
+
+    from fastapi.concurrency import run_in_threadpool
 
     from ai_bunker.gateway import create_app as build
 
@@ -198,7 +210,35 @@ def test_the_pipeline_is_serialised_rather_than_merely_moved(served):
             enable_mcp=False,
         )
     )
-    assert isinstance(app.state.bunker.pipeline, asyncio.Lock)
+    lock = app.state.bunker.pipeline
+    assert isinstance(lock, type(threads.Lock())), (
+        "an asyncio.Lock here is released by the cancellation that a "
+        "disconnecting client triggers, while the worker it was guarding runs on"
+    )
+
+    # And the property itself, over the gateway's own lock.
+    inside: list[str] = []
+    peak = 0
+
+    def work(tag: str, seconds: float) -> None:
+        nonlocal peak
+        with lock:
+            inside.append(tag)
+            peak = max(peak, len(inside))
+            time.sleep(seconds)
+            inside.remove(tag)
+
+    async def exercise() -> None:
+        first = asyncio.create_task(run_in_threadpool(work, "A", 0.6))
+        await asyncio.sleep(0.15)
+        first.cancel()  # the client walked away
+        with contextlib.suppress(asyncio.CancelledError):
+            await first
+        assert inside == ["A"], "the cancelled request's own work must still be running"
+        await run_in_threadpool(work, "B", 0.05)
+
+    asyncio.run(exercise())
+    assert peak == 1, f"{peak} requests were inside the pipeline at once"
 
 
 def _ignore_errors(call, *args, **kwargs):
