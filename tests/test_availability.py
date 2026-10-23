@@ -252,3 +252,41 @@ def test_screening_a_peer_message_keeps_the_gateway_answering(served):
         f"{answered.count(False)} of {len(answered)} /health calls failed while "
         "a peer message was being screened"
     )
+
+
+def test_the_audit_tail_agrees_with_reading_the_whole_file(tmp_path):
+    """`read_tail` against the thing it replaced, character for character.
+
+    `/v1/decisions` did `read_text().splitlines()` and sliced the end: on a
+    200 MiB log that is 1.01 seconds and **470 MiB of peak memory** to return
+    fifty lines, and the audit log is published as growing without bound, so
+    those numbers are expected rather than exotic. The replacement seeks from
+    the end: 0.11 seconds, 2.64 MiB, almost all of it the exact `total`.
+
+    This is a rewrite of the only read path onto the audit record, so the test
+    is **differential**: the naive version is written out below and the two
+    must agree, on shapes chosen to be awkward rather than representative --
+    an empty file, no trailing newline, blank lines, one line longer than the
+    seek window, and more lines than any window holds.
+    """
+    from ai_bunker.gateway import read_tail
+
+    shapes = {
+        "empty": "",
+        "one line": "a\n",
+        "no trailing newline": "a\nb\nc",
+        "blank lines": "a\n\n\nb\n",
+        "unicode": "héllo\nwörld\n",
+        "one line past the window": "x" * 500_000 + "\n",
+        "more lines than a window": "".join(f"{n}\n" for n in range(5000)),
+        "few, each very long": "".join("y" * 9000 + "\n" for _ in range(40)),
+    }
+    for label, body in shapes.items():
+        path = tmp_path / "decisions.jsonl"
+        path.write_text(body, encoding="utf-8")
+        for limit in (1, 3, 50, 500):
+            naive = body.splitlines()
+            expected = naive[-max(1, limit) :] if naive else []
+            lines, total = read_tail(path, limit)
+            assert lines == expected, f"{label} at limit {limit}"
+            assert total == body.count("\n"), f"{label}: total"

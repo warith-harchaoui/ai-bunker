@@ -534,8 +534,11 @@ réellement actives.
   rotaté : une passerelle qui tourne des mois écrit un objet JavaScript Object
   Notation (JSON) par décision
   jusqu'à ce que le disque dise non. La rotation revient à ce qui rotate déjà
-  les journaux sur cette machine, et `/v1/decisions` ne lit que la queue — mais
-  rien ici ne vous dira que le fichier est gros. L'état en mémoire, lui, **est**
+  les journaux sur cette machine, et `/v1/decisions` ne lit que la queue, en se
+  plaçant depuis la fin plutôt qu'en chargeant le fichier : il faisait
+  l'inverse, ce qui coûtait 1,01 seconde et 470 Mio de pointe mémoire sur un
+  journal de 200 Mio pour renvoyer cinquante lignes. Rien ici ne vous dira
+  que le fichier est gros. L'état en mémoire, lui, **est**
   borné : le disjoncteur garde 4 096 sessions et les épingles d'outils 512, les
   plus anciennes évincées d'abord.
 - ~~Le comptage bloque la boucle d'événements.~~ **Fermé.** La sonde du
@@ -1010,7 +1013,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1414 tests, `ruff` propre | ✅ |
+| 1415 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

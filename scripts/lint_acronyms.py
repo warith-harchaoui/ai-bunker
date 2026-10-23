@@ -139,6 +139,7 @@ TERMS: dict[str, dict[str, list[str]]] = {
     },
     "GPU": {"en": ["graphics processing unit"], "fr": ["processeur graphique"]},
     "GiB": {"en": ["gibibyte"], "fr": ["gibioctet"]},
+    "MiB": {"en": ["mebibyte"], "fr": ["m\u00e9bioctet"]},
     "HTML": {"en": ["HyperText Markup Language"], "fr": ["HyperText Markup Language"]},
     "HTTP": {
         "en": ["HyperText Transfer Protocol"],
