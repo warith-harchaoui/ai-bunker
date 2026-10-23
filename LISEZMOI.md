@@ -573,6 +573,18 @@ réellement actives.
   treize fois la plus grande requête qui pourrait tenir, parce que refuser une
   requête qui aurait tenu est le pire des deux échecs ; le 413 nomme les deux
   nombres, pour qu'un client découpe sa requête au lieu de deviner.
+- **Les données personnelles ne sont pas filtrées, et rien ici ne prétend le
+  contraire.** Les 27 règles couvrent les identifiants, l'injection de prompt,
+  les commandes shell dangereuses et les descriptions d'outils. Elles ne
+  cherchent ni noms, ni adresses, ni identifiants nationaux, ni numéros de
+  carte, ni détail médical — et `global.generic_secret` attrapant au passage
+  une chaîne à forte entropie n'est pas une couverture. Un déploiement avec une
+  obligation sur les données personnelles a besoin d'un inspecteur de contenu :
+  NeMo Guardrails, Guardrails AI, LLM Guard le font correctement et aucun n'est
+  une passerelle ; [`PAYSAGE.md`](PAYSAGE.md) dit où chacun se situe. Énoncé
+  ici parce que ce projet parle de journaux de décision et de traçabilité, et
+  qu'un lecteur peut légitimement entendre « gouvernance » et supposer plus
+  que ce qui est offert.
 - **Le vocabulaire d'outils shell est un défaut, pas une prétention à
   l'exhaustivité.** `SHELL_TOOLS` est surchargeable.
 - **Écoute sur localhost par défaut.** Un outil de souveraineté qui écoute sur

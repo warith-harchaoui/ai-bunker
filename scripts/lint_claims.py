@@ -219,6 +219,27 @@ CLAIMS: tuple[Claim, ...] = (
         files=SITE_FR,
     ),
     Claim(
+        name="personal-data-is-out-of-scope-and-said-so",
+        because=(
+            "The 27 rules cover credentials, injection, shell commands and "
+            "tool descriptions, and nothing else. Personal data appeared in "
+            "this repository exactly once -- in LANDSCAPE.md, describing what "
+            "*other* projects do better -- while the README talks about "
+            "decision logs and audit trails. A reader can hear 'governance' "
+            "and assume coverage that does not exist, and this project's own "
+            "rule is that a limitation nobody publishes is one somebody "
+            "discovers."
+        ),
+        required_somewhere=("Personal data is not",),
+        files=SITE_EN,
+    ),
+    Claim(
+        name="personal-data-is-out-of-scope-and-said-so-fr",
+        because="The French half of the claim above, for the reason the other pairs are split.",
+        required_somewhere=("Les donn\u00e9es personnelles ne",),
+        files=SITE_FR,
+    ),
+    Claim(
         name="the-budget-endpoint-is-a-post",
         because=(
             "`gateway.py`'s module docstring advertised `GET /v1/budget` "

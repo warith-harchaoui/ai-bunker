@@ -536,6 +536,16 @@ purpose), and which of the three enforcement stages are actually live.
   request that could ever fit, because refusing one that would have fitted is
   the worse failure, and the 413 names both numbers so a client can split the
   request rather than guess.
+- **Personal data is not screened, and nothing here pretends it is.** The 27
+  rules cover credentials, prompt injection, dangerous shell commands and tool
+  descriptions. They do not look for names, addresses, national identifiers,
+  payment card numbers or medical detail, and `global.generic_secret` catching
+  the occasional high-entropy string is not coverage. A deployment with an
+  obligation about personal data needs a content inspector — NeMo Guardrails,
+  Guardrails AI, LLM Guard, all of which do that properly and none of which is
+  a gateway; [`LANDSCAPE.md`](LANDSCAPE.md) says where each sits. Stated here
+  because this project talks about decision logs and audit trails, and a
+  reader can reasonably hear "governance" and assume more than is on offer.
 - **The shell-tool vocabulary is a default, not a claim to completeness.** A
   gateway cannot know every client's tool names; `SHELL_TOOLS` is overridable.
 - **Binds to localhost by default.** A sovereignty tool that listens on every
