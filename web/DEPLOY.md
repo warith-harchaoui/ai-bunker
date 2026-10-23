@@ -44,6 +44,27 @@ It refuses to assemble a tree when a local link does not resolve, because a
 404 discovered after upload costs a round trip through someone else's SFTP —
 the SSH File Transfer Protocol, SSH being Secure Shell.
 
+## Staging the tree to upload
+
+```bash
+python3 publish.py --out ~/web/deraison/ai-bunker
+```
+
+`--out` runs the checks above first and refuses to assemble anything if they
+fail, then writes the **38 files that actually get served** — the build sources
+(`pages/`, `build.py`, `tailwind.config.js`, this file) are excluded, so what
+lands there is what the server should hold and nothing else.
+
+`~/web/deraison/` mirrors `deraison.ai`, one directory per path, which makes
+the upload a copy of one folder rather than a hunt through a repository that
+also contains its own build system. Upload the **contents** of
+`~/web/deraison/ai-bunker/` into `ai-bunker/` on the host.
+
+**It deletes the destination first.** That is deliberate — a stale file left
+behind is how a site ends up serving a page nobody can find in the
+repository — but it means anything put in that directory by hand is gone on
+the next run. Keep nothing there that `web/` does not produce.
+
 ## The check after uploading
 
 ```bash
