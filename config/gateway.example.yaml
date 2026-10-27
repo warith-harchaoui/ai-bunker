@@ -32,6 +32,31 @@ upstreams:
     # that implements it. Copy it from there rather than choosing here.
     model: mistralai/Devstral-Small-2507
 
+  # A workstation deployment can point `local` at best-engine-ai-helper
+  # instead of at vLLM. That package serves an OpenAI-compatible `/v1` whose
+  # virtual model name `best` resolves per request to whatever this machine
+  # can actually run -- which is the same question `ai-bunker sizing` asks it,
+  # answered at serving time rather than at planning time.
+  #
+  #   best-engine-ai-helper serve          # http://127.0.0.1:8000/v1
+  #
+  # workstation:
+  #   base_url: http://127.0.0.1:8000/v1
+  #   served_context: 32768
+  #   remote: false
+  #   model: qwen3:14b
+  #
+  # Two things to get right, and the second is this project's founding
+  # incident. `/v1/models` there does not publish a context length, so
+  # `served_context` cannot be learned and has to be written down -- set it to
+  # what the resolved model actually serves, not to what you hope.
+  #
+  # And prefer naming a concrete model over `best` here. `best` is the better
+  # answer for a human at a terminal and the worse one behind this gateway: the
+  # budget is counted against one model's tokenizer and one served context, and
+  # a name that resolves differently per request makes both of them a moving
+  # target. Ask `ai-bunker sizing` which model, then pin it.
+
   # Uncomment to enable a premium route. Doing so is the ONLY way a request
   # can leave this network, it has to be written by a human, and `ai-bunker
   # doctor` will say out loud that the deployment is no longer sovereign.

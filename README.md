@@ -1015,7 +1015,10 @@ ai-bunker deliberately implements as little as possible:
   [docs/SIZING.md](docs/SIZING.md) argued by hand, now derived.
   What stays here is the arithmetic: the helper picks *which* model, and
   `sizing.py` works out the roofline, the key-value cache geometry and the
-  headcount.
+  headcount. On a workstation it can also be the thing serving: it exposes an
+  OpenAI-compatible `/v1`, so `upstreams.local` can point at it instead of at
+  vLLM — see `config/gateway.example.yaml`, which also says why you should pin
+  a concrete model there rather than its `best` alias.
 - [`ann-router`](https://github.com/warith-harchaoui/ann-router) — planned, for
   the day the charter outgrows lookup-by-path and needs a real retrieval index.
 

@@ -1086,7 +1086,11 @@ ai-bunker implémente délibérément le moins de choses possible :
   [docs/SIZING.md](docs/SIZING.md) démontrait à la main, maintenant dérivé.
   Ce qui reste ici, c'est l'arithmétique : le helper choisit **quel** modèle,
   et `sizing.py` calcule le plafond de bande passante, la géométrie du cache
-  clé-valeur et le nombre de personnes.
+  clé-valeur et le nombre de personnes. Sur un poste de travail, il peut aussi
+  être ce qui sert : il expose un `/v1` compatible OpenAI, donc
+  `upstreams.local` peut pointer sur lui plutôt que sur vLLM — voir
+  `config/gateway.example.yaml`, qui explique aussi pourquoi y épingler un
+  modèle concret plutôt que son alias `best`.
 - [`ann-router`](https://github.com/warith-harchaoui/ann-router) — prévu, pour le
   jour où la charte dépassera la recherche par chemin et demandera un vrai index
   de récupération.

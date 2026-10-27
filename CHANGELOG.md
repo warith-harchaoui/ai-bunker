@@ -67,6 +67,17 @@ anywhere in the package**. The sentence is now true.
   `best_engine_ai_helper` stops being imported, which is the half of the
   original sentence nothing was checking.
 
+- **And the helper can now be the upstream too.** It grew an
+  OpenAI-compatible `/v1` whose virtual name `best` resolves per request, so a
+  workstation deployment can point `upstreams.local` at it instead of at vLLM.
+  Documented as a commented block rather than the default, with the two things
+  that bite written next to it: that `/v1` publishes no context length, so
+  `served_context` has to be written down rather than learned; and that `best`
+  is the wrong name to use *here* even though it is the right one at a
+  terminal, because the budget is counted against one tokenizer and one served
+  context, and a name that resolves per request makes both a moving target.
+  Asking the sizing which model and pinning it is the supported path.
+
 Honest limits: `config/gateway.example.yaml` still names a model, because it
 has to be what vLLM is actually serving and a configuration file cannot ask —
 the comment now says to copy it from `ai-bunker sizing` rather than choose it
