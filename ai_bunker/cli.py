@@ -28,7 +28,7 @@ from ai_bunker.budget import (
 from ai_bunker.charter import build_index, load_charter, read_page, system_blocks
 from ai_bunker.config import load_settings
 from ai_bunker.fallback import (
-    MODES,
+    MODE_ALIASES,
     VERDICTS,
     StreamingAssumptions,
     choose_engine,
@@ -237,10 +237,11 @@ def cmd_fallback(args) -> int:
     choice = choose_engine(
         model=args.model,
         machine=machine,
-        mode=args.mode,
+        mode=args.mode or None,
         floor=args.floor,
         context=args.context,
         quant=_none(args.quant),
+        shards_dir=args.shards or None,
         assumptions=assumptions,
     )
     if args.json:
@@ -1136,10 +1137,15 @@ def build_parser() -> argparse.ArgumentParser:
     fb.add_argument("--model", default="devstral-small-2-24b", help="Catalogue model id.")
     fb.add_argument(
         "--mode",
-        choices=list(MODES),
-        default="auto",
-        help="off: never stream, only report. auto: stream when it does not fit and clears "
-        "--floor. on: stream because you said so. (auto)",
+        # Every spelling the suite accepts, so `--mode off` keeps working and
+        # `--mode never` reads the same as `airllm: never` does next door.
+        choices=sorted(set(MODE_ALIASES)),
+        default="",
+        metavar="{auto,always,never}",
+        help="never: do not stream, only report what it would cost. auto: stream when it does "
+        "not fit and clears --floor. always: stream because you said so. Spelled the way "
+        "best-engine-ai-helper spells it; `off`/`on` are aliases. Default: $BEST_ENGINE_AIRLLM, "
+        "else auto.",
     )
     fb.add_argument(
         "--floor",
@@ -1180,6 +1186,13 @@ def build_parser() -> argparse.ArgumentParser:
         "knob with real leverage here.",
     )
     fb.add_argument("--kv-dtype", default="bf16", choices=["bf16", "fp8"])
+    fb.add_argument(
+        "--shards",
+        default="~/.cache/ai-bunker/shards",
+        help="Where the split checkpoint would go. The free space there is read and compared "
+        "against what the split needs, which is the one figure here that is checked rather "
+        "than projected. Empty to skip the check.",
+    )
     fb.add_argument("--json", action="store_true")
     fb.set_defaults(func=cmd_fallback)
 

@@ -26,7 +26,7 @@ over a device one to two orders of magnitude slower.
 - **The first version of that benchmark measured the page cache**, at 13.1
   GB/s — above what the drive can physically do, which is the only reason it
   was caught. `F_NOCACHE` on the reading descriptor does not evict what the
-  write just cached. The written row is kept in `docs/FALLBACK.md` §5 because
+  write just cached. The written row is kept in `docs/FALLBACK.md` §6 because
   it is the mistake anybody writing this benchmark makes.
 - **The mixture-of-experts recommendation inverts, and that is the finding.** A
   layer is loaded whole, so every expert crosses the bus whether the router
@@ -52,11 +52,27 @@ over a device one to two orders of magnitude slower.
 
 ### Activating it, automatically or by hand
 
-`ai-bunker fallback` has three modes and the default is the conservative one.
-`off` reports what streaming would cost and never engages. `auto` decides from
-the running machine: it engages only when the model does not fit **and** the
-verdict clears `--floor`, so it is safe to leave configured. `on` engages
-because a human said so, and still objects when the model would have fitted.
+`ai-bunker fallback` has three modes and the default is the middle one.
+`never` reports what streaming would cost and never engages. `auto` decides
+from the running machine: it engages only when the model does not fit **and**
+the verdict clears `--floor`, so it is safe to leave configured. `always`
+engages because a human said so, and still objects when the model would have
+fitted.
+
+- **The words are `best-engine-ai-helper`'s, not this project's.** It owns the
+  suite's AirLLM adapter and published the vocabulary first, and a suite where
+  one tool says `--mode on` while its sibling says `airllm: always` for the
+  identical policy is a suite whose documentation cannot be read straight
+  through. `always` and `never` are also the better words: they describe a
+  *rule*, which is what this is, where `on` and `off` describe a state. Both
+  old spellings are accepted aliases, so nothing anybody typed stops working,
+  and a test fails if the two alias tables ever diverge.
+- **`BEST_ENGINE_AIRLLM` is honoured here too**, with the sibling's precedence:
+  an explicit mode wins, the environment is the fallback, `auto` is the
+  default. A kill switch one tool in a suite ignores is not a kill switch.
+- **Case and surrounding whitespace are no longer a user's problem.** `ON`,
+  `  off  ` and `Auto` were refused; refusing `ON` while accepting `on` is a
+  checker having an opinion about shift keys.
 
 - **`auto` does not switch engines underneath a running gateway**, by design.
   The automatic part is the *decision*, printed with the command it implies; a
@@ -66,6 +82,33 @@ because a human said so, and still objects when the model would have fitted.
   usefully run this model", so it gates a script as well as informing a reader.
 - **Every assumption is a flag**: `--disk`, `--cached`, `--disk-efficiency`,
   `--compression`, `--answer-tokens`, `--context`, `--floor`.
+
+### The disk is the constraint that actually bites
+
+The memory side of streaming is the half AirLLM solved. The disk side is where
+a model stops being possible, and it is the only figure in this work that can
+be **checked** rather than projected — so `ai-bunker fallback --shards` now
+reads the free space where the shards would go and compares it against what
+the split needs.
+
+- **The split holds both copies.** AirLLM writes per-layer shards beside the
+  download, so peak free space is the download plus 1.1x the shards, settling
+  to 1.1x the shards only with `--delete-original`. For the 80B that is
+  **94.5 GiB against 45 GiB of model**, and on the laptop this was written on
+  there is 21 GiB — the binding constraint, with nothing to do with tokens per
+  second.
+- **Compression shrinks the shards and not the download.** The split reads the
+  original weights to produce the compressed ones, so the original has to be
+  there first either way. Confusing the two understates peak disk by up to a
+  factor of four, which is why `native_checkpoint_gib` exists separately.
+- **Both multipliers are the sibling's** `_SPLIT_DISK_PEAK` and
+  `_SPLIT_DISK_STEADY`, shared rather than re-derived so two packages cannot
+  report different disk requirements for the same model; a test fails if either
+  drifts. What differs is the input — the sibling takes a parameter count, this
+  takes `catalog/serving.yaml`'s measured weight tables. Shared constants,
+  better input, one answer.
+- **Unreadable free space reports unknown, not zero.** Zero would fail every
+  plan on a platform without `statvfs`, which is a refusal nobody can act on.
 
 ### The engine: imported, not vendored
 
@@ -160,6 +203,7 @@ working for the models it knew and refuses the one you wanted, with a
   provenance, and `unified: true` on the complete machines, because on one
   memory pool a cached shard takes room the key–value cache needed.
 - `ai-bunker fallback` and `ai-bunker airllm serve`, and the `airllm` extra.
+- `--shards` on `ai-bunker fallback`, for the one check rather than projection.
 
 ## [0.2.0] — 2026-10-22
 

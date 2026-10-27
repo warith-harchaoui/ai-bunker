@@ -367,14 +367,26 @@ bus — 19 minutes. One component, a 74-fold spread.
 another. That is the exact opposite of the cost shape the section above spends
 four paragraphs on.
 
+And one constraint here is checked rather than projected: **the disk.** The
+split writes per-layer shards beside the download, so for its duration the
+drive holds both copies — 94.5 GiB for the 80B against 45 GiB of model.
+`--shards` reads the free space where they would go and says `SHORT` when
+there is not enough, which on the laptop this was written on is the binding
+constraint and has nothing to do with tokens per second.
+
 Activating it is a decision, in three modes, and the automatic one decides from
 the machine in front of it:
 
 ```bash
-ai-bunker fallback --mode off    # report what it would cost; never engage
-ai-bunker fallback --mode auto   # engage only if it does not fit AND clears --floor
-ai-bunker fallback --mode on     # engage because a human said so
+ai-bunker fallback --mode never   # report what it would cost; never engage
+ai-bunker fallback --mode auto    # engage only if it does not fit AND clears --floor
+ai-bunker fallback --mode always  # engage because a human said so
 ```
+
+Those words are `best-engine-ai-helper`'s, which owns the suite's AirLLM
+adapter and published them first; `off` and `on` are accepted aliases. The
+suite's `BEST_ENGINE_AIRLLM` is honoured here too, because a kill switch one
+tool ignores is not a kill switch.
 
 `auto` is safe to leave configured: where the model fits it does not engage,
 and where streaming would be useless it refuses rather than engaging uselessly.
@@ -1047,7 +1059,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1514 tests, `ruff` clean | ✅ |
+| 1541 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
@@ -1110,7 +1122,7 @@ ai-bunker deliberately implements as little as possible:
   change is absorbed once. What ai-bunker adds is the half the helper has no
   reason to carry — an OpenAI-compatible socket a gateway can proxy, and the
   roofline over this project's *server* catalogue. See
-  [docs/FALLBACK.md](docs/FALLBACK.md) §8.
+  [docs/FALLBACK.md](docs/FALLBACK.md) §9.
 - [`ann-router`](https://github.com/warith-harchaoui/ann-router) — planned, for
   the day the charter outgrows lookup-by-path and needs a real retrieval index.
 
@@ -1171,7 +1183,7 @@ ai-bunker detect
 
 # And when it does not fit: should it be streamed off storage, at what cost?
 ai-bunker fallback --model qwen3-coder-next --disk 5.6
-ai-bunker fallback --model qwen3-coder-next --mode on --compression 4bit
+ai-bunker fallback --model qwen3-coder-next --mode always --compression 4bit
 python scripts/bench_disk.py                       # the drive, measured
 ```
 

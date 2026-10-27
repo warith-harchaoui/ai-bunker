@@ -402,14 +402,26 @@ ruineuse.** Une invite fait *une* passe sur les couches quelle que soit sa
 longueur ; chaque jeton généré en fait une autre. C'est exactement l'inverse de
 la forme de coût à laquelle la section ci-dessus consacre quatre paragraphes.
 
+Et une contrainte ici est vérifiée, pas projetée : **le disque.** Le découpage
+écrit les tranches par couche à côté du téléchargement, donc pendant toute sa
+durée le disque porte les deux copies — 94,5 Gio pour le 80B contre 45 Gio de
+modèle. `--shards` lit l'espace libre là où elles iraient et affiche `SHORT`
+quand il n'y en a pas assez, ce qui sur le portable où ceci a été écrit est la
+contrainte qui bloque, et n'a rien à voir avec les jetons par seconde.
+
 L'activer est une décision, en trois modes, et le mode automatique décide
 depuis la machine qu'il a sous les yeux :
 
 ```bash
-ai-bunker fallback --mode off    # dire ce que ça coûterait ; ne jamais engager
-ai-bunker fallback --mode auto   # engager si ça ne tient pas ET que --floor est tenu
-ai-bunker fallback --mode on     # engager parce qu'un humain l'a décidé
+ai-bunker fallback --mode never   # dire ce que ça coûterait ; ne jamais engager
+ai-bunker fallback --mode auto    # engager si ça ne tient pas ET que --floor est tenu
+ai-bunker fallback --mode always  # engager parce qu'un humain l'a décidé
 ```
+
+Ces mots sont ceux de `best-engine-ai-helper`, qui porte l'adaptateur AirLLM de
+la suite et les a publiés le premier ; `off` et `on` restent acceptés comme
+alias. La variable `BEST_ENGINE_AIRLLM` de la suite est honorée ici aussi : un
+coupe-circuit qu'un seul outil ignore n'est pas un coupe-circuit.
 
 `auto` peut rester configuré sans danger : là où le modèle tient il n'engage
 rien, et là où la lecture depuis le disque serait inutile il refuse au lieu
@@ -1125,7 +1137,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1514 tests, `ruff` propre | ✅ |
+| 1541 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
@@ -1190,7 +1202,7 @@ ai-bunker implémente délibérément le moins de choses possible :
   qu'ai-bunker ajoute, c'est la moitié que le helper n'a aucune raison de
   porter — une interface compatible OpenAI qu'une passerelle peut relayer, et
   le plafond de bande passante sur le catalogue *serveur* de ce projet. Voir
-  [docs/FALLBACK.md](docs/FALLBACK.md) §8.
+  [docs/FALLBACK.md](docs/FALLBACK.md) §9.
 - [`ann-router`](https://github.com/warith-harchaoui/ann-router) — prévu, pour le
   jour où la charte dépassera la recherche par chemin et demandera un vrai index
   de récupération.
@@ -1252,7 +1264,7 @@ ai-bunker detect
 
 # Et quand ça ne tient pas : faut-il lire depuis le disque, et à quel prix ?
 ai-bunker fallback --model qwen3-coder-next --disk 5.6
-ai-bunker fallback --model qwen3-coder-next --mode on --compression 4bit
+ai-bunker fallback --model qwen3-coder-next --mode always --compression 4bit
 python scripts/bench_disk.py                       # le disque, mesuré
 ```
 

@@ -57,7 +57,7 @@ devices are not close:
 | Device | Read bandwidth | How we know |
 |---|---:|---|
 | Unified memory, Apple M2 Max | 400 GB/s | vendor |
-| Internal NVMe SSD, same machine | **5.6 GB/s** | **measured, see §5** |
+| Internal NVMe SSD, same machine | **5.6 GB/s** | **measured, see §6** |
 
 **Seventy-one times.** That ratio is the entire content of this document. Every
 other number below follows from it, and nothing in the engine's design — not
@@ -232,7 +232,60 @@ nothing can deliver.
 
 ---
 
-## 5. The one measured number
+## 5. The disk is the constraint that actually bites
+
+The memory side of streaming is the easy half — that is the half AirLLM solved.
+The disk side is where a model stops being possible, and it is also the only
+figure in this document that can be **checked** rather than projected.
+
+AirLLM writes per-layer shards beside the downloaded checkpoint, so for the
+duration of the split the drive holds both copies:
+
+```
+free space needed, while splitting  =  the download  +  1.1 x the shards
+free space needed, afterwards       =  1.1 x the shards
+```
+
+Compression shrinks the shards and **not** the download — the split reads the
+original weights in order to produce the compressed ones, so the original has
+to be there first either way. Confusing those two understates the peak by up to
+a factor of four:
+
+```bash
+ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
+  --shards ~/.cache/ai-bunker/shards
+```
+
+```text
+  WHAT THE SPLIT NEEDS ON DISK
+    the download                          45.0 GiB
+    the per-layer shards                  45.0 GiB
+    → free space while splitting          94.5 GiB   both copies at once
+    → afterwards                          49.5 GiB   with --delete-original
+    free where the shards go              20.9 GiB   SHORT
+```
+
+That last line is a measurement of this machine, and on this machine it is the
+binding constraint: the memory arithmetic says the 80B streams fine on a 24 GiB
+card, and the laptop has 21 GiB of disk against a 94 GiB peak. Nothing about
+tokens per second matters until that is fixed.
+
+Both multipliers — 2.1 at peak, 1.1 settled — are
+`best-engine-ai-helper`'s own `_SPLIT_DISK_PEAK` and `_SPLIT_DISK_STEADY`,
+shared rather than re-derived so the two packages cannot report different disk
+requirements for the same model. What differs is the *input*: the sibling takes
+a parameter count and a bytes-per-parameter rule, this takes the measured
+weight tables in `catalog/serving.yaml`. Shared constants, better input, one
+answer. `tests/test_fallback.py` fails if either multiplier drifts from the
+sibling's.
+
+Pass an empty `--shards` to skip the check. An unreadable path reports
+**unknown** rather than zero, because zero would fail every plan on a platform
+without `statvfs`, which is a refusal nobody can act on.
+
+---
+
+## 6. The one measured number
 
 Everything above is arithmetic over a single measurement, so here is the
 measurement, and here is what it is not.
@@ -290,21 +343,36 @@ python scripts/bench_disk.py --path /Volumes/ext # measure another device
 
 ---
 
-## 6. Activating it: automatic, by hand, or not at all
+## 7. Activating it: automatic, by hand, or not at all
 
 Three modes, and the default is the conservative one.
 
 ```bash
-ai-bunker fallback --model qwen3-coder-next --mode off      # report only
+ai-bunker fallback --model qwen3-coder-next --mode never    # report only
 ai-bunker fallback --model qwen3-coder-next --mode auto     # decide from this machine
-ai-bunker fallback --model qwen3-coder-next --mode on       # because I said so
+ai-bunker fallback --model qwen3-coder-next --mode always   # because I said so
 ```
+
+The words are
+[`best-engine-ai-helper`](https://github.com/warith-harchaoui/best-engine-ai-helper)'s,
+not this project's. It owns the suite's AirLLM adapter and published the
+vocabulary first, and a suite in which one tool says `--mode on` while its
+sibling says `airllm: always` for the identical policy is a suite whose
+documentation cannot be read straight through. `off` and `on` are accepted
+aliases, so nothing anybody already typed stops working.
+
+`BEST_ENGINE_AIRLLM` is honoured too, and that matters more than a spelling:
+the suite's kill switch has to reach every tool in it, so
+`BEST_ENGINE_AIRLLM=never` stops the fallback engaging here as well. An
+explicit `--mode always` still overrides it — a person typing a flag now is
+more present than a variable set in a profile once, and the override is
+visible in the command somebody ran.
 
 | Mode | Model fits | Model does not fit |
 |---|---|---|
-| `off` | serve it resident | refuse, and print what streaming would have cost |
+| `never` | serve it resident | refuse, and print what streaming would have cost |
 | `auto` | serve it resident | stream **if** the verdict clears `--floor`, else refuse |
-| `on` | stream, with an objection on the record | stream, with the cost on the record |
+| `always` | stream, with an objection on the record | stream, with the cost on the record |
 
 `auto` is the "decide from the running machine" position and it is what makes
 the fallback safe to leave configured: on a machine where the model fits it
@@ -313,7 +381,7 @@ engaging uselessly. The floor is a verdict name — `interactive`, `batch`,
 `overnight`, `impractical` — and `batch` by default, meaning "an answer within
 the hour or do not bother".
 
-`on` is the human decision, and it still argues. Asked to stream a model that
+`always` is the human decision, and it still argues. Asked to stream a model that
 fits, it streams and records that this reads the whole checkpoint off a disk
 for every token instead of out of memory, at a stated multiple. Asked to stream
 something `impractical`, it does so and says it is doing it because it was
@@ -346,7 +414,7 @@ fi
 
 ---
 
-## 7. Running it
+## 8. Running it
 
 The engine is a **separate process** behind an OpenAI-compatible socket, and
 the gateway is told about it the way it is told about anything else.
@@ -410,7 +478,7 @@ knowingly.
 
 ---
 
-## 8. Imported, not vendored
+## 9. Imported, not vendored
 
 This is a design decision with a cost either way, so here is the reasoning.
 
@@ -483,7 +551,7 @@ the half AirLLM has no opinion about and the half this repository is for.
 
 ---
 
-## 9. Honest limitations
+## 10. Honest limitations
 
 - **No answer has been generated through this path.** The arithmetic is tested
   and the socket is tested against a stub; "AirLLM produces the tokens
@@ -511,7 +579,7 @@ the half AirLLM has no opinion about and the half this repository is for.
 
 ---
 
-## 10. Reproducing this
+## 11. Reproducing this
 
 ```bash
 python scripts/bench_disk.py                        # the one measured number
@@ -532,7 +600,7 @@ The assumptions that move the answer most:
 --floor overnight        # accept more before refusing to activate
 ```
 
-## 11. Sources
+## 12. Sources
 
 - [AirLLM](https://github.com/lyogavin/airllm) — the engine, Apache-2.0
 - [AirLLM on the Python Package Index](https://pypi.org/project/airllm/) — version 4.0.0 at

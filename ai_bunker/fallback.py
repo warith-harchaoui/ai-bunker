@@ -69,7 +69,40 @@ from ai_bunker.sizing import (
 )
 
 #: Activation modes, in the order of how much the operator is asserting.
-MODES = ("off", "auto", "on")
+#:
+#: The spellings are ``best-engine-ai-helper``'s, not this project's. That
+#: package owns the suite's AirLLM adapter and published this vocabulary first,
+#: and a suite in which one tool says ``--mode on`` while its sibling says
+#: ``airllm: always`` for the identical policy is a suite whose documentation
+#: cannot be read straight through. ``always`` and ``never`` are also the
+#: better words: they describe a *rule*, which is what this is, where ``on``
+#: and ``off`` describe a state.
+MODES = ("auto", "always", "never")
+
+#: Spellings accepted for a mode, canonicalised. Mirrors
+#: ``best_engine_ai_helper.offload._REQUEST_ALIASES`` -- including ``off``/``on``,
+#: which were this project's own canonical words before the vocabularies were
+#: reconciled, so nothing anybody has typed or written down stops working.
+#: ``tests/test_fallback.py`` asserts the two tables agree wherever the helper
+#: is importable, so this is a guarded copy rather than a forked one.
+MODE_ALIASES = {
+    "auto": "auto",
+    "always": "always",
+    "on": "always",
+    "true": "always",
+    "yes": "always",
+    "1": "always",
+    "never": "never",
+    "off": "never",
+    "false": "never",
+    "no": "never",
+    "0": "never",
+}
+
+#: The suite's switch for this path, read when no mode is given explicitly.
+#: Honoured here so that ``BEST_ENGINE_AIRLLM=never`` means never across the
+#: suite -- a kill switch one tool ignores is not a kill switch.
+MODE_ENV_VAR = "BEST_ENGINE_AIRLLM"
 
 #: Verdicts, best first. The thresholds are in :class:`StreamingAssumptions`.
 VERDICTS = ("interactive", "batch", "overnight", "impractical")
@@ -85,6 +118,19 @@ ASSUMED_LAYERS = 48
 #: prefetches the next layer while the current one runs, which is what makes
 #: the pipeline continuous and what doubles the shard footprint.
 PREFETCH_DEPTH = 2
+
+#: Disk the split needs while it runs, and once it has settled, as multiples
+#: of the shard bytes. AirLLM writes per-layer shards beside the original
+#: checkpoint, so the cache briefly holds both.
+#:
+#: Both figures are ``best-engine-ai-helper``'s (``_SPLIT_DISK_PEAK`` and
+#: ``_SPLIT_DISK_STEADY``), copied so the two packages cannot report different
+#: disk requirements for the same model. Theirs derives the checkpoint from a
+#: parameter count; this one reads it from ``catalog/serving.yaml``'s measured
+#: weight tables, which is the better input -- so the constants are shared and
+#: the inputs are not.
+SPLIT_DISK_PEAK = 2.1
+SPLIT_DISK_STEADY = 1.1
 
 #: Block-wise compression, as a fraction of a 16-bit checkpoint's bytes. The
 #: 1.05 factor is the per-block scales and zero points, which are stored
@@ -232,6 +278,26 @@ def checkpoint_gib(
     return total, label
 
 
+def native_checkpoint_gib(
+    model: dict[str, Any],
+    *,
+    quant: str | None = None,
+    compression: str | None = None,
+) -> float:
+    """The checkpoint as downloaded, which is what the split reads.
+
+    Compression shrinks the shards, never the original: AirLLM reads the
+    downloaded weights to produce the compressed ones, so the download has to
+    be on disk first either way. Confusing the two understates peak disk by up
+    to a factor of four, which is the figure that decides whether the split can
+    run at all.
+    """
+    if compression:
+        table = model.get("weights") or {}
+        return float(table["bf16"])
+    return checkpoint_gib(model, quant=quant)[0]
+
+
 def shard_gib(model: dict[str, Any], total_gib: float) -> tuple[float, int, bool]:
     """Size of one resident layer shard, the layer count, and whether it was assumed.
 
@@ -247,6 +313,57 @@ def shard_gib(model: dict[str, Any], total_gib: float) -> tuple[float, int, bool
     if assumed:
         layers = ASSUMED_LAYERS
     return total_gib / layers, layers, assumed
+
+
+def split_disk_gib(native_gib: float, shards_gib: float) -> tuple[float, float]:
+    """Free disk the split needs, at its peak and once settled, in GiB.
+
+    The constraint that actually bites. The memory side of streaming is the
+    easy half -- that is the half AirLLM solved -- and the disk side is where a
+    235B model stops being possible on a laptop with a 2 terabyte drive.
+
+    Parameters
+    ----------
+    native_gib : float
+        The checkpoint as downloaded. Compression does not shrink it: the split
+        reads the original, so the original has to be there first either way.
+    shards_gib : float
+        The per-layer shards, which is where compression does apply.
+
+    Returns
+    -------
+    (float, float)
+        ``(peak, steady)``. Peak is during the split, with both copies on
+        disk; steady is afterwards, and only reachable with
+        ``--delete-original``.
+    """
+    peak = native_gib + shards_gib * (SPLIT_DISK_PEAK - 1.0)
+    return round(peak, 1), round(shards_gib * SPLIT_DISK_STEADY, 1)
+
+
+def free_disk_gib(path: str | None) -> float | None:
+    """Free space on the filesystem holding ``path``, in GiB, or None.
+
+    None rather than zero when it cannot be read, and the distinction matters:
+    zero would make every plan fail the disk check on a platform whose
+    ``statvfs`` is missing, which is a refusal nobody can act on. An unknown
+    figure is reported as unknown.
+    """
+    if not path:
+        return None
+    import os
+    from pathlib import Path as _Path
+
+    probe = _Path(path).expanduser()
+    # The directory may not exist yet -- it is where shards are *going* -- so
+    # walk up to the nearest parent that does.
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        stat = os.statvfs(str(probe))
+    except (OSError, AttributeError):
+        return None
+    return (stat.f_bavail * stat.f_frsize) / GIB
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +385,10 @@ class Streaming:
     layers: int
     layers_assumed: bool
     checkpoint_gib: float
+    native_gib: float
+    split_peak_gib: float
+    split_steady_gib: float
+    free_disk_gib: float | None
     shard_gib: float
     cached_gib: float
     streamed_gib: float
@@ -310,6 +431,7 @@ def size_streaming(
     memory_gbs: float | None = None,
     context: int | None = None,
     quant: str | None = None,
+    shards_dir: str | None = None,
     assumptions: StreamingAssumptions | None = None,
     catalog: dict[str, Any] | None = None,
 ) -> Streaming:
@@ -348,6 +470,12 @@ def size_streaming(
         KV cache fits beside the resident shards.
     quant : str, optional
         Which weight table to hand the engine.
+    shards_dir : str, optional
+        Where the split checkpoint will be written. Given, the free space there
+        is read and compared against the peak the split needs -- the one
+        constraint in this whole module that can be checked rather than
+        projected, and the one most likely to stop a run that the memory
+        arithmetic said would work.
     assumptions, catalog
         Overridable assumptions and an injectable catalogue.
 
@@ -381,6 +509,17 @@ def size_streaming(
     cache_rate = float(cache_gbs if cache_gbs else (entry.get("cached_gbs") or disk_gbs))
 
     total, label = checkpoint_gib(m, quant=quant, compression=a.compression)
+    native = native_checkpoint_gib(m, quant=quant, compression=a.compression)
+    peak_gib, steady_gib = split_disk_gib(native, total)
+    free_gib = free_disk_gib(shards_dir)
+    if free_gib is not None and free_gib < peak_gib:
+        warnings.append(
+            f"The split needs {peak_gib:.0f} GiB free while it runs -- the download "
+            f"({native:.0f} GiB) and the shards ({total:.0f} GiB) are both on disk at once -- "
+            f"and {shards_dir} has {free_gib:.0f} GiB. This is the constraint that stops a run "
+            "the memory arithmetic said would work. Afterwards it settles to "
+            f"{steady_gib:.0f} GiB, reachable only with --delete-original."
+        )
     shard, layers, assumed = shard_gib(m, total)
     if assumed:
         warnings.append(
@@ -405,6 +544,10 @@ def size_streaming(
             layers=layers,
             layers_assumed=assumed,
             checkpoint_gib=round(total, 1),
+            native_gib=round(native, 1),
+            split_peak_gib=peak_gib,
+            split_steady_gib=steady_gib,
+            free_disk_gib=None if free_gib is None else round(free_gib, 1),
             shard_gib=round(shard, 2),
             cached_gib=0.0,
             streamed_gib=0.0,
@@ -504,6 +647,10 @@ def size_streaming(
         layers=layers,
         layers_assumed=assumed,
         checkpoint_gib=round(total, 1),
+        native_gib=round(native, 1),
+        split_peak_gib=peak_gib,
+        split_steady_gib=steady_gib,
+        free_disk_gib=None if free_gib is None else round(free_gib, 1),
         shard_gib=round(shard, 2),
         cached_gib=round(cached, 1),
         streamed_gib=round(streamed, 1),
@@ -668,6 +815,52 @@ def machine_from_host(host: dict[str, Any] | None = None) -> Machine:
 # ---------------------------------------------------------------------------
 
 
+def normalise_mode(value: object) -> str:
+    """Canonicalise one of the spellings in :data:`MODE_ALIASES`.
+
+    Parameters
+    ----------
+    value : object
+        ``'auto'``, ``'always'``, ``'never'``, or any accepted alias.
+        ``None`` and ``''`` resolve to ``'auto'``.
+
+    Returns
+    -------
+    str
+        One of :data:`MODES`.
+    """
+    if value is None or str(value).strip() == "":
+        return "auto"
+    key = str(value).strip().lower()
+    osh.check(
+        key in MODE_ALIASES,
+        f"Unknown mode {value!r}. Known: {', '.join(sorted(set(MODE_ALIASES)))}",
+    )
+    return MODE_ALIASES[key]
+
+
+def requested_mode(explicit: object = None, env: dict[str, str] | None = None) -> str:
+    """The mode in force: what was asked for, else the environment, else auto.
+
+    Precedence mirrors ``best_engine_ai_helper.offload.requested`` exactly --
+    an explicit value wins, :data:`MODE_ENV_VAR` is the fallback, ``auto`` is
+    the default -- so one suite-wide switch produces one answer whichever tool
+    is asked.
+
+    Note what this means for the kill switch: ``BEST_ENGINE_AIRLLM=never``
+    stops the fallback engaging anywhere, and an explicit ``--mode always``
+    still overrides it. That is deliberate and it is the sibling's rule: a
+    person typing a flag now is more present than a variable set in a profile
+    once, and the override is visible in the command somebody ran.
+    """
+    if explicit is not None and str(explicit).strip() != "":
+        return normalise_mode(explicit)
+    import os
+
+    source = os.environ if env is None else env
+    return normalise_mode(source.get(MODE_ENV_VAR))
+
+
 @dataclass
 class Choice:
     """Which engine should serve one model on one machine, and why."""
@@ -694,31 +887,39 @@ def choose_engine(
     *,
     model: str,
     machine: Machine,
-    mode: str = "off",
+    mode: str | None = None,
     floor: str = "batch",
     context: int | None = None,
     quant: str | None = None,
+    shards_dir: str | None = None,
     assumptions: StreamingAssumptions | None = None,
     catalog: dict[str, Any] | None = None,
 ) -> Choice:
     """Decide whether to stream the model off storage, and say why either way.
 
-    The three modes are the three honest positions an operator can hold, and
-    the default is the conservative one.
+    The three modes are the three honest positions an operator can hold, they
+    are spelled the way ``best-engine-ai-helper`` spells them, and the default
+    is the middle one.
 
-    ``off``
-        Never stream. If the model does not fit, the answer is that it does
-        not fit, and the report says what streaming *would* cost so the
+    ``never``
+        Do not stream. If the model does not fit, the answer is that it does
+        not fit, and the report still says what streaming *would* cost so the
         decision can be made with the number in hand rather than without it.
+        ``off`` is an accepted alias.
     ``auto``
         Stream only when the model does not fit resident **and** the result
         clears ``floor``. This is the "decide from the running machine"
         position, and it is what makes the fallback safe to leave configured:
         on a machine where streaming would be useless it does not engage.
-    ``on``
+    ``always``
         Stream because a human said so. The report still carries the cost,
         and it still objects when the model would have fitted -- streaming a
         model that fits is strictly slower, with no compensating benefit.
+        ``on`` is an accepted alias.
+
+    ``mode=None`` -- the default -- resolves through :func:`requested_mode`, so
+    ``BEST_ENGINE_AIRLLM`` in the environment is honoured and the suite has one
+    switch rather than two.
 
     What ``auto`` deliberately does not do
     --------------------------------------
@@ -738,12 +939,14 @@ def choose_engine(
     machine : Machine
         Where it would run. :func:`machine_from_host` or
         :func:`machine_from_catalog`.
-    mode : {'off', 'auto', 'on'}
-        The activation policy above.
+    mode : {'auto', 'always', 'never'}, optional
+        The activation policy above, in any spelling
+        :data:`MODE_ALIASES` accepts. None reads ``BEST_ENGINE_AIRLLM`` and
+        falls back to ``'auto'``.
     floor : {'interactive', 'batch', 'overnight', 'impractical'}
         Worst verdict ``auto`` will accept. ``'batch'`` means "an answer
         within the hour or do not bother".
-    context, quant, assumptions, catalog
+    context, quant, shards_dir, assumptions, catalog
         Passed through to :func:`size_streaming`.
 
     Returns
@@ -754,7 +957,7 @@ def choose_engine(
     """
     from ai_bunker.sizing import Assumptions, size_machine
 
-    osh.check(mode in MODES, f"mode must be one of {', '.join(MODES)}, not {mode!r}")
+    mode = requested_mode(mode)
     osh.check(floor in VERDICTS, f"floor must be one of {', '.join(VERDICTS)}, not {floor!r}")
     cat = catalog or load_catalog()
     warnings: list[str] = []
@@ -789,6 +992,7 @@ def choose_engine(
             memory_gbs=machine.memory_gbs,
             context=context,
             quant=quant,
+            shards_dir=shards_dir,
             assumptions=assumptions,
             catalog=cat,
         )
@@ -803,7 +1007,7 @@ def choose_engine(
     streaming = _stream()
     worse_than_floor = VERDICTS.index(streaming.verdict) > VERDICTS.index(floor)
 
-    if mode == "off":
+    if mode == "never":
         return Choice(
             model_id=model,
             machine=machine.name,
@@ -814,9 +1018,9 @@ def choose_engine(
                 f"{model} fits in {machine.device_gib:.0f} GiB and is served resident; the "
                 "fallback was not consulted."
                 if fits
-                else f"{model} does not fit in {machine.device_gib:.0f} GiB and the fallback is "
-                f"off. Streaming it would give {streaming.tps:.2f} tok/s "
-                f"({streaming.verdict}); pass --mode auto to let that decide, or --mode on to "
+                else f"{model} does not fit in {machine.device_gib:.0f} GiB and the mode is "
+                f"`never`. Streaming it would give {streaming.tps:.2f} tok/s "
+                f"({streaming.verdict}); pass --mode auto to let that decide, or --mode always to "
                 "take it anyway."
             ),
             resident_fits=fits,
@@ -871,19 +1075,19 @@ def choose_engine(
             warnings=warnings + streaming.warnings,
         )
 
-    # mode == "on": the human has decided, and the report still has to be true.
+    # mode == "always": the human has decided, and the report still has to be true.
     if fits:
         warnings.append(
             f"{model} fits in {machine.device_gib:.0f} GiB. Streaming it anyway reads the whole "
             f"checkpoint off {machine.storage} for every token instead of out of memory"
             + (f", which is {streaming.slowdown:.0f} times slower" if streaming.slowdown else "")
-            + ". This is what --mode on means; it is almost never what anybody wants."
+            + ". This is what --mode always means; it is almost never what anybody wants."
         )
     if streaming.verdict == "impractical":
         warnings.append(
             "The verdict is `impractical`: at "
             f"{streaming.tps:.3f} tok/s a {streaming.answer_tokens}-token answer takes "
-            f"{streaming.answer_seconds / 3600:.1f} hours. Activated because --mode on was "
+            f"{streaming.answer_seconds / 3600:.1f} hours. Activated because --mode always was "
             "asked for, not because it is a good idea."
         )
     return Choice(
@@ -893,7 +1097,7 @@ def choose_engine(
         engine="airllm",
         activated=True,
         reason=(
-            f"--mode on: streaming {model} off {machine.storage} at {streaming.tps:.2f} tok/s "
+            f"--mode always: streaming {model} off {machine.storage} at {streaming.tps:.2f} tok/s "
             f"({streaming.verdict}), by hand rather than by arithmetic."
         ),
         resident_fits=fits,

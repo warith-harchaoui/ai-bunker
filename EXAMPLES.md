@@ -171,6 +171,13 @@ ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
     activations and context               1.50 GiB
     → needed on the device                4.90 GiB
 
+  WHAT THE SPLIT NEEDS ON DISK
+    the download                          45.0 GiB
+    the per-layer shards                  45.0 GiB
+    → free space while splitting          94.5 GiB   both copies at once
+    → afterwards                          49.5 GiB   with --delete-original
+    free where the shards go              20.7 GiB   SHORT
+
   SPEED
     seconds per token                     7.07 s
     tokens per second                    0.141 tok/s
@@ -182,6 +189,13 @@ ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
   VERDICT  BATCH        — an answer within the hour, for work nobody is watching
   ENGINE   AIRLLM    — stream the layers off storage
 ```
+
+The last line of the disk block is a **live reading** and the only figure in
+this file that will differ on your machine: it is the free space where the
+shards would go, read at the moment the command ran. On the laptop this was
+written on it is also the binding constraint — the memory arithmetic says the
+80B streams fine on a 24 GiB card, and there is 21 GiB of disk against a
+94.5 GiB peak.
 
 Four things in that output are the whole point. A 45 GiB checkpoint needs
 **4.9 GiB** of device memory, which is the capacity wall gone. The prompt costs

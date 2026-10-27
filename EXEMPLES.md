@@ -173,6 +173,13 @@ ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
     activations and context               1.50 GiB
     → needed on the device                4.90 GiB
 
+  WHAT THE SPLIT NEEDS ON DISK
+    the download                          45.0 GiB
+    the per-layer shards                  45.0 GiB
+    → free space while splitting          94.5 GiB   both copies at once
+    → afterwards                          49.5 GiB   with --delete-original
+    free where the shards go              20.7 GiB   SHORT
+
   SPEED
     seconds per token                     7.07 s
     tokens per second                    0.141 tok/s
@@ -184,6 +191,13 @@ ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
   VERDICT  BATCH        — an answer within the hour, for work nobody is watching
   ENGINE   AIRLLM    — stream the layers off storage
 ```
+
+La dernière ligne du bloc disque est une **lecture en direct** et le seul
+chiffre de ce fichier qui différera chez vous : c'est l'espace libre là où
+iraient les tranches, lu au moment où la commande a tourné. Sur le portable où
+ceci a été écrit, c'est aussi la contrainte qui bloque — l'arithmétique mémoire
+dit que le 80B se lit très bien sur une carte de 24 Gio, et il y a 21 Gio de
+disque contre un pic de 94,5 Gio.
 
 Quatre choses dans cette sortie font tout l'intérêt. Un point de contrôle de
 45 Gio demande **4,9 Gio** de mémoire d'accélérateur : le mur de capacité a

@@ -529,6 +529,19 @@ def render_fallback(choice, *, show_command: bool = True) -> str:
     w(f"    {'→ needed on the device':<{label}}{s.device_need_gib:>8.2f} GiB")
     w("")
 
+    w("  WHAT THE SPLIT NEEDS ON DISK")
+    w(f"    {'the download':<{label}}{s.native_gib:>8.1f} GiB")
+    w(f"    {'the per-layer shards':<{label}}{s.checkpoint_gib:>8.1f} GiB")
+    w(
+        f"    {'→ free space while splitting':<{label}}{s.split_peak_gib:>8.1f} GiB"
+        f"   both copies at once"
+    )
+    w(f"    {'→ afterwards':<{label}}{s.split_steady_gib:>8.1f} GiB   with --delete-original")
+    if s.free_disk_gib is not None:
+        short = " SHORT" if s.free_disk_gib < s.split_peak_gib else ""
+        w(f"    {'free where the shards go':<{label}}{s.free_disk_gib:>8.1f} GiB  {short}")
+    w("")
+
     w("  SPEED")
     w(f"    {'seconds per token':<{label}}{s.seconds_per_token:>8.2f} s")
     w(f"    {'tokens per second':<{label}}{s.tps:>8.3f} tok/s")

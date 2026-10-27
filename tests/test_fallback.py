@@ -46,8 +46,12 @@ from ai_bunker.cli import build_parser
 from ai_bunker.fallback import (
     ASSUMED_LAYERS,
     COMPRESSION_BYTES,
+    MODE_ALIASES,
+    MODE_ENV_VAR,
     MODES,
     PREFETCH_DEPTH,
+    SPLIT_DISK_PEAK,
+    SPLIT_DISK_STEADY,
     VERDICTS,
     Machine,
     StreamingAssumptions,
@@ -55,10 +59,15 @@ from ai_bunker.fallback import (
     choose_engine,
     engine_command,
     find_storage,
+    free_disk_gib,
     machine_from_catalog,
     machine_from_host,
+    native_checkpoint_gib,
+    normalise_mode,
+    requested_mode,
     shard_gib,
     size_streaming,
+    split_disk_gib,
     storage_classes,
     upstream_snippet,
 )
@@ -545,11 +554,24 @@ def test_on_activates_even_when_the_verdict_is_impractical_and_says_so(catalog):
     assert any("not because it is a good idea" in w for w in choice.warnings)
 
 
-@pytest.mark.parametrize("bad", ["", "ON", "maybe", "auto "])
-def test_an_unknown_mode_is_refused(catalog, bad):
+@pytest.mark.parametrize("bad", ["maybe", "sometimes", "fast", "4bit"])
+def test_a_mode_nobody_defined_is_refused(catalog, bad):
     with pytest.raises(AssertionError) as caught:
         choose_engine(model="devstral-small-2-24b", machine=_machine(), mode=bad, catalog=catalog)
-    assert ", ".join(MODES) in str(caught.value)
+    # The refusal lists every spelling that works, aliases included, because an
+    # operator who typed the wrong word needs the right one and not a subset.
+    for spelling in MODES:
+        assert spelling in str(caught.value)
+
+
+@pytest.mark.parametrize("lenient", ["ON", "  off  ", "Auto", ""])
+def test_case_and_whitespace_are_not_a_users_problem(catalog, lenient):
+    """These used to be refused. Refusing `ON` while accepting `on` is a
+    checker having an opinion about shift keys."""
+    choice = choose_engine(
+        model="devstral-small-2-24b", machine=_machine(), mode=lenient, catalog=catalog
+    )
+    assert choice.mode in MODES
 
 
 def test_an_unknown_floor_is_refused(catalog):
@@ -1056,3 +1078,175 @@ def test_serving_a_repository_id_is_refused_before_the_socket_opens(monkeypatch)
         engine_module.serve(model="Qwen/Qwen3-Coder-Next")
     assert "not a local checkpoint" in str(caught.value)
     assert "--allow-download" in str(caught.value)
+
+
+# ---------------------------------------------------------------------------
+# One vocabulary across the suite.
+# ---------------------------------------------------------------------------
+
+
+def test_the_canonical_modes_are_the_suites_modes():
+    """`best-engine-ai-helper` owns the AirLLM adapter and published this
+    vocabulary first. A suite where one tool says `--mode on` and its sibling
+    says `airllm: always` for the identical policy is a suite whose
+    documentation cannot be read straight through."""
+    assert MODES == ("auto", "always", "never")
+
+
+@pytest.mark.parametrize(
+    "spelling,canonical",
+    [
+        ("auto", "auto"),
+        ("always", "always"),
+        ("on", "always"),
+        ("true", "always"),
+        ("never", "never"),
+        ("off", "never"),
+        ("no", "never"),
+        ("", "auto"),
+        (None, "auto"),
+        ("  Always  ", "always"),
+    ],
+)
+def test_every_accepted_spelling_canonicalises(spelling, canonical):
+    assert normalise_mode(spelling) == canonical
+
+
+def test_the_old_spellings_still_work():
+    """`off` and `on` were this project's canonical words before the two
+    vocabularies were reconciled. Anything anybody typed or wrote down has to
+    keep working, or reconciling vocabularies is a breaking change dressed up
+    as tidying."""
+    assert normalise_mode("off") == "never"
+    assert normalise_mode("on") == "always"
+
+
+def test_the_alias_table_agrees_with_the_siblings():
+    """The drift guard that makes a copied table defensible. If the helper
+    teaches its policy a new spelling, this fails rather than the two packages
+    silently accepting different words."""
+    offload = pytest.importorskip("best_engine_ai_helper.offload")
+    theirs = getattr(offload, "_REQUEST_ALIASES", None)
+    if theirs is None:
+        pytest.skip("the installed helper predates its request aliases")
+    assert theirs == MODE_ALIASES
+
+
+def test_the_environment_is_the_fallback_and_an_explicit_mode_wins():
+    """Precedence mirrors `offload.requested` exactly, so one suite-wide switch
+    produces one answer whichever tool is asked."""
+    assert requested_mode(None, env={}) == "auto"
+    assert requested_mode(None, env={MODE_ENV_VAR: "never"}) == "never"
+    assert requested_mode("always", env={MODE_ENV_VAR: "never"}) == "always"
+    assert requested_mode("", env={MODE_ENV_VAR: "always"}) == "always"
+
+
+def test_the_suite_kill_switch_reaches_this_project(catalog, monkeypatch):
+    """A kill switch one tool ignores is not a kill switch. An operator who set
+    `BEST_ENGINE_AIRLLM=never` must not find ai-bunker activating anyway."""
+    monkeypatch.setenv(MODE_ENV_VAR, "never")
+    choice = choose_engine(model="qwen3-coder-next", machine=_machine(), catalog=catalog)
+    assert choice.mode == "never"
+    assert choice.activated is False
+
+
+def test_an_unknown_mode_lists_the_spellings_that_work(catalog):
+    with pytest.raises(AssertionError) as caught:
+        choose_engine(model="qwen3-coder-next", machine=_machine(), mode="sometimes")
+    assert "always" in str(caught.value) and "never" in str(caught.value)
+
+
+# ---------------------------------------------------------------------------
+# The disk, which is the constraint that actually bites.
+# ---------------------------------------------------------------------------
+
+
+def test_the_split_disk_figures_match_the_siblings():
+    """Two packages reporting different disk requirements for the same model is
+    the failure this shares constants to prevent. These are the sibling's own
+    doctest values, in its units."""
+    assert split_disk_gib(140.0, 140.0) == (294.0, 154.0)
+    assert split_disk_gib(140.0, 35.0) == (178.5, 38.5)
+
+
+def test_the_split_constants_are_the_siblings():
+    offload = pytest.importorskip("best_engine_ai_helper.offload")
+    peak = getattr(offload, "_SPLIT_DISK_PEAK", None)
+    steady = getattr(offload, "_SPLIT_DISK_STEADY", None)
+    if peak is None or steady is None:
+        pytest.skip("the installed helper predates its split-disk constants")
+    assert (peak, steady) == (SPLIT_DISK_PEAK, SPLIT_DISK_STEADY)
+
+
+def test_compression_shrinks_the_shards_and_not_the_download(catalog):
+    """Confusing the two understates peak disk by up to a factor of four, and
+    peak disk is what decides whether the split can run at all."""
+    dense = find_model(catalog, "devstral-small-2-24b")
+    assert native_checkpoint_gib(dense, compression="4bit") == dense["weights"]["bf16"]
+    shards, _ = checkpoint_gib(dense, compression="4bit")
+    assert shards < dense["weights"]["bf16"] / 3
+    peak, steady = split_disk_gib(native_checkpoint_gib(dense, compression="4bit"), shards)
+    # The download dominates the peak however hard the shards are compressed.
+    assert peak > dense["weights"]["bf16"]
+    assert steady < peak / 3
+
+
+def test_a_short_disk_is_reported_against_the_peak(catalog, tmp_path):
+    s = size_streaming(
+        model="qwen3-coder-next",
+        device_gib=24,
+        ram_gib=32,
+        unified=False,
+        storage="nvme-gen4",
+        context=32768,
+        shards_dir=str(tmp_path),
+        catalog=catalog,
+    )
+    assert s.split_peak_gib > s.checkpoint_gib
+    assert s.free_disk_gib is not None
+    if s.free_disk_gib < s.split_peak_gib:
+        assert any("free while it runs" in w for w in s.warnings)
+    else:  # a roomy machine; the figures still have to be there
+        assert not any("free while it runs" in w for w in s.warnings)
+
+
+def test_no_shards_directory_means_no_disk_claim(catalog):
+    """Reporting a figure nobody asked for is one thing; reporting a *check*
+    that was never run is another."""
+    s = size_streaming(
+        model="qwen3-coder-next",
+        device_gib=24,
+        ram_gib=32,
+        unified=False,
+        storage="nvme-gen4",
+        context=32768,
+        catalog=catalog,
+    )
+    assert s.free_disk_gib is None
+    assert not any("free while it runs" in w for w in s.warnings)
+
+
+def test_unreadable_free_space_is_unknown_rather_than_zero():
+    """Zero would make every plan fail the disk check on a platform without
+    `statvfs`, which is a refusal nobody can act on."""
+    assert free_disk_gib(None) is None
+    assert free_disk_gib("") is None
+    # A path that does not exist yet is the normal case -- it is where shards
+    # are *going* -- so it walks up to a parent that does.
+    assert free_disk_gib("/does/not/exist/yet/shards") is not None
+
+
+def test_the_report_shows_the_disk_block(catalog):
+    from ai_bunker.report import render_fallback
+
+    choice = choose_engine(
+        model="qwen3-coder-next",
+        machine=_machine(),
+        mode="always",
+        shards_dir="/tmp",
+        catalog=catalog,
+    )
+    out = render_fallback(choice)
+    assert "WHAT THE SPLIT NEEDS ON DISK" in out
+    assert "free space while splitting" in out
+    assert "with --delete-original" in out
