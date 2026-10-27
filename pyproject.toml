@@ -10,7 +10,16 @@ readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = { text = "BSD-3-Clause" }
 authors = [{ name = "Warith Harchaoui", email = "warithmetics@deraison.ai" }]
-keywords = ["llm", "vllm", "gateway", "openai-compatible", "sovereignty", "coding-agent", "context-budget"]
+keywords = [
+  "llm",
+  "vllm",
+  "airllm",
+  "gateway",
+  "openai-compatible",
+  "sovereignty",
+  "coding-agent",
+  "context-budget",
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -38,6 +47,23 @@ mcp = ["fastapi-mcp>=0.1"]
 # characters-per-token ratio and SAYS SO rather than pretending to be exact.
 tokenizers = ["tokenizers>=0.15"]
 serve = ["vllm>=0.28"]
+# The layer-streaming fallback, for a model too large to hold in memory. This
+# installs the *engine*; deciding whether to stream at all is arithmetic over
+# the catalogue and needs none of it, so `ai-bunker fallback` works without
+# this extra and says what streaming would cost on a machine that will never
+# run it.
+#
+# Deliberately NOT in `all`. AirLLM brings PyTorch, transformers and accelerate
+# with it -- around 2.5 GiB of wheels -- and `pip install ai-bunker[all]` on a
+# laptop that only ever runs `sizing` and `doctor` should not pay for that.
+#
+# `bitsandbytes` is deliberately absent too: block-wise compression needs it,
+# it does not build everywhere, and a deployment that wants compression is
+# better off installing it knowingly than discovering the build failure here.
+# The range matches `best-engine-ai-helper[airllm]` exactly, and has to: this
+# package loads checkpoints *through* that one, so an extra demanding a
+# narrower range than its own adapter would reject a working install.
+airllm = ["airllm>=2.11,<5"]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11", "httpx>=0.27"]
 all = ["ai-bunker[api,mcp,tokenizers,dev]"]
 

@@ -27,6 +27,15 @@ from ai_bunker.budget import (
 )
 from ai_bunker.charter import build_index, load_charter, read_page, system_blocks
 from ai_bunker.config import load_settings
+from ai_bunker.fallback import (
+    MODES,
+    VERDICTS,
+    StreamingAssumptions,
+    choose_engine,
+    machine_from_catalog,
+    machine_from_host,
+    storage_classes,
+)
 from ai_bunker.i18n import DEFAULT_LOCALE
 from ai_bunker.report import (
     default_assumptions_from_args,
@@ -34,6 +43,7 @@ from ai_bunker.report import (
     render_budget,
     render_catalog,
     render_comparison,
+    render_fallback,
     render_recommendation,
     render_rule_report,
     screen_cost_ms,
@@ -198,6 +208,64 @@ def cmd_recommend(args) -> int:
     plan = ", ".join(x for x in [args.model, _none(args.vision), _none(args.embeddings)] if x)
     print(render_recommendation(recs, args.team, plan=plan, top=args.top))
     print()
+    return 0
+
+
+def cmd_fallback(args) -> int:
+    """Whether to stream this model off storage, on this machine, and what it costs."""
+    if args.accelerator:
+        machine = machine_from_catalog(args.accelerator, ram_gib=args.ram)
+    else:
+        machine = machine_from_host()
+        if args.ram:
+            machine.ram_gib = args.ram
+    if args.bandwidth:
+        machine.memory_gbs = args.bandwidth
+    if args.storage:
+        machine.storage = args.storage
+    if args.disk:
+        machine.disk_gbs = args.disk
+    if args.cached:
+        machine.cache_gbs = args.cached
+
+    assumptions = StreamingAssumptions(
+        disk_efficiency=args.disk_efficiency,
+        answer_tokens=args.answer_tokens,
+        compression=_none(args.compression),
+        kv_dtype=args.kv_dtype,
+    )
+    choice = choose_engine(
+        model=args.model,
+        machine=machine,
+        mode=args.mode,
+        floor=args.floor,
+        context=args.context,
+        quant=_none(args.quant),
+        assumptions=assumptions,
+    )
+    if args.json:
+        print(json.dumps(choice.to_dict(), indent=2))
+    else:
+        print(render_fallback(choice))
+    # Non-zero when the decision is "do not run this here", so the command
+    # works as a gate in a script rather than only as something to read.
+    return 0 if (choice.engine != "none") else 1
+
+
+def cmd_airllm(args) -> int:
+    """Run the layer-streaming engine behind an OpenAI-compatible socket."""
+    from ai_bunker.airllm import serve
+
+    serve(
+        model=args.model,
+        host=args.host,
+        port=args.port,
+        context=args.context,
+        compression=_none(args.compression),
+        shards_dir=args.shards or None,
+        eager=args.eager,
+        allow_download=args.allow_download,
+    )
     return 0
 
 
@@ -1060,6 +1128,95 @@ def build_parser() -> argparse.ArgumentParser:
     bk.add_argument("--reset", action="store_true", help="Close the breakers instead.")
     bk.add_argument("--session", default="", help="Only this session, rather than all.")
     bk.set_defaults(func=cmd_breaker)
+
+    fb = sub.add_parser(
+        "fallback",
+        help="When the model does not fit: should it be streamed off storage, and at what cost.",
+    )
+    fb.add_argument("--model", default="devstral-small-2-24b", help="Catalogue model id.")
+    fb.add_argument(
+        "--mode",
+        choices=list(MODES),
+        default="auto",
+        help="off: never stream, only report. auto: stream when it does not fit and clears "
+        "--floor. on: stream because you said so. (auto)",
+    )
+    fb.add_argument(
+        "--floor",
+        choices=list(VERDICTS),
+        default="batch",
+        help="Worst verdict --mode auto will accept. (batch)",
+    )
+    fb.add_argument("--accelerator", help="Catalogue accelerator id; default is this machine.")
+    fb.add_argument("--ram", type=float, help="System memory in GiB, where the page cache lives.")
+    fb.add_argument("--bandwidth", type=float, help="Memory bandwidth in GB/s, for the comparison.")
+    fb.add_argument(
+        "--storage",
+        help="Catalogue storage class: " + ", ".join(sorted(storage_classes())),
+    )
+    fb.add_argument(
+        "--disk",
+        type=float,
+        help="Measured uncached read bandwidth in GB/s. Beats any class: "
+        "python scripts/bench_disk.py",
+    )
+    fb.add_argument(
+        "--cached",
+        type=float,
+        help="Measured page-cache re-read rate in GB/s, from the same script. Measuring the "
+        "drive does not measure this.",
+    )
+    fb.add_argument("--disk-efficiency", type=float, default=0.85)
+    fb.add_argument(
+        "--answer-tokens", type=int, default=500, help="Answer the verdict judges (500)."
+    )
+    fb.add_argument("--context", type=int, help="Context to serve; default is the model's maximum.")
+    fb.add_argument("--quant", default="", help="Weight table to hand the engine.")
+    fb.add_argument(
+        "--compression",
+        default="",
+        choices=["", "none", "4bit", "8bit"],
+        help="AirLLM block-wise compression of the shards: fewer bytes per layer is the only "
+        "knob with real leverage here.",
+    )
+    fb.add_argument("--kv-dtype", default="bf16", choices=["bf16", "fp8"])
+    fb.add_argument("--json", action="store_true")
+    fb.set_defaults(func=cmd_fallback)
+
+    al = sub.add_parser(
+        "airllm",
+        help="Run the layer-streaming engine as an upstream the gateway can proxy.",
+    )
+    al.add_argument(
+        "action",
+        choices=["serve"],
+        help="Only `serve` today. The decision of whether to is `ai-bunker fallback`.",
+    )
+    al.add_argument("--model", required=True, help="Hugging Face repository id, or a local path.")
+    al.add_argument("--host", default="127.0.0.1")
+    al.add_argument("--port", type=int, default=8003)
+    al.add_argument("--context", type=int, default=8192, help="Maximum sequence length (8192).")
+    al.add_argument("--compression", default="", choices=["", "none", "4bit", "8bit"])
+    al.add_argument(
+        "--shards",
+        default="",
+        help="Where to keep the split checkpoint. Worth setting: it wants as much room as the "
+        "original.",
+    )
+    al.add_argument(
+        "--allow-download",
+        action="store_true",
+        help="Permit fetching the checkpoint from a model hub. Off by default: a repository id "
+        "is refused rather than quietly downloaded, because a deployment whose argument is that "
+        "nothing leaves the local network does not reach a third party on a default.",
+    )
+    al.add_argument(
+        "--eager",
+        action="store_true",
+        help="Split and load before the socket opens, so a scripted deployment fails at start "
+        "rather than on the first request.",
+    )
+    al.set_defaults(func=cmd_airllm)
 
     d = sub.add_parser("detect", help="What os-helper sees about this machine.")
     d.set_defaults(func=cmd_detect)

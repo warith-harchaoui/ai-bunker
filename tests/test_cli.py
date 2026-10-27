@@ -42,6 +42,8 @@ SUBCOMMANDS = (
     "tools",
     "detect",
     "catalog",
+    "fallback",
+    "airllm",
 )
 
 

@@ -113,6 +113,11 @@ SITE_FR = tuple(f for f in _BUILT if "/fr/" in f)
 
 CODE = tuple(f"ai_bunker/{p.name}" for p in sorted((ROOT / "ai_bunker").glob("*.py")))
 
+#: `CODE` without the one module whose purpose is to load a checkpoint. Used by
+#: exactly one claim, and paired with a second claim over the excluded file, so
+#: the carve-out is itself guarded rather than being an unwatched exception.
+ENGINE_FREE_CODE = tuple(f for f in CODE if f != "ai_bunker/airllm.py")
+
 
 @dataclass(frozen=True)
 class Claim:
@@ -171,10 +176,26 @@ CLAIMS: tuple[Claim, ...] = (
             "Counting must not depend on an outbound call to a third party: "
             "the gateway's whole claim is that nothing leaves the local "
             "network. An intermediate version resolved a Hugging Face "
-            "repository id, which worked and was wrong."
+            "repository id, which worked and was wrong. The one module exempt "
+            "is `airllm.py`, whose entire job is to load a checkpoint into a "
+            "separate, operator-launched process -- and the exemption is not "
+            "a hole, because `the-engine-loads-offline-by-default` below "
+            "guards the behaviour that makes it defensible."
         ),
         forbidden=("from_pretrained",),
-        files=CODE,
+        files=ENGINE_FREE_CODE,
+    ),
+    Claim(
+        name="the-engine-loads-offline-by-default",
+        because=(
+            "`airllm.py` is the only module allowed to call a model loader, "
+            "and it is allowed because it refuses a repository id unless a "
+            "human passes `allow_download`. If that default ever flips, the "
+            "exemption above becomes the hole it was written not to be, and "
+            "nothing else in the repository would notice."
+        ),
+        required_somewhere=("allow_download",),
+        files=("ai_bunker/airllm.py",),
     ),
     Claim(
         name="the-dashboard-is-translated",

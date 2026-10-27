@@ -3,6 +3,164 @@
 Semantic versioning. Dates follow ISO 8601, the International Organization for
 Standardization's year-month-day order.
 
+## [Unreleased]
+
+A second answer to "the model does not fit": read the layers off storage, and
+measure what that costs rather than discovering it.
+
+### When the model does not fit
+
+Until now a plan exceeding the card got one verdict, `does-not-fit`, and the
+conversation ended. [AirLLM](https://github.com/lyogavin/airllm) makes the
+other option real — one transformer layer resident, the rest streamed off
+storage — and an 80-billion-parameter checkpoint runs in **4.9 gibibytes** of
+device memory. `ai_bunker/fallback.py` is the arithmetic for it, and the
+arithmetic is the point: the same memory roofline this project already runs,
+over a device one to two orders of magnitude slower.
+
+- **The drive was measured, not assumed.** `scripts/bench_disk.py` reports
+  uncached sequential read bandwidth, bypassing the page cache in both
+  directions. On this project's Apple M2 Max: **5.6 gigabytes per second**
+  (GB/s) against 400 GB/s of unified memory, a factor of 71. The catalogue's other storage classes are
+  vendor peak figures and every result computed from one says so.
+- **The first version of that benchmark measured the page cache**, at 13.1
+  GB/s — above what the drive can physically do, which is the only reason it
+  was caught. `F_NOCACHE` on the reading descriptor does not evict what the
+  write just cached. The written row is kept in `docs/FALLBACK.md` §5 because
+  it is the mistake anybody writing this benchmark makes.
+- **The mixture-of-experts recommendation inverts, and that is the finding.** A
+  layer is loaded whole, so every expert crosses the bus whether the router
+  picks it or not. `active_fraction` — the column that makes an 80B/3B model
+  the fastest thing in `catalog/serving.yaml` — is a property of resident
+  serving and buys nothing here. Streamed, the dense 24B is 1.8 times faster
+  than the 80B. `tests/test_fallback.py` asserts both directions, because it is
+  the easiest thing to get backwards after reading the rest of this repository.
+- **The card stops mattering.** An RTX 4090 and an RTX 5090 stream at the same
+  0.31 tok/s: a 1,792 GB/s memory bus spends its life waiting on 7 GB/s of
+  storage. The drive is the machine, and a rotating disk against a
+  fifth-generation Peripheral Component Interconnect express solid-state drive
+  is a 74-fold spread on one component.
+- **Long context is almost free and generated length is ruinous**, which is the
+  exact inverse of the cost shape `docs/SIZING.md` is built on: a prompt makes
+  one pass over the layers however long it is, and every generated token makes
+  another.
+- **Honest about what it is.** Between 0.1 and 0.5 tok/s on every machine in
+  the catalogue. Streaming makes a model **runnable, not servable**, and an
+  activated fallback always carries the sentence that it is not an interactive
+  engine — because an agent pointed at a fifth of a token per second does not
+  degrade, it hangs, and the operator debugs a network problem that is not one.
+
+### Activating it, automatically or by hand
+
+`ai-bunker fallback` has three modes and the default is the conservative one.
+`off` reports what streaming would cost and never engages. `auto` decides from
+the running machine: it engages only when the model does not fit **and** the
+verdict clears `--floor`, so it is safe to leave configured. `on` engages
+because a human said so, and still objects when the model would have fitted.
+
+- **`auto` does not switch engines underneath a running gateway**, by design.
+  The automatic part is the *decision*, printed with the command it implies; a
+  human starts the engine. Same rule as a premium route: the expensive,
+  surprising path is one somebody writes down.
+- **The command exits non-zero** when the answer is "this machine cannot
+  usefully run this model", so it gates a script as well as informing a reader.
+- **Every assumption is a flag**: `--disk`, `--cached`, `--disk-efficiency`,
+  `--compression`, `--answer-tokens`, `--context`, `--floor`.
+
+### The engine: imported, not vendored
+
+`ai-bunker airllm serve` runs AirLLM behind an OpenAI-compatible socket, and
+`ai_bunker/airllm.py` is an adapter rather than a copy. The part worth copying
+is twenty lines; the work is the per-architecture layer-name mapping across a
+dozen model families, and a vendored copy of that decays in silence — it keeps
+working for the models it knew and refuses the one you wanted, with a
+`KeyError`.
+
+- **It does not load the checkpoint itself either.**
+  `best-engine-ai-helper` owns "which local model, on what hardware, through
+  which backend" for this suite, and its `offload` module is the suite's
+  AirLLM adapter — so `ai_bunker.airllm` prefers
+  `best_engine_ai_helper.airllm_load` and imports `airllm` directly only when
+  the installed helper does not offer it. Exactly one place in the suite passes
+  keyword arguments to a model loader, so a renamed option upstream is absorbed
+  once. The direct path is not a preference; it is the version skew a
+  two-repository suite actually has.
+- **What ai-bunker adds is the half the helper has no reason to carry.** The
+  helper's `generate` is a blocking Python call, because AirLLM is a library
+  and not a daemon; this project needs an OpenAI-compatible socket a gateway
+  can proxy. And `fallback.py` sizes streaming against this project's *server*
+  catalogue — footprint per quantization, key–value geometry, the context that
+  cache allows beside the shards, a priced accelerator to compare against —
+  which is the same division that already makes `sizing.py` exist alongside the
+  helper's `recommend`.
+- **No new configuration key, and no change to `gateway.py`.** The engine
+  speaks the dialect the gateway already proxies, so it is an upstream like any
+  other and the screening, the context budget, the breaker and the decision log
+  apply unchanged.
+- **A separate process, deliberately.** Importing an inference engine into the
+  gateway would put model weights and a generation loop holding the global
+  interpreter lock inside the one process whose job is to answer `/health`
+  promptly — a defect this project fixed once already, in the inbound pipeline.
+- **Behind the `airllm` extra, and not in `[all]`.** It brings PyTorch,
+  transformers and accelerate with it, around 2.5 gibibytes of wheels, and
+  `pip install ai-bunker[all]` on a laptop that only runs `sizing` and `doctor`
+  should not pay for that. The arithmetic needs none of it.
+- **A repository id is refused rather than downloaded.** Handing a loader
+  `owner/name` makes it fetch from a third party, which a project claiming
+  nothing leaves the local network does not do on a default: a local path
+  loads and sets `HF_HUB_OFFLINE`, and downloading takes `--allow-download`.
+  This is the one module exempt from the `no-model-hub-at-runtime` claim, and
+  the exemption is itself guarded — a second registered claim fails if that
+  default ever flips.
+
+### Three defects found while building it, all in the new code
+
+- **A stream could hang forever.** The socket's generation thread only called
+  `streamer.end()` on failure, so an engine that accepted the `streamer`
+  keyword, ignored it and answered the ordinary way left the consumer blocked
+  on a queue with no timeout. On an engine measured in minutes per answer, a
+  permanent hang is indistinguishable from working. It is now called in a
+  `finally`.
+- **Loading died on any machine without a Hugging Face token.**
+  `osh.get_config` raises when a key resolves nowhere, which is correct for
+  something a program cannot run without and wrong for a token only a gated
+  repository needs. It now goes through the wrapper `config.py` already had for
+  exactly that distinction, which swallows the message as well as the
+  exception.
+- **Every `POST` to the engine answered `422`.** FastAPI resolves a handler's
+  annotations against its *module* globals, and with `from __future__ import
+  annotations` a `Request` imported inside the factory function is invisible —
+  so the parameter was read as a query field. The import is at module scope,
+  guarded, with the reason written down next to it.
+
+### Honest limitations, stated where they are made
+
+- **No answer has been generated through this path.** The arithmetic is tested
+  and the socket is tested against a stub; "AirLLM produces the tokens
+  transformers would" is claimed nowhere in this repository.
+- `--disk-efficiency 0.85` is an assumption. Separating it from fixed per-layer
+  overhead needs two checkpoints of different sizes streamed on one machine,
+  and that experiment has not been run.
+- Layer counts are published for three of the six catalogue models; for the
+  rest a shard is sized at a 48th of the checkpoint and the result says
+  `layers_assumed`. Throughput does not depend on it; the memory requirement
+  does.
+- One sequence at a time, and a bf16 key–value cache rather than the 8-bit one
+  the resident path assumes, so a given card allows roughly half the context
+  `docs/SIZING.md` would suggest.
+
+### Added
+
+- `ai_bunker/fallback.py` — the storage roofline, the page-cache mixing, the
+  context the key–value cache will allow, and the three activation modes.
+- `ai_bunker/airllm.py` — the engine adapter and its OpenAI-compatible socket.
+- `scripts/bench_disk.py` — the one measured number.
+- `docs/FALLBACK.md` — the full study, with the sources and the limitations.
+- `catalog/serving.yaml` — a `storage:` section of seven named classes with
+  provenance, and `unified: true` on the complete machines, because on one
+  memory pool a cached shard takes room the key–value cache needed.
+- `ai-bunker fallback` and `ai-bunker airllm serve`, and the `airllm` extra.
+
 ## [0.2.0] — 2026-10-22
 
 Four security fixes, streamed completions screened at last, the runtime and

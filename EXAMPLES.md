@@ -8,6 +8,7 @@ that is the point of a project whose rule is *every claim is a measurement or
 it is removed*.
 
 - [Before you buy](#before-you-buy)
+- [When it does not fit](#when-it-does-not-fit)
 - [Before you serve](#before-you-serve)
 - [What a session costs](#what-a-session-costs)
 - [The charter](#the-charter)
@@ -126,6 +127,120 @@ speed`, and the fix is a different card rather than more memory.
 ai-bunker compare                       # every machine, with cost per person
 ai-bunker catalog                       # the models and accelerators, with provenance
 ```
+
+---
+
+## When it does not fit
+
+The sizing above refuses a plan that exceeds the card. This is the other
+answer: stream the layers off storage, and find out what that costs before
+spending an afternoon on it.
+
+The one figure worth measuring rather than assuming is the drive:
+
+```bash
+python scripts/bench_disk.py
+```
+
+```text
+  macOS-26.5.2-arm64-arm-64bit-Mach-O
+  /var/folders/2n/.../T  ·  2.0 GiB  ·  3 reads  ·  F_NOCACHE
+
+  uncached read      5.67 GB/s   [5.65, 5.67, 5.68]
+  cached read       12.08 GB/s   [12.65, 11.27, 12.08]
+
+  Use it:  ai-bunker fallback --disk 5.67
+```
+
+Then ask whether the 80B belongs on a 24 GiB card:
+
+```bash
+ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
+  --disk 5.6 --cached 13.0 --context 32768
+```
+
+```text
+  WHAT IS READ, PER GENERATED TOKEN
+    checkpoint (awq4)                     45.0 GiB
+    of it, out of the page cache          24.0 GiB   at 13.0 GB/s
+    of it, off nvme-gen4                  21.0 GiB   at 5.6 GB/s, measured
+
+  WHAT STAYS ON THE DEVICE
+    2 layer shards                        1.88 GiB   48 layers, assumed
+    KV cache at 32,768 tokens             1.53 GiB   bf16
+    activations and context               1.50 GiB
+    → needed on the device                4.90 GiB
+
+  SPEED
+    seconds per token                     7.07 s
+    tokens per second                    0.141 tok/s
+    a 500-token answer                    58.9 min
+    the prompt, whatever its length       7.07 s   one pass over the layers, not one per token
+    the same model, resident              73.0 tok/s
+    → streaming is slower by               516x
+
+  VERDICT  BATCH        — an answer within the hour, for work nobody is watching
+  ENGINE   AIRLLM    — stream the layers off storage
+```
+
+Four things in that output are the whole point. A 45 GiB checkpoint needs
+**4.9 GiB** of device memory, which is the capacity wall gone. The prompt costs
+one pass over the layers rather than one per token, so a long context is nearly
+free here. The same model served resident would answer **516 times faster**.
+And the report says so itself:
+
+```text
+  ⚠  Activated, and still not an interactive engine: at 0.14 tok/s a coding
+     agent pointed at this will look like a hung network, not a slow model.
+     Route work to it by need -- `offline`, `overnight` -- and leave the
+     interactive needs on something resident.
+```
+
+It also emits the command and the upstream stanza, so the figures and the
+deployment cannot drift apart:
+
+```text
+  RUN IT
+    ai-bunker airllm serve --model /models/Qwen3-Coder-Next \
+      --port 8003 \
+      --context 32768 \
+      --shards ~/.cache/ai-bunker/shards
+    # Point --model at the checkpoint you already have. To fetch it instead,
+    # which reaches a third party, say so:
+    #   --model Qwen/Qwen3-Coder-Next --allow-download
+
+  THEN TELL THE GATEWAY, as an upstream like any other
+    upstreams:
+      fallback:
+        base_url: http://127.0.0.1:8003/v1
+        served_context: 32768
+        remote: false
+        model: /models/Qwen3-Coder-Next
+```
+
+Three modes, and `auto` is the one that decides from the machine in front of
+it. On a drive slow enough it refuses rather than engaging uselessly:
+
+```bash
+ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
+  --storage hdd --mode auto
+```
+
+```text
+  VERDICT  IMPRACTICAL  — the arithmetic says do something else
+  ENGINE   NONE      — this machine cannot usefully run this model
+
+  qwen3-coder-next does not fit in 24 GiB, and streaming it is impractical
+  (0.01 tok/s, 1131 min for a 500-token answer) against a floor of batch. Not
+  activated: a smaller model, a harder quantization or a bigger machine all
+  beat this.
+```
+
+It exits non-zero when the answer is "do not run this here", so the same line
+works as a gate in a script and not only on a terminal.
+
+Full study, with the measurement and the honest limitations:
+[docs/FALLBACK.md](docs/FALLBACK.md).
 
 ---
 

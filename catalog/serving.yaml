@@ -198,6 +198,109 @@ models:
 # a huge unified pool but no vLLM runtime.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Storage classes
+#
+# Only the layer-streaming fallback reads this section (see
+# `ai_bunker/fallback.py`). When a model does not fit, AirLLM keeps one
+# transformer layer resident and streams the rest off storage, so the roofline
+# moves from memory bandwidth to *this* bandwidth -- one to two orders of
+# magnitude lower, which is the whole finding.
+#
+#   read_gbs    uncached sequential read, GB/s. The figure that sets throughput.
+#   cached_gbs  re-read rate for a shard the operating system still has in its
+#               page cache. Matters only in the partly-cached regime, and that
+#               regime is itself a sign the model should be served resident.
+#
+# `source` follows the same three values as the rest of this file. Note what
+# `vendor` means here: a peak sequential figure at a queue depth no inference
+# loop produces, on an empty drive, at room temperature. Treat it as a ceiling
+# and measure your own with `python scripts/bench_disk.py`.
+#
+# Discrete graphics cards carry no storage class on purpose. A card does not
+# have a drive; the host it is plugged into does, and nothing about the card
+# predicts it. Complete machines do carry one, and they also carry
+# `unified: true`: on them the page cache and the model compete for a single
+# pool, so caching a shard takes room away from the KV cache. On a card it does
+# not -- the cache lives in the host's memory and the model lives in the
+# card's -- and the fallback arithmetic needs to know which.
+# ---------------------------------------------------------------------------
+
+storage:
+
+  - id: apple-nvme
+    name: Apple Silicon internal solid-state drive
+    read_gbs: 5.6
+    cached_gbs: 13.0
+    source: measured
+    note: >-
+      Measured 2026-10-27 on a MacBook Pro M2 Max, 96 GiB, by
+      `python scripts/bench_disk.py`: nine readings across three runs and two
+      scratch-file sizes ran 5.25-5.68 GB/s -- 8% end to end, under 6% within
+      any one run -- and 5.6 is the median. The cached rate
+      is the page cache re-read through `read(2)`, which is a syscall-bound
+      copy and nowhere near the machine's 400 GB/s memory bandwidth -- the
+      relevant comparison for streaming, since that is how a cached shard is
+      actually fetched.
+
+  - id: nvme-gen4
+    name: Generic PCIe 4.0 x4 solid-state drive
+    read_gbs: 7.0
+    cached_gbs: 10.0
+    source: vendor
+    note: >-
+      The class most workstations are in, quoted at the top of the range top
+      drives advertise. The bus ceiling is about 7.9 GB/s. A drive above 70%
+      full, thermally throttled, or writing at the same time delivers a
+      fraction of this.
+
+  - id: nvme-gen5
+    name: Generic PCIe 5.0 x4 solid-state drive
+    read_gbs: 14.0
+    cached_gbs: 14.0
+    source: vendor
+    note: >-
+      The fastest storage a single consumer slot offers in 2026, and still
+      roughly 2% of the memory bandwidth of the cards in this catalogue. Worth
+      stating plainly: buying the fastest drive on the market does not make
+      layer streaming interactive.
+
+  - id: sata-ssd
+    name: SATA solid-state drive
+    read_gbs: 0.55
+    cached_gbs: 10.0
+    source: vendor
+    note: "Bus-limited at 6 gigabits per second, so about 550 MB/s whatever the drive."
+
+  - id: usb-ssd
+    name: External solid-state drive over USB
+    read_gbs: 0.9
+    cached_gbs: 10.0
+    source: vendor
+    note: >-
+      A 10-gigabit-per-second enclosure in practice. The common case for
+      "I put the checkpoint on an external drive", and ten times worse than
+      the internal one it was moved off.
+
+  - id: network-10g
+    name: Network file system over 10-gigabit Ethernet
+    read_gbs: 1.1
+    cached_gbs: 10.0
+    source: vendor
+    note: >-
+      Line rate, which a real file system does not reach. Streaming layers
+      across a network also puts every weight of every token on a wire, which
+      is a sovereignty question as well as a speed one.
+
+  - id: hdd
+    name: Rotating hard disk
+    read_gbs: 0.2
+    cached_gbs: 10.0
+    source: vendor
+    note: >-
+      Sequential, which layer reads are. Carried so the arithmetic can be run
+      on it and the answer read out loud, not as a suggestion.
+
 accelerators:
   - id: rtx-pro-6000-blackwell
     name: NVIDIA RTX PRO 6000 Blackwell Server Edition
@@ -321,6 +424,8 @@ accelerators:
 
   - id: mac-studio-m3-ultra-96
     name: Apple Mac Studio M3 Ultra 96GB
+    unified: true
+    storage: apple-nvme
     vram_gib: 92                  # unified pool minus what macOS keeps
     bandwidth_gbs: 819
     fp8: false
@@ -339,6 +444,8 @@ accelerators:
 
   - id: mac-studio-m3-ultra-256
     name: Apple Mac Studio M3 Ultra 256GB
+    unified: true
+    storage: apple-nvme
     vram_gib: 248
     bandwidth_gbs: 819
     fp8: false
@@ -352,6 +459,8 @@ accelerators:
 
   - id: mac-studio-m4-max-128
     name: Apple Mac Studio M4 Max 128GB
+    unified: true
+    storage: apple-nvme
     vram_gib: 122
     bandwidth_gbs: 546
     fp8: false
@@ -364,6 +473,8 @@ accelerators:
 
   - id: macbook-m2-max-96
     name: Apple MacBook Pro M2 Max 96GB (existing)
+    unified: true
+    storage: apple-nvme
     vram_gib: 90
     bandwidth_gbs: 400
     fp8: false
@@ -380,6 +491,8 @@ accelerators:
 
   - id: dgx-spark
     name: NVIDIA DGX Spark (GB10)
+    unified: true
+    storage: nvme-gen4
     vram_gib: 128
     bandwidth_gbs: 273
     fp8: true

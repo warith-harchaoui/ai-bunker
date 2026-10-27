@@ -8,6 +8,7 @@ l'est — et c'est tout l'objet d'un projet dont la règle est *toute affirmatio
 est une mesure, ou elle est retirée*.
 
 - [Avant d'acheter](#avant-dacheter)
+- [Quand ça ne tient pas](#quand-ça-ne-tient-pas)
 - [Avant de servir](#avant-de-servir)
 - [Ce que coûte une session](#ce-que-coûte-une-session)
 - [La charte](#la-charte)
@@ -128,6 +129,121 @@ chacun d'eux. Sur une carte plus lente, la même ligne dit
 ai-bunker compare                       # toutes les machines, coût par personne
 ai-bunker catalog                       # modèles et accélérateurs, avec provenance
 ```
+
+---
+
+## Quand ça ne tient pas
+
+Le dimensionnement ci-dessus refuse un plan qui dépasse la carte. Voici l'autre
+réponse : lire les couches depuis le stockage, et savoir ce que ça coûte avant
+d'y passer un après-midi.
+
+Le seul chiffre qui vaut d'être mesuré plutôt que supposé, c'est le disque :
+
+```bash
+python scripts/bench_disk.py
+```
+
+```text
+  macOS-26.5.2-arm64-arm-64bit-Mach-O
+  /var/folders/2n/.../T  ·  2.0 GiB  ·  3 reads  ·  F_NOCACHE
+
+  uncached read      5.67 GB/s   [5.65, 5.67, 5.68]
+  cached read       12.08 GB/s   [12.65, 11.27, 12.08]
+
+  Use it:  ai-bunker fallback --disk 5.67
+```
+
+Ensuite, demander si le 80B a sa place sur une carte de 24 Gio :
+
+```bash
+ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
+  --disk 5.6 --cached 13.0 --context 32768
+```
+
+```text
+  WHAT IS READ, PER GENERATED TOKEN
+    checkpoint (awq4)                     45.0 GiB
+    of it, out of the page cache          24.0 GiB   at 13.0 GB/s
+    of it, off nvme-gen4                  21.0 GiB   at 5.6 GB/s, measured
+
+  WHAT STAYS ON THE DEVICE
+    2 layer shards                        1.88 GiB   48 layers, assumed
+    KV cache at 32,768 tokens             1.53 GiB   bf16
+    activations and context               1.50 GiB
+    → needed on the device                4.90 GiB
+
+  SPEED
+    seconds per token                     7.07 s
+    tokens per second                    0.141 tok/s
+    a 500-token answer                    58.9 min
+    the prompt, whatever its length       7.07 s   one pass over the layers, not one per token
+    the same model, resident              73.0 tok/s
+    → streaming is slower by               516x
+
+  VERDICT  BATCH        — an answer within the hour, for work nobody is watching
+  ENGINE   AIRLLM    — stream the layers off storage
+```
+
+Quatre choses dans cette sortie font tout l'intérêt. Un point de contrôle de
+45 Gio demande **4,9 Gio** de mémoire d'accélérateur : le mur de capacité a
+disparu. L'invite coûte une passe sur les couches, pas une par jeton, donc un
+contexte long est presque gratuit ici. Le même modèle servi en résident
+répondrait **516 fois plus vite**. Et le rapport le dit lui-même :
+
+```text
+  ⚠  Activated, and still not an interactive engine: at 0.14 tok/s a coding
+     agent pointed at this will look like a hung network, not a slow model.
+     Route work to it by need -- `offline`, `overnight` -- and leave the
+     interactive needs on something resident.
+```
+
+Il émet aussi la commande et la strophe d'amont, pour que les chiffres et le
+déploiement ne puissent pas diverger :
+
+```text
+  RUN IT
+    ai-bunker airllm serve --model /models/Qwen3-Coder-Next \
+      --port 8003 \
+      --context 32768 \
+      --shards ~/.cache/ai-bunker/shards
+    # Point --model at the checkpoint you already have. To fetch it instead,
+    # which reaches a third party, say so:
+    #   --model Qwen/Qwen3-Coder-Next --allow-download
+
+  THEN TELL THE GATEWAY, as an upstream like any other
+    upstreams:
+      fallback:
+        base_url: http://127.0.0.1:8003/v1
+        served_context: 32768
+        remote: false
+        model: /models/Qwen3-Coder-Next
+```
+
+Trois modes, et `auto` est celui qui décide depuis la machine qu'il a sous les
+yeux. Sur un disque assez lent, il refuse au lieu d'engager inutilement :
+
+```bash
+ai-bunker fallback --model qwen3-coder-next --accelerator rtx-4090 \
+  --storage hdd --mode auto
+```
+
+```text
+  VERDICT  IMPRACTICAL  — the arithmetic says do something else
+  ENGINE   NONE      — this machine cannot usefully run this model
+
+  qwen3-coder-next does not fit in 24 GiB, and streaming it is impractical
+  (0.01 tok/s, 1131 min for a 500-token answer) against a floor of batch. Not
+  activated: a smaller model, a harder quantization or a bigger machine all
+  beat this.
+```
+
+La commande sort avec un code non nul quand la réponse est « ne lancez pas ça
+ici », donc la même ligne sert de garde-fou dans un script, pas seulement dans
+un terminal.
+
+Étude complète, avec la mesure et les limites assumées :
+[docs/FALLBACK.md](docs/FALLBACK.md). (En anglais.)
 
 ---
 
