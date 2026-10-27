@@ -23,6 +23,13 @@ upstreams:
     # no model -- which is what the dashboard's empty-session floor is -- has
     # no tokenizer to be counted against, and the operator's main instrument
     # reports `ratio (estimate)` on a deployment that could be exact.
+    #
+    # This is a *deployment fact*, so it is written down rather than resolved:
+    # it has to be what vLLM is actually serving, and a configuration file
+    # cannot ask. Which model that should be is not this file's decision and
+    # not this project's -- `ai-bunker sizing` puts the question to
+    # best-engine-ai-helper and prints the answer with the `vllm serve` line
+    # that implements it. Copy it from there rather than choosing here.
     model: mistralai/Devstral-Small-2507
 
   # Uncomment to enable a premium route. Doing so is the ONLY way a request

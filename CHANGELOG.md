@@ -3,6 +3,77 @@
 Semantic versioning. Dates follow ISO 8601, the International Organization for
 Standardization's year-month-day order.
 
+## [Unreleased]
+
+### ai-bunker stops choosing models
+
+Both read-me files have said, for several releases, that *ai-bunker describes its
+needs in a brief and lets the helper choose; it never hardcodes a model name*.
+The first half was aspirational and the second was false in six places:
+`sizing.py` defaulted to `primary="devstral-small-2-24b"` and
+`with_vision="qwen3-vl-32b"`, three command-line flags repeated the literals,
+and `best-engine-ai-helper` was a declared dependency with **no import
+anywhere in the package**. The sentence is now true.
+
+- **`ai_bunker/engine.py` asks instead.** It hands
+  [`best-engine-ai-helper`](https://github.com/warith-harchaoui/best-engine-ai-helper)
+  this project's own serving catalogue, translated into the entry schema that
+  package reads, and takes the ranking back. The join between the two
+  catalogues is a field the helper already carried: `vllm_id`, which is the
+  same Hugging Face reference this one stores as `hf`.
+- **The task description is an input, not a comment.** The helper parses a task
+  in words to pick its scoring axis, so `engine.TASK` had to say plainly what
+  ai-bunker is for — a sovereign gateway for autonomous coding agents that read
+  and edit a repository, call tools, and return schema-constrained JavaScript Object Notation (JSON) over a
+  long context. A test asserts the parse still answers `application="code"`, so
+  a rewrite that reads better and ranks worse fails the suite. The vision
+  description is separate and deliberately about screenshots and diagrams
+  rather than scanned paper: saying "scanned documents" made the helper answer
+  `ocr`, a different axis and a different model.
+- **The choice follows the machine, and reproduces the published study.**
+  96 and 72 gibibytes (GiB, 2³⁰ bytes apiece) are told to serve the 80B mixture of experts; 48 GiB gets the
+  dense 24B; 24 GiB is told nothing fits. That is exactly what
+  `docs/SIZING.md` argued by hand — the 72 GB card being the cheapest NVIDIA
+  one that holds the best coder, the 48 GB card being unable to — except it is
+  now derived rather than written down. `tests/test_engine.py` locks the
+  verdicts for six machines so a change in the helper's ranking is visible here
+  rather than silently restating the study.
+- **Only half the helper's answer is used, and the reason is measured.** Its
+  `headroom` parameter is documented as clamped to 0.5, right for a laptop also
+  running an editor and wrong for a node doing nothing else; and for a `vllm`
+  backend it recomputes the weight footprint at 16 bits — 55.2 gigabytes (GB)
+  for the 24B
+  this catalogue serves at 26.8 — because serving unquantized is the vLLM
+  default. So affordability is settled here from the catalogue's measured
+  weight tables, and the helper is asked only for the order. Each tool is
+  authoritative over what it actually knows.
+- **The plan is resolved against a running budget**, cheapest slot first. Three
+  models that each fit a card do not necessarily fit it together: asking
+  per-slot turned the 72 GiB card — the cheapest that holds the best model —
+  into `does-not-fit`, and that regression is now a test.
+- **The co-resident slots take the leanest adequate model.** The helper's own
+  `pick` calls this the anti-greed rule and gives the reason this project needs
+  it: footprint "is paid on every run and competes with the caller's own
+  workload". Here it competes with the coder and the key-value cache pool, and
+  `docs/SIZING.md` spends a section arguing spare memory should buy a better
+  coder. So vision and embeddings go lean and the code slot takes the best.
+  Finding that bug also fixed a silent one: the vision ranking was ordered by
+  accident until `openvlm_average` was mapped onto the axis the helper scores.
+- **`adopt` writes a need, not a model name.** The client kit asked for
+  `devstral`; it now asks for `code`. The gateway matches needs before model
+  names, and the README's own argument is that this "is what makes swapping the
+  model a configuration change here instead of an edit in every client".
+- **Registered as a guarded claim.** `the-model-choice-is-delegated` fails if
+  `best_engine_ai_helper` stops being imported, which is the half of the
+  original sentence nothing was checking.
+
+Honest limits: `config/gateway.example.yaml` still names a model, because it
+has to be what vLLM is actually serving and a configuration file cannot ask —
+the comment now says to copy it from `ai-bunker sizing` rather than choose it
+there. And the helper's catalogue and this one barely overlap, so the
+delegation is over *this* project's server-class entries; the helper is not
+being asked to invent a datacenter catalogue it does not have.
+
 ## [0.2.0] — 2026-10-22
 
 Four security fixes, streamed completions screened at last, the runtime and

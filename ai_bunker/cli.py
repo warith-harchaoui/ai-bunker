@@ -95,15 +95,47 @@ def _add_assumption_flags(p: argparse.ArgumentParser) -> None:
 
 def _add_plan_flags(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("deployment plan")
-    g.add_argument("--model", default="devstral-small-2-24b", help="Primary code model id.")
-    g.add_argument("--vision", default="qwen3-vl-32b", help="Co-resident VLM id, or 'none'.")
-    g.add_argument("--embeddings", default="bge-m3", help="Co-resident embedder id, or 'none'.")
+    # `auto` asks best-engine-ai-helper which model this machine should serve.
+    # It is the default because choosing models is that package's job, and a
+    # literal here was the one place this project did it anyway.
+    g.add_argument(
+        "--model",
+        default="auto",
+        help="Primary code model id, or 'auto' to ask best-engine-ai-helper (auto).",
+    )
+    g.add_argument(
+        "--vision",
+        default="auto",
+        help="Co-resident VLM id, 'auto' to ask the helper, or 'none' (auto).",
+    )
+    g.add_argument(
+        "--embeddings",
+        default="auto",
+        help="Co-resident embedder id, 'auto' to ask the helper, or 'none' (auto).",
+    )
     g.add_argument("--context", type=int, help="Context to serve (default: the model's max).")
     g.add_argument("--kv-dtype", default="fp8", choices=["fp8", "bf16"])
 
 
 def _none(v: str | None) -> str | None:
     return None if (v or "").strip().lower() in ("", "none", "no", "off") else v
+
+
+def _plan_label(args) -> str:
+    """The plan, for a heading, with `auto` shown as what it means.
+
+    A single machine resolves to three names and the report prints them; a
+    comparison resolves differently *per machine*, because the choice follows
+    the memory, so one plan string across the field would be wrong by
+    construction. The label says which case it is instead of printing a
+    sentinel at the reader.
+    """
+    parts = [args.model, _none(args.vision), _none(args.embeddings)]
+    named = [x for x in parts if x and x != "auto"]
+    if any(x == "auto" for x in parts if x):
+        chosen = "chosen per machine by best-engine-ai-helper"
+        return f"{', '.join(named)} + {chosen}" if named else chosen
+    return ", ".join(named)
 
 
 def cmd_sizing(args) -> int:
@@ -157,8 +189,7 @@ def cmd_compare(args) -> int:
     if args.json:
         print(json.dumps([s.to_dict() for s in sizings], indent=2))
         return 0
-    plan = ", ".join(x for x in [args.model, _none(args.vision), _none(args.embeddings)] if x)
-    print(f"\n  PLAN: {plan}\n")
+    print(f"\n  PLAN: {_plan_label(args)}\n")
     print(render_comparison(sizings, prices=None if args.no_prices else NODE_PRICE_EUR))
     print()
     return 0
@@ -195,8 +226,7 @@ def cmd_recommend(args) -> int:
             )
         )
         return 0
-    plan = ", ".join(x for x in [args.model, _none(args.vision), _none(args.embeddings)] if x)
-    print(render_recommendation(recs, args.team, plan=plan, top=args.top))
+    print(render_recommendation(recs, args.team, plan=_plan_label(args), top=args.top))
     print()
     return 0
 
@@ -943,7 +973,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ad.add_argument("--url", default="http://127.0.0.1:8000/v1", help="Gateway base URL.")
     ad.add_argument("--api-key", default="", help="Gateway key (default: the one in config).")
-    ad.add_argument("--model", default="devstral")
+    # A *need*, not a model name, and deliberately. The gateway matches needs
+    # before model names, and the README's own argument is that asking for a
+    # need "is what makes swapping the model a configuration change here
+    # instead of an edit in every client". A client kit that names a model is a
+    # client kit that has to be regenerated when the helper picks a better one.
+    ad.add_argument(
+        "--model",
+        default="code",
+        help="What the client kit asks the gateway for. A need (`code`, `prose`) rather than a "
+        "model name, so the deployment can change the model without touching the client.",
+    )
     ad.add_argument(
         "--declared-context",
         type=int,

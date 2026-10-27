@@ -1025,7 +1025,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1438 tests, `ruff` propre | ✅ |
+| 1464 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
@@ -1075,10 +1075,18 @@ ai-bunker implémente délibérément le moins de choses possible :
   sous-processus sans shell. Il tient lieu de trois modules que ce projet aurait
   sinon écrits à la main, puis dû maintenir.
 - [`best-engine-ai-helper`](https://github.com/warith-harchaoui/best-engine-ai-helper)
-  — le catalogue de modèles, le score d'ajustement mémoire, la règle
-  Ollama-contre-vLLM, et la résolution brief-committé → moteur-spécifique-à-la-machine.
-  ai-bunker décrit ses **besoins** dans un brief et laisse le helper choisir ; il
-  ne code jamais en dur un nom de modèle.
+  — **quel modèle servir.** ai-bunker décrit en mots ce à quoi il sert
+  (`engine.TASK` : une passerelle souveraine pour des agents de code autonomes
+  qui appellent des outils et renvoient du JSON contraint par schéma sur un
+  contexte long), lui passe son propre catalogue de service, et prend la
+  réponse. Il ne nomme aucun modèle nulle part : `--model auto` est le défaut
+  de chaque commande de dimensionnement, et `tests/test_engine.py` échoue si un
+  littéral réapparaît. Le choix suit la machine : la carte de 72 Gio se voit
+  confier le 80B et celle de 48 Gio le 24B — ce que
+  [docs/SIZING.md](docs/SIZING.md) démontrait à la main, maintenant dérivé.
+  Ce qui reste ici, c'est l'arithmétique : le helper choisit **quel** modèle,
+  et `sizing.py` calcule le plafond de bande passante, la géométrie du cache
+  clé-valeur et le nombre de personnes.
 - [`ann-router`](https://github.com/warith-harchaoui/ann-router) — prévu, pour le
   jour où la charte dépassera la recherche par chemin et demandera un vrai index
   de récupération.

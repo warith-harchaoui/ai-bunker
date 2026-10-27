@@ -307,9 +307,9 @@ def size_machine(
     accelerator: str | dict[str, Any] | None = None,
     vram_gib: float | None = None,
     bandwidth_gbs: float | None = None,
-    primary: str = "devstral-small-2-24b",
-    with_vision: str | None = "qwen3-vl-32b",
-    with_embeddings: str | None = "bge-m3",
+    primary: str = "auto",
+    with_vision: str | None = "auto",
+    with_embeddings: str | None = "auto",
     served_context: int | None = None,
     kv_dtype: str = "fp8",
     assumptions: Assumptions | None = None,
@@ -326,10 +326,14 @@ def size_machine(
     vram_gib, bandwidth_gbs : float, optional
         Override or supply the accelerator's figures.
     primary : str
-        Catalogue id of the code model, the one that decides the speed.
+        Catalogue id of the code model, the one that decides the speed, or
+        ``"auto"`` to ask ``best-engine-ai-helper`` which one this machine
+        should serve. ``"auto"`` is the default: this project does not choose
+        models, and a literal here was the one place it used to.
     with_vision, with_embeddings : str or None
-        Catalogue ids of co-resident models, or None to leave them out. A
-        resident VLM is what makes 96 GiB worth more than 80.
+        Catalogue ids of co-resident models, ``"auto"`` to ask the helper, or
+        None to leave them out -- which is why the sentinel is a word and not
+        ``None``. A resident VLM is what makes 96 GiB worth more than 80.
     served_context : int, optional
         Context to serve. Defaults to the primary model's maximum, capped so a
         single session's KV cache never exceeds a third of the pool -- serving
@@ -364,6 +368,23 @@ def size_machine(
 
     if accel.get("caveat"):
         warnings.append(str(accel["caveat"]).strip())
+
+    # --- who chooses the models --------------------------------------------
+    # Not this module. `engine.resolve_plan` puts the question to
+    # best-engine-ai-helper, which owns "which model, on what hardware,
+    # through which backend" for the suite -- and it is asked about *this*
+    # machine's memory, so the answer moves when the machine does.
+    from ai_bunker.engine import resolve_plan
+
+    primary, with_vision, with_embeddings, chosen = resolve_plan(
+        primary=primary,
+        with_vision=with_vision,
+        with_embeddings=with_embeddings,
+        vram_gib=vram,
+        catalog=cat,
+    )
+    for choice in chosen:
+        warnings.extend(choice.warnings)
 
     # --- resident plan ------------------------------------------------------
     main = find_model(cat, primary)
@@ -697,9 +718,9 @@ class Recommendation:
 def recommend_for_team(
     team_size: int,
     *,
-    primary: str = "devstral-small-2-24b",
-    with_vision: str | None = "qwen3-vl-32b",
-    with_embeddings: str | None = "bge-m3",
+    primary: str = "auto",
+    with_vision: str | None = "auto",
+    with_embeddings: str | None = "auto",
     served_context: int | None = None,
     kv_dtype: str = "fp8",
     assumptions: Assumptions | None = None,

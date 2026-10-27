@@ -177,6 +177,19 @@ CLAIMS: tuple[Claim, ...] = (
         files=CODE,
     ),
     Claim(
+        name="the-model-choice-is-delegated",
+        because=(
+            "Both READMEs said 'ai-bunker describes its needs in a brief and "
+            "lets the helper choose; it never hardcodes a model name' while "
+            "six literals in `sizing.py` and `cli.py` did exactly that, and "
+            "`best_engine_ai_helper` was a declared dependency with no import "
+            "anywhere in the package. The sentence is true now; this is what "
+            "notices if either half drifts back."
+        ),
+        required_somewhere=("best_engine_ai_helper",),
+        files=("ai_bunker/engine.py", "ai_bunker/sizing.py"),
+    ),
+    Claim(
         name="the-dashboard-is-translated",
         because=(
             "`i18n.py` listed the dashboard under 'what is deliberately NOT "

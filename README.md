@@ -955,7 +955,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1438 tests, `ruff` clean | ✅ |
+| 1464 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
@@ -1004,10 +1004,18 @@ ai-bunker deliberately implements as little as possible:
   subprocess. It stands in for three modules this project would otherwise have
   hand-rolled and then had to maintain.
 - [`best-engine-ai-helper`](https://github.com/warith-harchaoui/best-engine-ai-helper)
-  — the model catalog, the memory-fit scoring, the Ollama-vs-vLLM backend rule,
-  and the committed-brief → machine-specific-engine resolution. ai-bunker
-  describes its *needs* in a brief and lets the helper choose; it never hardcodes
-  a model name.
+  — **which model to serve.** ai-bunker describes what it is for in words
+  (`engine.TASK`: a sovereign gateway for autonomous coding agents that call
+  tools and return schema-constrained JSON over a long context), hands over its
+  own serving catalogue, and takes the answer. It names no model anywhere:
+  `--model auto` is the default on every sizing command, and
+  `tests/test_engine.py` fails if a literal reappears.
+  The choice follows the machine, so the 72 GiB card is told to serve the 80B
+  and the 48 GiB card the 24B — which is what
+  [docs/SIZING.md](docs/SIZING.md) argued by hand, now derived.
+  What stays here is the arithmetic: the helper picks *which* model, and
+  `sizing.py` works out the roofline, the key-value cache geometry and the
+  headcount.
 - [`ann-router`](https://github.com/warith-harchaoui/ann-router) — planned, for
   the day the charter outgrows lookup-by-path and needs a real retrieval index.
 
