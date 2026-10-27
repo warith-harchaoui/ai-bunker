@@ -323,110 +323,6 @@ $6,950 for its 128 GB configuration. **A 2026 sizing done on 2025 prices is
 wrong by a factor of two.** Re-survey before buying; the catalogue records what
 was seen and when.
 
-## When the model does not fit
-
-Everything above sizes a machine that **holds** a model. The other half of the
-question is what happens when it does not, and
-[`AirLLM`](https://github.com/lyogavin/airllm) makes it a real choice rather
-than a dead end: keep one transformer layer resident, stream the rest off
-storage, and an 80-billion-parameter checkpoint runs inside **four gibibytes**
-of device memory. The capacity wall genuinely disappears.
-
-What takes its place is the same roofline over a slower device. Measured on
-this project's own machine with `python scripts/bench_disk.py`: an Apple M2 Max
-reads **5.6 GB/s** off its internal solid-state drive against **400 GB/s** out
-of unified memory. Seventy-one times. So:
-
-```bash
-ai-bunker fallback --model qwen3-coder-next --disk 5.6
-```
-
-| | Resident | Streamed off storage |
-|---|---:|---:|
-| Devstral Small 2 24B on a 24 GiB card | does not fit | 0.18 tok/s — 47 min for a 500-token answer |
-| Qwen3-Coder-Next 80B on the same card | does not fit | 0.10 tok/s — 1.4 h for the same answer |
-
-**Streaming makes a model runnable, not servable.** Three findings come out of
-the arithmetic, and all three invert something this README says elsewhere.
-
-**Choose by total checkpoint size, not by active parameters.** A layer is
-loaded whole, so every expert crosses the bus whether the router picks it or
-not. The mixture-of-experts economics that make the 80B the *fastest* thing in
-the catalogue above are a property of resident serving: streamed, the dense 24B
-is 1.8 times faster than it.
-
-**The card stops mattering and the drive becomes the machine.** An RTX 4090 and
-an RTX 5090 stream at the same 0.31 tok/s — a 1,792 GB/s memory bus spends its
-life waiting on 7 GB/s of storage, so $2,500 of extra card buys nothing. The
-same model off a rotating disk takes 21.9 hours for one answer, and off a
-fifth-generation PCIe drive — the Peripheral Component Interconnect express
-bus — 19 minutes. One component, a 74-fold spread.
-
-**Long context is almost free and generated length is ruinous.** A prompt makes
-*one* pass over the layers however long it is; every generated token makes
-another. That is the exact opposite of the cost shape the section above spends
-four paragraphs on.
-
-And one constraint here is checked rather than projected: **the disk.** The
-split writes per-layer shards beside the download, so for its duration the
-drive holds both copies — 94.5 GiB for the 80B against 45 GiB of model.
-`--shards` reads the free space where they would go and says `SHORT` when
-there is not enough, which on the laptop this was written on is the binding
-constraint and has nothing to do with tokens per second.
-
-Activating it is a decision, in three modes, and the automatic one decides from
-the machine in front of it:
-
-```bash
-ai-bunker fallback --mode never   # report what it would cost; never engage
-ai-bunker fallback --mode auto    # engage only if it does not fit AND clears --floor
-ai-bunker fallback --mode always  # engage because a human said so
-```
-
-Those words are `best-engine-ai-helper`'s, which owns the suite's AirLLM
-adapter and published them first; `off` and `on` are accepted aliases. The
-suite's `BEST_ENGINE_AIRLLM` is honoured here too, because a kill switch one
-tool ignores is not a kill switch.
-
-`auto` is safe to leave configured: where the model fits it does not engage,
-and where streaming would be useless it refuses rather than engaging uselessly.
-What it deliberately does **not** do is switch engines underneath a running
-gateway — an agent pointed at a fifth of a token per second does not degrade,
-it hangs, and the operator debugs a network problem that is not one. So the
-automatic part is the *decision*; a human starts the engine, the same rule this
-project applies to a premium route.
-
-The engine itself is a separate process behind an OpenAI-compatible socket, so
-the gateway proxies it as an ordinary upstream and the screening, the budget,
-the breaker and the decision log apply unchanged. There is no
-fallback-specific configuration key, and that is the design:
-
-```bash
-pip install 'ai-bunker[airllm]'
-ai-bunker airllm serve --model /models/Devstral-Small-2-24B --port 8003
-```
-
-```yaml
-upstreams:
-  fallback:
-    base_url: http://127.0.0.1:8003/v1
-    served_context: 8192
-    remote: false
-needs:
-  offline: fallback      # by need, never by default
-```
-
-AirLLM is **imported, not vendored**. The part worth copying is twenty lines;
-the work is the per-architecture layer-name mapping across a dozen model
-families, and a vendored copy of that decays in silence — it keeps working for
-the models it knew and refuses the one you wanted. It also brings PyTorch with
-it, which `pip install ai-bunker` must not, so it sits behind an extra and the
-arithmetic above needs none of it.
-
-The full study — every figure, the measurement, the honest limitations, and why
-no answer has yet been generated through this path — is in
-**[docs/FALLBACK.md](docs/FALLBACK.md)**.
-
 ## The charter
 
 Your team's standards, advertised rather than delivered.
@@ -1059,7 +955,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1541 tests, `ruff` clean | ✅ |
+| 1438 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
@@ -1088,10 +984,6 @@ is illustrative: each block was produced by running the line above it.
 
 [📐 Sizing](docs/SIZING.md) — which machine to buy, costed.
 
-[💾 Fallback](docs/FALLBACK.md) — when the model does not fit: layer-by-layer
-streaming off storage, what it makes possible, and the measured reason it is
-never an interactive engine.
-
 [🛡️ Rules](docs/RULES.md) — the engine in full: both scopes, all three
 severities, and every bypass that was found by probing, with the reasoning
 behind the pattern that caught it.
@@ -1115,14 +1007,7 @@ ai-bunker deliberately implements as little as possible:
   — the model catalog, the memory-fit scoring, the Ollama-vs-vLLM backend rule,
   and the committed-brief → machine-specific-engine resolution. ai-bunker
   describes its *needs* in a brief and lets the helper choose; it never hardcodes
-  a model name. It also owns the suite's **AirLLM** adapter, which is why
-  `ai-bunker airllm serve` loads a checkpoint through
-  `best_engine_ai_helper.airllm_load` rather than reaching for `airllm` itself:
-  one place in the suite passes arguments to a model loader, so an upstream
-  change is absorbed once. What ai-bunker adds is the half the helper has no
-  reason to carry — an OpenAI-compatible socket a gateway can proxy, and the
-  roofline over this project's *server* catalogue. See
-  [docs/FALLBACK.md](docs/FALLBACK.md) §9.
+  a model name.
 - [`ann-router`](https://github.com/warith-harchaoui/ann-router) — planned, for
   the day the charter outgrows lookup-by-path and needs a real retrieval index.
 
@@ -1151,14 +1036,6 @@ On the serving machine, add the server runtime:
 pip install -e ".[serve]"     # vLLM
 ```
 
-For a model too large to hold in memory, add the layer-streaming engine. It
-brings PyTorch with it, which is why it is not in `[all]` — and why deciding
-*whether* to stream needs none of it:
-
-```bash
-pip install -e ".[airllm]"    # AirLLM, for the fallback in `ai-bunker fallback`
-```
-
 ## Usage
 
 Shipping today — the sizing surface:
@@ -1180,11 +1057,6 @@ ai-bunker catalog
 
 # What os-helper sees about this machine
 ai-bunker detect
-
-# And when it does not fit: should it be streamed off storage, at what cost?
-ai-bunker fallback --model qwen3-coder-next --disk 5.6
-ai-bunker fallback --model qwen3-coder-next --mode always --compression 4bit
-python scripts/bench_disk.py                       # the drive, measured
 ```
 
 Every assumption is a flag, and the ones that move the answer most are named:

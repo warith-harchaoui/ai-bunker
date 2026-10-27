@@ -58,7 +58,6 @@ FILES: list[tuple[str, str]] = [
     ("CONTRIBUTING.md", "en"),
     ("CHANGELOG.md", "en"),
     ("docs/SIZING.md", "en"),
-    ("docs/FALLBACK.md", "en"),
     ("docs/RULES.md", "en"),
     ("docs/REGLES.md", "fr"),
     ("clients/README.md", "en"),
@@ -172,18 +171,6 @@ TERMS: dict[str, dict[str, list[str]]] = {
         "en": ["Open Worldwide Application Security Project"],
         "fr": ["Open Worldwide Application Security Project"],
     },
-    "PCIe": {
-        "en": ["Peripheral Component Interconnect express"],
-        "fr": ["Peripheral Component Interconnect express"],
-    },
-    "USB": {
-        "en": ["Universal Serial Bus"],
-        "fr": ["Universal Serial Bus", "bus s\u00e9rie universel"],
-    },
-    "SATA": {
-        "en": ["Serial Advanced Technology Attachment"],
-        "fr": ["Serial Advanced Technology Attachment"],
-    },
     "PCA": {"en": ["principal component analysis"]},
     "PII": {
         "en": ["personally identifiable information"],
@@ -212,14 +199,6 @@ TERMS: dict[str, dict[str, list[str]]] = {
     "SFTP": {"en": ["SSH File Transfer Protocol"], "fr": ["SSH File Transfer Protocol"]},
     "SSH": {"en": ["Secure Shell"], "fr": ["Secure Shell"]},
     "SSO": {"en": ["single sign-on"], "fr": ["authentification unique"]},
-    "SSD": {
-        "en": ["solid-state drive"],
-        "fr": ["disque \u00e0 semi-conducteurs", "disque SSD"],
-    },
-    "NVMe": {
-        "en": ["Non-Volatile Memory express"],
-        "fr": ["Non-Volatile Memory express"],
-    },
     "SVG": {"en": ["Scalable Vector Graphics"], "fr": ["Scalable Vector Graphics"]},
     "SWE": {"en": ["software engineering"], "fr": ["génie logiciel"]},
     "UCP": {
@@ -244,7 +223,6 @@ NAMES = {
     "Blackwell",
     "DGX",
     "EXAMPLES",
-    "FALLBACK",  # a filename, like LANDSCAPE and EXAMPLES
     "EXEMPLES",
     "HyperText",
     "GB10",
@@ -257,8 +235,6 @@ NAMES = {
     "LangChain",
     "LangGraph",
     "LISEZMOI",  # a filename, like README and PAYSAGE above it
-    "AirLLM",
-    "FastAPI",
     "LiteLLM",
     "LlamaIndex",
     "ToolHive",
@@ -267,7 +243,6 @@ NAMES = {
     "NVIDIA",
     "NeMo",
     "OpenAI",
-    "PyTorch",
     "OpenCode",
     "PAYSAGE",
     "PowerShell",

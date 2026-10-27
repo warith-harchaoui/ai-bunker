@@ -353,118 +353,6 @@ de 3 999 $ à 6 950 $ pour sa configuration 128 Go. **Un dimensionnement 2026
 fait sur des prix 2025 est faux d'un facteur deux.** Relever les prix avant
 d'acheter ; le catalogue enregistre ce qui a été vu, et quand.
 
-## Quand le modèle ne tient pas
-
-Tout ce qui précède dimensionne une machine qui **contient** un modèle. L'autre
-moitié de la question, c'est ce qui se passe quand ce n'est pas le cas — et
-[`AirLLM`](https://github.com/lyogavin/airllm) en fait un vrai choix plutôt
-qu'une impasse : garder une seule couche de transformeur en mémoire, lire les
-autres depuis le stockage, et un modèle de 80 milliards de paramètres tourne
-dans **quatre gibioctets** de mémoire d'accélérateur. Le mur de capacité
-disparaît réellement.
-
-Ce qui prend sa place, c'est le même plafond de bande passante sur un
-périphérique plus lent. Mesuré sur la machine de ce projet avec
-`python scripts/bench_disk.py` : un Apple M2 Max lit **5,6 Go/s** sur son
-disque à semi-conducteurs interne, contre **400 Go/s** en mémoire unifiée.
-Soixante-et-onze fois. Donc :
-
-```bash
-ai-bunker fallback --model qwen3-coder-next --disk 5.6
-```
-
-| | Résident | Lu depuis le stockage |
-|---|---:|---:|
-| Devstral Small 2 24B sur une carte de 24 Gio | ne tient pas | 0,18 tok/s — 47 min pour 500 jetons |
-| Qwen3-Coder-Next 80B sur la même carte | ne tient pas | 0,10 tok/s — 1,4 h pour la même réponse |
-
-**Lire les couches depuis le disque rend un modèle exécutable, pas
-servable.** Trois constats sortent de l'arithmétique, et les trois inversent
-quelque chose que ce LISEZMOI affirme ailleurs.
-
-**Choisir sur la taille totale du point de contrôle, pas sur les paramètres
-actifs.** Une couche est chargée entière, donc chaque expert traverse le bus
-que le routeur le choisisse ou non. L'économie du mélange d'experts qui fait du
-80B la chose la plus rapide du catalogue ci-dessus est une propriété du
-service *résident* : en lecture depuis le disque, le 24B dense est 1,8 fois
-plus rapide que lui.
-
-**La carte cesse de compter et le disque devient la machine.** Une RTX 4090 et
-une RTX 5090 lisent à la même vitesse, 0,31 tok/s — un bus mémoire de
-1 792 Go/s passe sa vie à attendre 7 Go/s de stockage, donc 2 500 $ de carte en
-plus n'achètent rien. Le même modèle sur un disque rotatif demande 21,9 heures
-pour une réponse, et sur un disque PCIe de cinquième
-génération — le bus Peripheral Component Interconnect express — 19 minutes. Un seul composant, un
-facteur 74.
-
-**Un contexte long est presque gratuit et la longueur de la réponse est
-ruineuse.** Une invite fait *une* passe sur les couches quelle que soit sa
-longueur ; chaque jeton généré en fait une autre. C'est exactement l'inverse de
-la forme de coût à laquelle la section ci-dessus consacre quatre paragraphes.
-
-Et une contrainte ici est vérifiée, pas projetée : **le disque.** Le découpage
-écrit les tranches par couche à côté du téléchargement, donc pendant toute sa
-durée le disque porte les deux copies — 94,5 Gio pour le 80B contre 45 Gio de
-modèle. `--shards` lit l'espace libre là où elles iraient et affiche `SHORT`
-quand il n'y en a pas assez, ce qui sur le portable où ceci a été écrit est la
-contrainte qui bloque, et n'a rien à voir avec les jetons par seconde.
-
-L'activer est une décision, en trois modes, et le mode automatique décide
-depuis la machine qu'il a sous les yeux :
-
-```bash
-ai-bunker fallback --mode never   # dire ce que ça coûterait ; ne jamais engager
-ai-bunker fallback --mode auto    # engager si ça ne tient pas ET que --floor est tenu
-ai-bunker fallback --mode always  # engager parce qu'un humain l'a décidé
-```
-
-Ces mots sont ceux de `best-engine-ai-helper`, qui porte l'adaptateur AirLLM de
-la suite et les a publiés le premier ; `off` et `on` restent acceptés comme
-alias. La variable `BEST_ENGINE_AIRLLM` de la suite est honorée ici aussi : un
-coupe-circuit qu'un seul outil ignore n'est pas un coupe-circuit.
-
-`auto` peut rester configuré sans danger : là où le modèle tient il n'engage
-rien, et là où la lecture depuis le disque serait inutile il refuse au lieu
-d'engager inutilement. Ce qu'il ne fait **pas**, délibérément, c'est changer de
-moteur sous une passerelle en marche — un agent branché sur un cinquième de
-jeton par seconde ne se dégrade pas, il se bloque, et l'opérateur débogue un
-problème réseau qui n'existe pas. La partie automatique est donc la *décision* ;
-un humain lance le moteur, la même règle que ce projet applique à une route
-premium.
-
-Le moteur lui-même est un processus séparé derrière une interface compatible
-OpenAI, donc la passerelle le relaie comme n'importe quel amont et le filtrage,
-le budget, le disjoncteur et le journal de décisions s'appliquent sans
-changement. Il n'y a aucune clé de configuration spécifique, et c'est le
-principe :
-
-```bash
-pip install 'ai-bunker[airllm]'
-ai-bunker airllm serve --model /models/Devstral-Small-2-24B --port 8003
-```
-
-```yaml
-upstreams:
-  fallback:
-    base_url: http://127.0.0.1:8003/v1
-    served_context: 8192
-    remote: false
-needs:
-  offline: fallback      # par besoin, jamais par défaut
-```
-
-AirLLM est **importé, pas recopié ici**. La partie qui semble valoir la copie
-fait vingt lignes ; le travail, c'est la table des noms de couches par
-architecture pour une douzaine de familles de modèles, et une copie figée de ça
-se dégrade en silence — elle continue de marcher pour les modèles qu'elle
-connaissait et refuse celui qu'on voulait. Elle apporte aussi PyTorch avec
-elle, ce que `pip install ai-bunker` ne doit pas faire : d'où l'extra, et d'où
-le fait que l'arithmétique ci-dessus n'en a aucun besoin.
-
-L'étude complète — chaque chiffre, la mesure, les limites assumées, et pourquoi
-aucune réponse n'a encore été générée par ce chemin — est dans
-**[docs/FALLBACK.md](docs/FALLBACK.md)**.
-
 ## La charte
 
 Les standards de l'équipe, annoncés plutôt que livrés.
@@ -1137,7 +1025,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1541 tests, `ruff` propre | ✅ |
+| 1438 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
@@ -1166,10 +1054,6 @@ illustratif : chaque bloc a été produit en lançant la ligne au-dessus.
 
 [📐 Dimensionnement](docs/SIZING.md) — quelle machine acheter, chiffré.
 
-[💾 Repli](docs/FALLBACK.md) — quand le modèle ne tient pas : la lecture des
-couches depuis le stockage, ce qu'elle rend possible, et la raison mesurée pour
-laquelle ce n'est jamais un moteur interactif. (En anglais.)
-
 [🛡️ Règles](docs/REGLES.md) — le moteur en entier : les deux portées, les trois
 sévérités, et chaque contournement trouvé en sondant, avec le raisonnement
 derrière le motif qui l'a attrapé.
@@ -1194,15 +1078,7 @@ ai-bunker implémente délibérément le moins de choses possible :
   — le catalogue de modèles, le score d'ajustement mémoire, la règle
   Ollama-contre-vLLM, et la résolution brief-committé → moteur-spécifique-à-la-machine.
   ai-bunker décrit ses **besoins** dans un brief et laisse le helper choisir ; il
-  ne code jamais en dur un nom de modèle. Il porte aussi l'adaptateur **AirLLM**
-  de la suite, et c'est pourquoi `ai-bunker airllm serve` charge un point de
-  contrôle via `best_engine_ai_helper.airllm_load` plutôt qu'en appelant
-  `airllm` lui-même : un seul endroit dans la suite passe des arguments à un
-  chargeur de modèle, donc un changement en amont est absorbé une fois. Ce
-  qu'ai-bunker ajoute, c'est la moitié que le helper n'a aucune raison de
-  porter — une interface compatible OpenAI qu'une passerelle peut relayer, et
-  le plafond de bande passante sur le catalogue *serveur* de ce projet. Voir
-  [docs/FALLBACK.md](docs/FALLBACK.md) §9.
+  ne code jamais en dur un nom de modèle.
 - [`ann-router`](https://github.com/warith-harchaoui/ann-router) — prévu, pour le
   jour où la charte dépassera la recherche par chemin et demandera un vrai index
   de récupération.
@@ -1232,14 +1108,6 @@ Sur la machine qui sert, ajouter le runtime serveur :
 pip install -e ".[serve]"     # vLLM
 ```
 
-Pour un modèle trop grand pour tenir en mémoire, ajouter le moteur qui lit les
-couches depuis le disque. Il apporte PyTorch avec lui, d'où son absence de
-`[all]` — et d'où le fait que *décider* s'il faut l'utiliser n'en a pas besoin :
-
-```bash
-pip install -e ".[airllm]"    # AirLLM, pour le repli de `ai-bunker fallback`
-```
-
 ## Utilisation
 
 Livré aujourd'hui — la surface de dimensionnement :
@@ -1261,11 +1129,6 @@ ai-bunker catalog
 
 # Ce qu'os-helper voit de cette machine
 ai-bunker detect
-
-# Et quand ça ne tient pas : faut-il lire depuis le disque, et à quel prix ?
-ai-bunker fallback --model qwen3-coder-next --disk 5.6
-ai-bunker fallback --model qwen3-coder-next --mode always --compression 4bit
-python scripts/bench_disk.py                       # le disque, mesuré
 ```
 
 Chaque hypothèse est une option, et celles qui bougent le plus la réponse sont
