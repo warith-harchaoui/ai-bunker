@@ -256,23 +256,60 @@ def as_helper_entries(catalog: dict[str, Any] | None = None) -> list[dict[str, A
 # ---------------------------------------------------------------------------
 
 
-def _fallback(role: str, reason: str, catalog: dict[str, Any]) -> Choice:
+def _fallback(
+    role: str,
+    reason: str,
+    catalog: dict[str, Any],
+    affordable: list[dict[str, Any]] | None = None,
+) -> Choice:
     """The best-benchmarked catalogue model for a role, said out loud.
 
-    Reached when the helper cannot answer -- it is not installed, or nothing in
-    this catalogue fits the budget it was given. The point is that it is
-    *reported*: a silent fallback to a literal is the defect this module was
-    written to remove, and replacing one silent literal with another would be
-    no improvement.
+    Reached when the helper cannot answer -- it is not installed, it predates
+    the ranking, or it raised. The point is that it is *reported*: a silent
+    fallback to a literal is the defect this module was written to remove, and
+    replacing one silent literal with another would be no improvement.
+
+    ``affordable`` is the set the target machine can actually hold, and passing
+    it matters more than it looks. Without it this picks the best-benchmarked
+    model for the role regardless of the budget, and the three slots then
+    over-commit the card: measured on an 80 GiB H100, the unbudgeted fallback
+    produced an 81 GiB plan and turned a machine that fits into
+    ``does-not-fit``. The degraded path has to degrade in quality, not in
+    arithmetic.
     """
-    candidates = [m for m in catalog["models"] if str(m.get("role")) == role]
+    allowed = {e["id"] for e in affordable} if affordable is not None else None
+    candidates = [
+        m
+        for m in catalog["models"]
+        if str(m.get("role")) == role and (allowed is None or str(m["id"]) in allowed)
+    ]
     osh.check(bool(candidates), f"The serving catalogue carries no {role!r} model.")
 
     def score(m: dict[str, Any]) -> float:
         bench = m.get("benchmarks") or {}
-        return float(bench.get("swe_bench_verified") or bench.get("general") or 0.0)
+        return float(
+            bench.get("swe_bench_verified")
+            or bench.get("openvlm_average")
+            or bench.get("general")
+            or 0.0
+        )
+
+    def weight(m: dict[str, Any]) -> float:
+        return float((m.get("weights") or {}).get(str(m.get("recommended_quant") or "")) or 0.0)
 
     best = max(candidates, key=score)
+    if role != "code":
+        # The same anti-greed rule the ranked path applies, for the same
+        # reason: a co-resident model's footprint competes with the coder and
+        # the key-value cache pool. Without it the degraded path picks the
+        # biggest vision model it can afford *in isolation* and then leaves the
+        # coder nowhere to go -- which turned a 48 GiB card that fits into
+        # `does-not-fit`, with every individual step having respected its own
+        # budget. Degrading in quality is the intent; degrading in arithmetic
+        # is not.
+        close = [m for m in candidates if score(best) - score(m) <= LEAN_TOLERANCE]
+        if close:
+            best = min(close, key=weight)
     return Choice(
         role=role,
         model_id=str(best["id"]),
@@ -323,16 +360,6 @@ def choose(
     cat = catalog or load_catalog()
     osh.check(role in ROLE_KINDS, f"Unknown role {role!r}. Known: {', '.join(ROLE_KINDS)}")
 
-    try:
-        import best_engine_ai_helper as be  # lazy: keeps `import ai_bunker` cheap
-    except ImportError:
-        return _fallback(
-            role,
-            "best-engine-ai-helper is not importable in this interpreter, though it is a "
-            "declared dependency. Install it to have the choice made properly.",
-            cat,
-        )
-
     # An embedder is not an `llm` or a `vlm`, which are the only kinds the
     # helper's ranking knows. There is one in this catalogue and ranking a set
     # of one is theatre, so the role is answered directly and says so.
@@ -381,16 +408,44 @@ def choose(
                 ],
             )
 
+    try:
+        import best_engine_ai_helper as be  # lazy: keeps `import ai_bunker` cheap
+    except ImportError:
+        return _fallback(
+            role,
+            "best-engine-ai-helper is not importable in this interpreter, though it is a "
+            "declared dependency. Install it to have the choice made properly.",
+            cat,
+            affordable,
+        )
+
     # The budget handed over. Only used for the helper's own annotations now --
     # the filtering above has already happened -- but an accelerator id was
     # almost certainly what the caller meant, so it is that machine's memory
     # rather than this laptop's.
-    if vram_gib is not None:
-        hardware: dict[str, Any] = {"vram_gb": round(vram_gib * 1.073741824, 1)}
-    else:
-        hardware = dict(be.available_memory())
+    #
+    # Everything from here is behind one guard, and by capability rather than
+    # by version. The suite's two packages are released separately, so the
+    # helper that resolves at install time is not necessarily the one this was
+    # written against -- and a version floor cannot express it, since a working
+    # tree and the release it shares a number with are different code. Asking
+    # whether the function is there is the only check that is true.
+    missing = [name for name in ("rank", "available_memory") if not hasattr(be, name)]
+    if missing:
+        return _fallback(
+            role,
+            f"the installed best-engine-ai-helper offers no {' or '.join(missing)}; it predates "
+            "the ranking this project asks for.",
+            cat,
+            affordable,
+        )
 
     try:
+        hardware: dict[str, Any] = (
+            {"vram_gb": round(vram_gib * 1.073741824, 1)}
+            if vram_gib is not None
+            else dict(be.available_memory())
+        )
         ordered = be.rank(
             hardware,
             affordable,
@@ -404,7 +459,12 @@ def choose(
             require_structured=kind == "llm",
         )
     except Exception as exc:  # a recommendation is advice; its failure is not fatal
-        return _fallback(role, f"best-engine-ai-helper could not rank the candidates ({exc}).", cat)
+        return _fallback(
+            role,
+            f"best-engine-ai-helper could not rank the candidates ({exc}).",
+            cat,
+            affordable,
+        )
 
     ranked = [str(r.get("id")) for r in (ordered or []) if r.get("id")]
     if not ranked:
@@ -413,6 +473,7 @@ def choose(
             "best-engine-ai-helper ranked none of this catalogue's candidates, which for the "
             "code slot means none of them claims structured output.",
             cat,
+            affordable,
         )
 
     by_id = {e["id"]: e for e in affordable}

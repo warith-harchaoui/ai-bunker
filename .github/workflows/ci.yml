@@ -32,6 +32,29 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
+          # torch is not a dependency of this project and never will be: this
+          # is a proxy that never loads a model. It arrives anyway, through
+          # best-engine-ai-helper, which carries `airllm` as a core dependency
+          # for layer streaming -- and PyPI's Linux torch wheel is the CUDA
+          # build, gigabytes of nvidia-* payload for a runner with no GPU.
+          #
+          # Pre-installing the CPU build satisfies the requirement first, so
+          # the project install below resolves against it instead of fetching
+          # the CUDA one. Same reasoning and same line as the sibling package's
+          # own lane, deliberately: two repositories solving one problem two
+          # ways is how one of them silently gets slow again.
+          #
+          # `--index-url`, not `--extra-index-url`: with two indexes offering
+          # the same version, which one pip picks is not a documented
+          # guarantee, and a lane whose download size depends on resolver luck
+          # is a lane that regresses without anyone editing it.
+          #
+          # It is a no-op while the published helper has no torch in its base
+          # dependencies, and it is what stops this lane growing by gigabytes
+          # on the day that changes. `|| true`, because a resolver that cannot
+          # place the CPU wheel on some future Python must not fail the build
+          # before the real install has been tried.
+          pip install --index-url https://download.pytorch.org/whl/cpu torch || true
           pip install -e ".[api,mcp,dev]"
 
       # The whole tree, `web/` included: the page modules are Python that

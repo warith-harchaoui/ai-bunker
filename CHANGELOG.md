@@ -78,6 +78,31 @@ anywhere in the package**. The sentence is now true.
   context, and a name that resolves per request makes both a moving target.
   Asking the sizing which model and pinning it is the supported path.
 
+- **And it stays light, which took three fixes.** The helper carries `airllm`
+  as a core dependency now, so every lane that installs this project would pull
+  torch — and on Linux pip takes the build for NVIDIA's Compute Unified Device
+  Architecture (CUDA), gigabytes of `nvidia-*`
+  payload for a runner with no graphics processor that never loads a model.
+  The lane now pre-installs the processor-only wheel from PyTorch's own index,
+  the same line and the same reasoning as the sibling package's lane, because
+  two repositories solving one problem two ways is how one of them silently
+  gets slow again. A test asserts that importing `ai_bunker` pulls in none of
+  torch, transformers, airllm, diffusers or the helper itself.
+- **The delegation degrades by capability, not by version.** The two packages
+  release separately, so the helper that resolves at install time is not
+  necessarily the one this was written against — and a version floor cannot
+  express it, since a working tree and the release it shares a number with are
+  different code. `choose` asks whether the ranking is there and falls back
+  with a reason when it is not; the whole suite passes with the helper absent
+  (1,450 pass, 17 skip, nothing fails).
+- **The degraded path degrades in quality, not in arithmetic.** Found by
+  running the suite with the helper hidden: the unbudgeted fallback picked the
+  best-benchmarked model per slot regardless of the budget, produced an
+  81-gibibyte plan on an 80-gibibyte card, and turned a machine that fits into
+  `does-not-fit`. The fallback now respects the running budget and applies the
+  same anti-greed rule, so with and without the helper agree on every machine
+  in the catalogue — what changes is who does the ranking, not the result.
+
 Honest limits: `config/gateway.example.yaml` still names a model, because it
 has to be what vLLM is actually serving and a configuration file cannot ask —
 the comment now says to copy it from `ai-bunker sizing` rather than choose it

@@ -46,7 +46,21 @@ def catalog():
 
 @pytest.fixture(scope="module")
 def helper():
-    return pytest.importorskip("best_engine_ai_helper")
+    """The helper, and only when it can do what these tests assert about it.
+
+    The two packages in this suite are released separately, so the version
+    that resolves at install time is not necessarily the one this was written
+    against -- and a version floor cannot express that, because a working tree
+    and the release it shares a number with are different code. The tests that
+    assert a *specific* choice therefore ask whether the ranking exists, and
+    skip rather than fail when it does not. The tests that assert ai-bunker
+    degrades honestly do not take this fixture, so they run either way.
+    """
+    module = pytest.importorskip("best_engine_ai_helper")
+    for name in ("rank", "available_memory", "parse_task"):
+        if not hasattr(module, name):
+            pytest.skip(f"the installed best-engine-ai-helper offers no {name}")
+    return module
 
 
 # ---------------------------------------------------------------------------
@@ -348,3 +362,69 @@ def test_a_choice_serialises(helper):
 
     payload = json.loads(json.dumps(choose("code", vram_gib=96).to_dict()))
     assert payload["model_id"] and payload["asked"] is True
+
+
+# ---------------------------------------------------------------------------
+# What continuous integration actually installs.
+# ---------------------------------------------------------------------------
+
+
+def test_importing_this_package_does_not_drag_in_a_deep_learning_stack():
+    """The promise that keeps the gateway's start-up and its continuous
+    integration light.
+
+    `best-engine-ai-helper` carries `airllm` as a core dependency now, which
+    means torch, transformers and accelerate. This project is a proxy: it never
+    loads a model, and a gateway that pays seconds of import time -- or a lane
+    that pays gigabytes of download -- for a capability it never uses is paying
+    for nothing. Every reference to the helper is therefore inside a function.
+    """
+    import subprocess
+    import sys
+
+    probe = (
+        "import sys, ai_bunker, ai_bunker.sizing, ai_bunker.engine, ai_bunker.gateway; "
+        "print(','.join(m for m in "
+        "('torch','transformers','airllm','diffusers','best_engine_ai_helper') "
+        "if m in sys.modules))"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    assert out == "", f"importing ai_bunker pulled in: {out}"
+
+
+def test_the_choice_degrades_honestly_when_the_helper_is_older(monkeypatch, catalog):
+    """A helper without the ranking is the shape of a version skew between two
+    separately released packages, and it must not be a crash. It must also not
+    be silent: the whole point of this module is that a choice nobody delegated
+    says so."""
+    import types
+
+    stub = types.ModuleType("best_engine_ai_helper")  # no `rank`, no `available_memory`
+    monkeypatch.setitem(__import__("sys").modules, "best_engine_ai_helper", stub)
+    choice = choose("code", vram_gib=96, catalog=catalog)
+    assert choice.asked is False
+    assert "predates" in choice.reason
+    assert choice.warnings
+    find_model(catalog, choice.model_id)
+
+
+def test_sizing_still_works_with_no_helper_at_all(monkeypatch):
+    """`ai-bunker sizing` is arithmetic over a committed catalogue. It should
+    answer on a machine that has never heard of the helper -- reporting that
+    the choice was not delegated, and otherwise working."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def without_helper(name, *args, **kwargs):
+        if name == "best_engine_ai_helper":
+            raise ImportError("not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_helper)
+    sizing = size_machine(accelerator="rtx-pro-6000-blackwell")
+    assert sizing.verdict != "does-not-fit"
+    assert sizing.primary
+    assert any("best-engine-ai-helper" in w for w in sizing.warnings)

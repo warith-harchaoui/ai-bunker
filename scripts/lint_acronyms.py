@@ -243,6 +243,7 @@ NAMES = {
     "NVIDIA",
     "NeMo",
     "OpenAI",
+    "PyTorch",
     "OpenCode",
     "PAYSAGE",
     "PowerShell",
