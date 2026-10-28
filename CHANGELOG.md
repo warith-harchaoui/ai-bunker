@@ -5,6 +5,51 @@ Standardization's year-month-day order.
 
 ## [Unreleased]
 
+### The line that was keeping the lane light was the heaviest thing in it
+
+Continuous integration pre-installed the processor-only build of torch from
+PyTorch's own index, under a comment saying the line was *a no-op while the
+published helper has no torch in its base dependencies, and it is what stops
+this lane growing by gigabytes on the day that changes*. The second half was
+right. The first was not: `pip install torch` installs torch whether or not
+anything wants it.
+
+- **A hundred and ninety-six megabytes a leg, from the day it was added.** The
+  entry above that introduced the line says *the helper carries `airllm` as a
+  core dependency now*, which was true of that package's working tree and has
+  never been true of a release: no published `best-engine-ai-helper` — 1.7.0,
+  1.8.0, 1.8.1 or 1.9.0 — declares torch, transformers, diffusers, accelerate
+  or airllm outside an extra. The wheel this lane resolves asks for click,
+  langdetect, os-helper, psutil, pyyaml, requests, fastapi, uvicorn,
+  fastapi-mcp and mcp. And nothing in `ai_bunker/`, `tests/` or `scripts/`
+  names torch at all. So each leg downloaded a 196-megabyte wheel and spent
+  twenty-one seconds unpacking a dependency no line of this repository
+  imports.
+- **The reason survives as a check rather than as a download.** ai-bunker is a
+  proxy that never loads a model, and torch is still one `pyproject.toml` edit
+  away in the helper — where the Linux wheel is the build for NVIDIA's Compute
+  Unified Device Architecture (CUDA), gigabytes of `nvidia-*` payload for a
+  runner with no graphics processor. The install step now fails if torch,
+  transformers or diffusers appears, naming both ways out. Which one to take
+  is a decision somebody should make, not a lane that silently grows.
+- **Measured before changing it.** A clean virtual environment with no torch,
+  installed exactly as the lane installs: 1,102 pass, 8 skip. The eight skips
+  are the website (absent off the author's machine) and `tokenizers` (an extra
+  this lane does not install).
+- **The package cache is keyed on `pyproject.toml`.** GitHub's cache is
+  immutable per key, so a key that stops describing the environment keeps
+  restoring what it was saved with and never re-saves.
+
+Runner time per run: about 4.2 minutes to about 3.1, and roughly 590 megabytes
+less to download.
+
+One thing the measurement surfaced and did not change: the published helper
+carries no `imagine_rank` or `imagine_pick`, so continuous integration
+exercises the image slot's capability-degradation path rather than the picker
+itself. That is `engine.py` behaving as designed — the slot reports that the
+installed helper predates the image picker — and it is worth knowing that the
+green tick does not cover the arithmetic behind a chosen image model.
+
 ### The task description reaches the ranking it was written for
 
 `engine.TASK` is the sentence this project uses to describe itself to
