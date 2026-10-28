@@ -218,43 +218,55 @@ def test_a_stream_with_no_tool_call_holds_nothing():
 # ---------------------------------------------------------------------------
 
 
-def test_arguments_are_concatenated_not_replaced():
-    """Assigning instead of appending keeps only the last slice, which
-    produces valid-looking JSON for a command nobody sent."""
-    assembler = streaming.Assembler()
+def test_a_tool_call_is_reassembled_from_the_fragments_it_arrived_in():
+    """Three ways to reassemble it wrong, each producing something that looks
+    like a valid call for a command nobody sent.
+
+    **Assigning instead of appending** keeps only the last slice. **Merging
+    two calls** builds one command out of two halves that were never one --
+    the index is the only thing saying which fragment belongs where, and an
+    engine may open a second call before finishing the first. And the **name
+    and id arrive once**, in the opening chunk, never repeated.
+
+    What comes out is shaped like a real response, because `apply_outbound`
+    reads it with no knowledge a stream was involved -- which is what keeps
+    the streamed and atomic paths honest about reaching the same verdict.
+    """
+    one = streaming.Assembler()
     for line in stream_of("rm -rf /tmp/cache", pieces=6):
-        assembler.feed(line)
-    arguments = assembler.tool_calls()[0]["function"]["arguments"]
-    assert json.loads(arguments) == {"command": "rm -rf /tmp/cache"}
+        one.feed(line)
+    assert json.loads(one.tool_calls()[0]["function"]["arguments"]) == {
+        "command": "rm -rf /tmp/cache"
+    }
 
-
-def test_two_interleaved_calls_stay_separate():
-    """An engine may open a second call before finishing the first, and the
-    index is the only thing that says which fragment belongs where. Merging
-    them would build a command from two halves that were never one."""
-    assembler = streaming.Assembler()
-    assembler.feed(opening(call_id="a", index=0))
-    assembler.feed(opening(call_id="b", index=1))
+    two = streaming.Assembler()
+    two.feed(opening(call_id="a", index=0))
+    two.feed(opening(call_id="b", index=1))
     for line in argument_slices("echo one", pieces=2, index=0):
-        assembler.feed(line)
+        two.feed(line)
     for line in argument_slices("echo two", pieces=2, index=1):
-        assembler.feed(line)
-    assembler.feed(closing())
-
-    calls = assembler.tool_calls()
+        two.feed(line)
+    two.feed(closing())
+    calls = two.tool_calls()
     assert [c["id"] for c in calls] == ["a", "b"]
     assert json.loads(calls[0]["function"]["arguments"])["command"] == "echo one"
     assert json.loads(calls[1]["function"]["arguments"])["command"] == "echo two"
 
-
-def test_the_name_and_id_survive_arriving_once():
-    """They are sent in the opening chunk and never repeated."""
-    assembler = streaming.Assembler()
+    plain = streaming.Assembler()
     for line in stream_of("ls"):
-        assembler.feed(line)
-    call = assembler.tool_calls()[0]
+        plain.feed(line)
+    call = plain.tool_calls()[0]
     assert call["id"] == "call_1"
     assert call["function"]["name"] == "bash"
+
+    response = plain.as_response()
+    assert response["object"] == "chat.completion"
+    assert response["model"] == "m"
+    assert response["id"] == "c1"
+    choice = response["choices"][0]
+    assert choice["finish_reason"] == "tool_calls"
+    assert choice["message"]["role"] == "assistant"
+    assert len(choice["message"]["tool_calls"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -275,22 +287,6 @@ def test_a_line_that_is_not_a_chunk_is_passed_through(line):
     gateway is mid-answer and cannot raise."""
     assert streaming.Assembler().feed(line) is False
     assert streaming.parse(line) is None
-
-
-def test_the_assembled_response_is_shaped_like_a_real_one():
-    """`apply_outbound` reads it with no knowledge a stream was involved."""
-    assembler = streaming.Assembler()
-    for line in stream_of("ls"):
-        assembler.feed(line)
-    response = assembler.as_response()
-
-    assert response["object"] == "chat.completion"
-    assert response["model"] == "m"
-    assert response["id"] == "c1"
-    choice = response["choices"][0]
-    assert choice["finish_reason"] == "tool_calls"
-    assert choice["message"]["role"] == "assistant"
-    assert len(choice["message"]["tool_calls"]) == 1
 
 
 def test_a_refusal_frame_carries_the_rule_and_not_the_command(rules):

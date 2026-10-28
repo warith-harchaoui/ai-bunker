@@ -69,32 +69,35 @@ def test_every_accelerator_is_priced(catalog):
 # ---------------------------------------------------------------------------
 
 
-def test_kv_geometry_matches_published_figures(catalog):
-    """40 layers, 8 KV heads, 128 head_dim -> 5.0 GiB at 32k, 20.0 GiB at 128k."""
-    m = find_model(catalog, "devstral-small-2-24b")
-    assert kv_gib(m, 32768, "bf16") == pytest.approx(5.0, abs=0.05)
-    assert kv_gib(m, 131072, "bf16") == pytest.approx(20.0, abs=0.1)
+def test_the_kv_cache_arithmetic_reproduces_the_figures_the_docs_publish(catalog):
+    """Every concurrency number in `docs/SIZING.md` rests on this function, so
+    it is checked against the measurements those pages quote rather than
+    against itself.
+
+    Both shapes the catalogue carries are exercised: published geometry
+    (40 layers x 8 key-value heads x 128 head_dim -> 5.0 GiB at 32k and
+    20.0 GiB at 128k) and, where the geometry is unpublished, a measured rate
+    per thousand tokens -- about 6 GiB at 256k for the mixture-of-experts
+    model. The fp8 relation is exact by construction and worth pinning,
+    because halving the storage is what buys the context the gateway serves.
+    """
+    dense = find_model(catalog, "devstral-small-2-24b")
+    assert kv_gib(dense, 32768, "bf16") == pytest.approx(5.0, abs=0.05)
+    assert kv_gib(dense, 131072, "bf16") == pytest.approx(20.0, abs=0.1)
+    assert kv_gib(dense, 65536, "fp8") == pytest.approx(kv_gib(dense, 65536, "bf16") / 2)
+
+    moe = find_model(catalog, "qwen3-coder-next")
+    assert kv_gib(moe, 262144, "fp8") == pytest.approx(6.0, abs=0.3)
 
 
-def test_fp8_kv_is_exactly_half_of_bf16(catalog):
-    m = find_model(catalog, "devstral-small-2-24b")
-    assert kv_gib(m, 65536, "fp8") == pytest.approx(kv_gib(m, 65536, "bf16") / 2)
-
-
-def test_moe_kv_rate_matches_its_measured_figure(catalog):
-    """Qwen3-Coder-Next is documented at ~6 GiB of KV cache at 256k."""
-    m = find_model(catalog, "qwen3-coder-next")
-    assert kv_gib(m, 262144, "fp8") == pytest.approx(6.0, abs=0.3)
-
-
-def test_weights_default_to_the_recommended_quant(catalog):
+def test_weights_follow_the_recommended_quant_and_refuse_an_invented_one(catalog):
+    """The default is the quantization this catalogue actually serves at, so a
+    plan sized without naming one is sized at the right footprint. A name the
+    model has no table for is refused with the names it does have, because the
+    realistic mistake is a typo and the fix is seeing the options."""
     m = find_model(catalog, "devstral-small-2-24b")
     assert weights_gib(m) == (25, "fp8")
     assert weights_gib(m, "bf16") == (48, "bf16")
-
-
-def test_unknown_quant_is_rejected_with_the_options(catalog):
-    m = find_model(catalog, "devstral-small-2-24b")
     with pytest.raises(AssertionError, match="bf16"):
         weights_gib(m, "int2")
 
@@ -151,30 +154,31 @@ def test_dense_models_read_all_their_weights(catalog):
 # ---------------------------------------------------------------------------
 
 
-def test_small_teams_get_a_floor_of_two_sequences():
-    """One colleague's long generation must never block the other entirely."""
-    for n in (2, 3, 4, 5):
-        assert sessions_for_team(n) >= 2
+def test_team_size_and_sequence_count_convert_both_ways_without_disagreeing(catalog):
+    """`sizing` answers "what does this machine carry" and `recommend` answers
+    "what do I buy for N people". They are the same arithmetic read in two
+    directions, and they disagree the moment the conversion stops being
+    monotone and invertible -- which is a contradiction a reader would find in
+    two published tables rather than in a traceback.
 
-
-def test_a_single_user_needs_a_single_sequence():
+    The floor of two is the one deliberate kink: with a single sequence, one
+    colleague's long generation blocks the other entirely, so a pair is never
+    sized down to one.
+    """
     assert sessions_for_team(1) == 1
+    for n in (2, 3, 4, 5):
+        assert sessions_for_team(n) >= 2, "one long generation must not block a colleague"
 
-
-def test_sessions_needed_grows_with_the_team():
     previous = 0
     for n in (1, 2, 5, 10, 30, 100):
         current = sessions_for_team(n)
-        assert current >= previous
+        assert current >= previous, f"{n} people needed fewer sequences than fewer people"
         previous = current
 
-
-def test_team_and_session_conversions_are_inverses():
-    """`sizing` and `recommend` disagree the moment this stops holding."""
-    for sessions in range(1, 25):
-        team = team_for_sessions(sessions)
-        assert sessions_for_team(team) <= sessions
-        assert sessions_for_team(team + 1) > sessions
+    for sequences in range(1, 25):
+        team = team_for_sessions(sequences)
+        assert sessions_for_team(team) <= sequences
+        assert sessions_for_team(team + 1) > sequences
 
 
 def test_sizing_for_the_mean_would_be_optimistic():
@@ -257,23 +261,22 @@ def test_sizing_a_machine_not_in_the_catalogue(catalog):
 # ---------------------------------------------------------------------------
 
 
-def test_a_runtime_without_paged_attention_is_refused_for_a_large_team(catalog):
-    recs = recommend_for_team(30, catalog=catalog)
-    apple = [r for r in recs if r.batching == "basic"]
-    assert apple, "the catalogue should carry at least one Ollama-class machine"
-    assert all(r.disqualified and not r.fits for r in apple)
+def test_a_runtime_without_paged_attention_is_disqualified_by_team_size(catalog):
+    """Not by speed, which is the point. An Ollama-class machine can be fast
+    and still wrong for a team: without paged attention the sessions queue, so
+    the second user waits for the first to finish. That makes it a function of
+    how many people share the machine -- fine for a pair, disqualifying at
+    thirty -- and irrelevant entirely for a workstation one person uses, which
+    is what `shared_server=False` says.
+    """
+    crowd = [r for r in recommend_for_team(30, catalog=catalog) if r.batching == "basic"]
+    assert crowd, "the catalogue should carry at least one Ollama-class machine"
+    assert all(r.disqualified and not r.fits for r in crowd)
 
+    pair = recommend_for_team(2, primary="qwen3-coder-next", catalog=catalog)
+    assert any(r.fits for r in pair if r.batching == "basic")
 
-def test_the_same_runtime_is_allowed_for_a_pair(catalog):
-    recs = recommend_for_team(2, primary="qwen3-coder-next", catalog=catalog)
-    apple = [r for r in recs if r.batching == "basic"]
-    assert any(r.fits for r in apple)
-
-
-def test_personal_mode_lifts_the_batching_requirement(catalog):
-    shared = recommend_for_team(30, catalog=catalog, shared_server=True)
     solo = recommend_for_team(30, catalog=catalog, shared_server=False)
-    assert any(r.disqualified for r in shared)
     assert not any(r.disqualified for r in solo)
 
 

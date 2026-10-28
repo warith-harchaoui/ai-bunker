@@ -137,35 +137,34 @@ def _request(system: str = "", tools: list | None = None, user: str = "") -> dic
 # ---------------------------------------------------------------------------
 
 
-def test_ratio_backend_is_labelled_inexact(counter):
+def test_an_estimated_count_is_labelled_as_one_everywhere_it_surfaces(counter):
+    """This module's whole subject. A ratio count is a guess, it is sometimes
+    the only thing available, and the one unacceptable outcome is a guess that
+    reads like a measurement.
+
+    So the label travels: on the counter, on the measurement it produces, and
+    in the warnings a reader sees. A deployment gate can refuse to run on one
+    at all -- a gate that passes on a guess is worse than no gate. And when
+    the engine is unreachable the fallback is the estimate rather than a
+    crash, because a budget report has to render when the GPU is down, which
+    is exactly when somebody is looking at it.
+    """
     assert counter.backend == "ratio"
     assert counter.exact is False
+    assert counter.count("x" * 400) == pytest.approx(400 / CHARS_PER_TOKEN, rel=0.01)
+    assert counter.count("") == 0
 
+    measured = measure_request(_request("hello"), counter=counter, served_context=32768)
+    assert measured.backend == "ratio"
+    assert measured.exact is False
+    assert any("ratio" in w for w in measured.warnings)
 
-def test_a_gate_can_refuse_to_run_on_an_estimate():
-    """A deployment gate that passes on a guess is worse than no gate."""
     with pytest.raises(AssertionError, match="No tokenizer available"):
         Counter(allow_ratio=False)
 
-
-def test_the_estimate_is_at_least_self_consistent(counter):
-    text = "x" * 400
-    assert counter.count(text) == pytest.approx(400 / CHARS_PER_TOKEN, rel=0.01)
-    assert counter.count("") == 0
-
-
-def test_an_unreachable_server_falls_back_rather_than_crashing():
-    """A budget report must still render when the GPU is down."""
-    c = Counter(base_url="http://127.0.0.1:1/v1", model="nope", allow_ratio=True)
-    assert c.backend == "ratio"
-    assert c.count("hello") > 0
-
-
-def test_the_backend_is_recorded_in_the_result(counter):
-    b = measure_request(_request("hello"), counter=counter, served_context=32768)
-    assert b.backend == "ratio"
-    assert b.exact is False
-    assert any("ratio" in w for w in b.warnings)
+    unreachable = Counter(base_url="http://127.0.0.1:1/v1", model="nope", allow_ratio=True)
+    assert unreachable.backend == "ratio"
+    assert unreachable.count("hello") > 0
 
 
 # ---------------------------------------------------------------------------
@@ -252,20 +251,19 @@ def test_conversation_turns_are_not_part_of_the_floor(counter):
 # ---------------------------------------------------------------------------
 
 
-def test_declaring_the_full_served_context_is_flagged(counter):
-    b = measure_request(
-        _request("prompt"),
-        counter=counter,
-        served_context=32768,
-        declared_context=32768,
+def test_declaring_the_full_served_context_is_flagged_and_the_default_is_not(counter):
+    """The margin is the only protection while a turn grows, so a deployment
+    that declared the truth would be honest and broken. The default leaves
+    one; declaring the full figure says so rather than letting the operator
+    find out from a 413 at the worst moment."""
+    flush = measure_request(
+        _request("prompt"), counter=counter, served_context=32768, declared_context=32768
     )
-    assert any("not below the served context" in w for w in b.warnings)
+    assert any("not below the served context" in w for w in flush.warnings)
 
-
-def test_the_default_declaration_leaves_a_margin(counter):
-    b = measure_request(_request("prompt"), counter=counter, served_context=131072)
-    assert b.declared_context < b.served_context
-    assert not any("not below the served context" in w for w in b.warnings)
+    default = measure_request(_request("prompt"), counter=counter, served_context=131072)
+    assert default.declared_context < default.served_context
+    assert not any("not below the served context" in w for w in default.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -441,23 +439,23 @@ def test_max_output_does_not_reduce_conversation_space(counter):
 # ---------------------------------------------------------------------------
 
 
-def test_a_captured_request_round_trips(tmp_path, counter):
-    path = tmp_path / "req.json"
-    path.write_text(json.dumps(_request("prompt", tools=[{"name": "t"}])), encoding="utf-8")
-    loaded = load_request(path)
+def test_a_captured_request_round_trips_and_a_bad_one_says_what_is_wrong(tmp_path, counter):
+    """The capture is how an operator measures a real session rather than a
+    synthetic one, so it is read from a file somebody produced by hand or by
+    copy-paste -- which means both ways of getting it wrong are routine, and
+    neither may surface as a stack trace."""
+    good = tmp_path / "req.json"
+    good.write_text(json.dumps(_request("prompt", tools=[{"name": "t"}])), encoding="utf-8")
+    loaded = load_request(good)
     assert measure_request(loaded, counter=counter, served_context=32768).floor_tokens > 0
 
-
-def test_a_missing_capture_says_so(tmp_path):
     with pytest.raises(AssertionError, match="No captured request"):
         load_request(tmp_path / "absent.json")
 
-
-def test_a_non_object_capture_is_rejected(tmp_path):
-    path = tmp_path / "bad.json"
-    path.write_text("[1, 2, 3]", encoding="utf-8")
+    wrong_shape = tmp_path / "bad.json"
+    wrong_shape.write_text("[1, 2, 3]", encoding="utf-8")
     with pytest.raises(AssertionError, match="not a JSON object"):
-        load_request(path)
+        load_request(wrong_shape)
 
 
 # ---------------------------------------------------------------------------

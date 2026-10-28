@@ -60,25 +60,26 @@ def test_the_page_makes_no_external_request():
     ), "no script may be loaded from a URL"
 
 
-def test_the_page_imports_no_framework():
-    source = GUI.read_text(encoding="utf-8").lower()
-    for framework in ("react", "vue.js", "svelte", "angular", "solid-js"):
-        assert framework not in source
+def test_the_page_is_hand_written_and_its_colour_lives_in_tokens():
+    """No framework, no raw hex, and both colour schemes defined.
 
-
-def test_no_raw_hex_in_the_markup():
-    """Colour lives in tokens, so a palette change is one edit and not forty."""
+    The first is the same argument as the external request above: a page with
+    no build step that imports a framework imports it from a CDN. The second
+    is maintenance -- colour in tokens means a palette change is one edit and
+    not forty, and it is what makes the contrast audit below able to check the
+    palette rather than the markup. The third is that an explicit choice has
+    to win over the system preference, so both selectors must exist.
+    """
     source = GUI.read_text(encoding="utf-8")
-    body = source[source.index("</style>") :]
-    # The only literal in script is #FFFFFF-free; colours come from var(--token).
-    import re
 
-    leaked = [h for h in re.findall(r"#[0-9A-Fa-f]{6}\b", body)]
+    lowered = source.lower()
+    for framework in ("react", "vue.js", "svelte", "angular", "solid-js"):
+        assert framework not in lowered
+
+    body = source[source.index("</style>") :]
+    leaked = re.findall(r"#[0-9A-Fa-f]{6}\b", body)
     assert not leaked, f"raw hex outside the token block: {leaked}"
 
-
-def test_both_colour_schemes_are_defined():
-    source = GUI.read_text(encoding="utf-8")
     assert "prefers-color-scheme: dark" in source
     assert '[data-color-scheme="dark"]' in source, "an explicit choice must win too"
 
@@ -149,47 +150,44 @@ def test_measurable_tiles_declare_their_polarity():
 # ---------------------------------------------------------------------------
 
 
-def test_the_toggle_exists_and_names_where_it_goes():
+def test_the_theme_toggle_follows_the_system_until_the_reader_says_otherwise():
+    """Same rule as the language toggle and for the same reason: the reader of
+    this page is the operator looking at their own screen, so their browser
+    wins -- the inverse of what an agent is told, where the deployment
+    decides.
+
+    Nothing stored means nothing stamped, so the CSS media query decides and
+    the page keeps following the system if it flips mid-session. Stamping
+    unconditionally -- the obvious version -- would freeze it at load.
+
+    The control is a real `<button>`, which is the whole reason to spend an
+    element on it: focusable and Enter-activated for free. Its label names the
+    *destination*, because "light" is ambiguous about whether that is the
+    current scheme or the one it switches to, and it comes from the same
+    catalogue as everything else rather than a second copy of two strings --
+    which is how a page ends up half translated.
+    """
     page = GUI.read_text(encoding="utf-8")
+
     assert 'id="theme-toggle"' in page
     assert "\U0001f31e" in page and "\\u{1F31B}" in page, "both glyphs must appear"
-    # A button labelled "light" is ambiguous about whether that is the current
-    # scheme or the one it switches to; the label names the destination.
     assert "theme.to_dark" in page and "theme.to_light" in page
 
-
-def test_the_system_preference_is_the_default():
-    """Nothing stored means nothing stamped, so the CSS media query decides --
-    and the page keeps following the system if it flips mid-session. Stamping
-    unconditionally, the obvious version, would freeze it at load."""
-    page = GUI.read_text(encoding="utf-8")
     head = page[: page.index("</head>")]
     assert "localStorage.getItem" in head, "the stored choice must win before first paint"
-    guard = re.search(r'if\s*\(\s*stored === "dark" \|\| stored === "light"\s*\)', head)
-    assert guard, "the attribute is stamped unconditionally, freezing the system preference"
+    assert re.search(r'if\s*\(\s*stored === "dark" \|\| stored === "light"\s*\)', head), (
+        "the attribute is stamped unconditionally, freezing the system preference"
+    )
     assert 'matchMedia("(prefers-color-scheme: dark)").addEventListener' in page
 
-
-def test_the_toggle_is_reachable_without_a_mouse():
-    """It is a real button, not a clickable div: focusable and Enter-activated
-    for free, which is the whole reason to spend an element on it."""
-    page = GUI.read_text(encoding="utf-8")
     button = re.search(r"<button[^>]*id=\"theme-toggle\"[^>]*>", page, re.S)
     assert button, "the toggle is not a <button>"
-    assert 'type="button"' in button.group(0), (
-        "an untyped button in no form still submits nothing, but say so"
-    )
+    assert 'type="button"' in button.group(0)
     assert "aria-label=" in button.group(0), "an emoji alone is not an accessible name"
     assert "aria-pressed=" in button.group(0), "a toggle must report its state"
 
-
-def test_the_toggle_reads_the_same_catalogue_as_the_rest():
-    """Not a second copy of two strings, which is how a page ends up half
-    translated."""
     for locale in ("en", "fr"):
-        catalogue = _catalogue(locale)
-        assert "theme.to_dark" in catalogue
-        assert "theme.to_light" in catalogue
+        assert "theme.to_dark" in _catalogue(locale)
     assert _catalogue("fr")["theme.to_dark"] != _catalogue("en")["theme.to_dark"]
 
 
@@ -263,15 +261,16 @@ def test_the_click_keeps_the_address_bar_honest():
 # ---------------------------------------------------------------------------
 
 
-def test_the_contrast_auditor_passes_on_the_shipped_page():
-    result = _run(CONTRAST, str(GUI))
-    assert result.returncode == 0, result.stdout
+def test_the_contrast_auditor_passes_on_the_shipped_page_and_audits_both_schemes():
+    """The pass is only worth something if the audit is real, so the same run
+    has to show it covered both colour schemes and enough pairs to mean
+    anything -- a gate that checks three pairs in one scheme would go green on
+    a page nobody can read in the other."""
+    assert _run(CONTRAST, str(GUI)).returncode == 0
 
-
-def test_the_contrast_auditor_checks_both_schemes():
-    result = _run(CONTRAST, str(GUI), "--report")
-    assert "light" in result.stdout and "dark" in result.stdout
-    assert result.stdout.count(":1") >= 20, "too few pairs to be a real audit"
+    report = _run(CONTRAST, str(GUI), "--report").stdout
+    assert "light" in report and "dark" in report
+    assert report.count(":1") >= 20, "too few pairs to be a real audit"
 
 
 def test_the_contrast_auditor_can_fail(tmp_path):

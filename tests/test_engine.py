@@ -151,45 +151,44 @@ def test_the_task_describes_this_project_rather_than_a_generic_model():
 # ---------------------------------------------------------------------------
 
 
-def test_every_catalogue_model_survives_the_translation(catalog):
+def test_the_catalogue_translates_into_every_field_the_ranking_reads(catalog):
+    """The join between two catalogues, and every column it has to carry.
+
+    Each field is taken from the nearest equivalent rather than invented, and
+    each one has a way of being silently wrong:
+
+    - **benchmarks**, mapped by name. `openvlm_average` is what this catalogue
+      records and `vision` is what the helper scores, so until they were
+      joined the vision slot was ordered by accident -- a missing key ranks as
+      zero rather than failing.
+    - **structured_output**, inferred from the tool-call flags. A coding
+      agent's tool call is constrained decoding, and a model served without a
+      parser cannot emit one whatever its weights can do. Inferred so there is
+      one source of truth and not two that can disagree.
+    - **vllm_id**, which is `hf` under the helper's name for it. Without this
+      the two worlds cannot refer to the same model at all.
+    - **ram_gb**, in gigabytes where this catalogue keeps gibibytes. Ignoring
+      the factor would shift every budget comparison by 7% in the flattering
+      direction.
+    """
     entries = as_helper_entries(catalog)
     assert len(entries) == len(catalog["models"])
+    by_id = {e["id"]: e for e in entries}
+
     for entry in entries:
         assert entry["id"] and entry["kind"] in set(ROLE_KINDS.values())
         assert entry["weights_gib"] > 0, entry["id"]
         assert entry["ram_gb"] >= entry["weights_gib"], "GiB must convert up to GB"
 
-
-def test_the_vision_benchmark_is_mapped_onto_the_axis_the_helper_reads(catalog):
-    """The bug this catches: `openvlm_average` is what this catalogue records
-    and `vision` is what the helper scores, so until they were joined the
-    vision slot was ordered by accident."""
-    by_id = {e["id"]: e for e in as_helper_entries(catalog)}
     assert by_id["qwen3-vl-32b"]["benchmarks"]["vision"] == 87
     assert by_id["qwen3-vl-8b"]["benchmarks"]["vision"] == 80
-
-
-def test_the_code_benchmark_is_mapped_too(catalog):
-    by_id = {e["id"]: e for e in as_helper_entries(catalog)}
     assert by_id["qwen3-coder-next"]["benchmarks"]["code"] == 70.6
     assert by_id["devstral-small-2-24b"]["benchmarks"]["code"] == 68.0
 
-
-def test_structured_output_is_read_from_the_tool_call_flags(catalog):
-    """A coding agent's tool call is constrained decoding, and a model served
-    without a tool-call parser cannot emit one whatever its weights can do.
-    Inferred from the flags so there is one source of truth, not two."""
-    by_id = {e["id"]: e for e in as_helper_entries(catalog)}
     assert by_id["devstral-small-2-24b"]["structured_output"] is True
     assert by_id["qwen3-coder-next"]["structured_output"] is True
     assert by_id["bge-m3"]["structured_output"] is False
 
-
-def test_the_hugging_face_reference_is_the_join_between_the_two_catalogues(catalog):
-    """`vllm_id` is the field the helper's own catalogue carries, and `hf` is
-    what this one calls the same thing. Without the join the two worlds cannot
-    refer to one model."""
-    by_id = {e["id"]: e for e in as_helper_entries(catalog)}
     assert (
         by_id["devstral-small-2-24b"]["vllm_id"]
         == find_model(catalog, "devstral-small-2-24b")["hf"]
@@ -454,35 +453,36 @@ def test_sizing_still_works_with_no_helper_at_all(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_the_vision_slot_is_reported_on_the_axis_it_was_ranked_on(helper):
+def test_every_slot_is_reported_on_the_axis_it_was_ranked_on(helper):
     """The bug: `choose` computed the axis, used it for the anti-greed
-    tie-break, and then hardcoded `code` in all three places that report. Vision
-    models leave the code column empty, so the slot published `benchmark None`,
-    `score=None` and a rejected list of nulls -- every figure a reader needs to
-    argue with the anti-greed trade, absent."""
-    choice = choose("vision", vram_gib=96)
-    assert choice.axis == "vision"
-    assert choice.score and choice.score > 0
-    assert f"vision benchmark {choice.score:g}" in choice.reason
-    assert choice.rejected and all(r["score"] for r in choice.rejected)
+    tie-break, and then hardcoded `code` in all three places that report.
 
+    Vision models leave the code column empty, so the vision slot published
+    `benchmark None`, `score=None` and a rejected list of nulls -- every
+    figure a reader needs to argue with the anti-greed trade, absent. The code
+    slot looked fine for the same reason it was broken: it is the column that
+    was hardcoded.
 
-def test_the_code_slot_is_reported_on_its_own_axis_too(helper):
-    choice = choose("code", vram_gib=96)
-    assert choice.axis == "code"
+    The rejected list also has to distinguish what the card could have held
+    from what it could not. "Nothing better exists" and "something better
+    exists and does not fit" are different answers, and only one of them is an
+    argument for a bigger card.
+    """
+    vision = choose("vision", vram_gib=96)
+    assert vision.axis == "vision"
+    assert vision.score and vision.score > 0
+    assert f"vision benchmark {vision.score:g}" in vision.reason
+    assert vision.rejected and all(r["score"] for r in vision.rejected)
+
+    code = choose("code", vram_gib=96)
+    assert code.axis == "code"
     assert (
-        choice.score
-        == find_model(load_catalog(), choice.model_id)["benchmarks"]["swe_bench_verified"]
+        code.score == find_model(load_catalog(), code.model_id)["benchmarks"]["swe_bench_verified"]
     )
+    assert all(r["affordable"] for r in code.rejected), "everything fits 96 GiB"
 
-
-def test_the_rejected_list_says_which_candidates_the_card_could_have_held(helper):
-    """ "Nothing better exists" and "something better exists and does not fit"
-    are different answers, and only one of them argues for a bigger card."""
     tight = choose("code", vram_gib=48)
     assert any(not r["affordable"] for r in tight.rejected), "the 80B does not fit 48 GiB"
-    roomy = choose("code", vram_gib=96)
-    assert all(r["affordable"] for r in roomy.rejected)
 
 
 # ---------------------------------------------------------------------------
@@ -490,24 +490,40 @@ def test_the_rejected_list_says_which_candidates_the_card_could_have_held(helper
 # ---------------------------------------------------------------------------
 
 
-def test_this_project_keeps_no_image_catalogue(catalog):
-    """The slot exists and the entries deliberately do not: a diffusion
-    pipeline's figures -- component footprints, denoising steps, seconds per
-    image -- are none of the columns `catalog/serving.yaml` is for."""
+def test_the_image_slot_is_answered_entirely_out_of_the_helpers_catalogue(helper, catalog):
+    """The slot exists here and the entries deliberately do not.
+
+    A diffusion pipeline's figures -- component footprints, a denoising step
+    count, seconds per image -- are none of the columns `catalog/serving.yaml`
+    is for, and the helper already carries both the entries and the
+    arithmetic. So the choice comes back naming a model this project has never
+    heard of, with a footprint and a timing only the helper could work out.
+    """
     assert "image" in ROLE_KINDS
     assert [m for m in catalog["models"] if m.get("role") == "image"] == []
 
-
-def test_the_image_slot_is_answered_from_the_helpers_catalogue(helper):
     if not hasattr(helper, "imagine_rank"):
         pytest.skip("the installed best-engine-ai-helper offers no image picker")
+
     choice = choose("image", vram_gib=80, bandwidth_gbs=3350.0)
     assert choice.asked is True
     assert choice.model_id and choice.hf
     assert choice.weights_gib and choice.weights_gib > 0
     assert choice.detail["steps"] and choice.detail["seconds_per_image"]
-    # Named in the helper's catalogue and in no catalogue of ours.
     assert choice.model_id in {str(e.get("id")) for e in helper.load_catalog()}
+
+    # A model the helper's catalogue does not carry is refused by name rather
+    # than planned as though it were free.
+    settled = resolve_plan(
+        primary=ASK,
+        with_vision=None,
+        with_embeddings=None,
+        with_image="not-a-diffusion-model",
+        vram_gib=96,
+    )
+    assert settled.image is None
+    picture = next(c for c in settled.choices if c.role == "image")
+    assert "no model" in picture.reason and picture.warnings
 
 
 def test_the_image_slot_applies_the_anti_greed_rule_the_helper_does_not(helper):
@@ -529,34 +545,19 @@ def test_the_image_slot_applies_the_anti_greed_rule_the_helper_does_not(helper):
     assert chosen["resident_gb"] <= greedy["resident_gb"]
 
 
-def test_an_image_model_the_helper_never_heard_of_is_refused_by_name(helper):
-    if not hasattr(helper, "imagine_rank"):
-        pytest.skip("the installed best-engine-ai-helper offers no image picker")
-    settled = resolve_plan(
-        primary=ASK,
-        with_vision=None,
-        with_embeddings=None,
-        with_image="not-a-diffusion-model",
-        vram_gib=96,
-    )
-    assert settled.image is None
-    picture = next(c for c in settled.choices if c.role == "image")
-    assert "no model" in picture.reason and picture.warnings
+def test_the_image_slot_is_off_by_default_and_costs_the_coder_when_it_is_not(helper):
+    """The only slot that is off unless asked for, and the trade is the reason.
 
-
-def test_the_image_slot_is_off_unless_asked_for(helper):
-    """The only slot that is, and the reason is arithmetic: its memory comes
-    out of the coder's, and this gateway's first job is to serve a coder."""
+    Its memory comes out of the coder's, and this gateway's first job is to
+    serve a coder. On an 80 GiB card, asking for pictures drops the plan from
+    the 80B to the dense 24B -- which is a decision an operator should be able
+    to see in the report rather than discover from a slower agent.
+    """
     assert resolve_plan(vram_gib=96).image is None
 
-
-def test_asking_for_pictures_costs_the_better_coder_and_the_report_says_so(helper):
-    """The trade, made visible. On an 80 GiB card the image model's weights are
-    weights the coder does not get -- so the plan drops from the 80B to the 24B,
-    and that is a decision the operator should be able to see rather than
-    discover."""
     if not hasattr(helper, "imagine_rank"):
         pytest.skip("the installed best-engine-ai-helper offers no image picker")
+
     without = resolve_plan(vram_gib=80, bandwidth_gbs=3350.0)
     with_pictures = resolve_plan(vram_gib=80, bandwidth_gbs=3350.0, with_image=ASK)
     assert with_pictures.image
@@ -565,36 +566,38 @@ def test_asking_for_pictures_costs_the_better_coder_and_the_report_says_so(helpe
     assert any(not r["affordable"] for r in code.rejected)
 
 
-def test_the_image_slot_degrades_honestly_when_the_helper_cannot_answer(monkeypatch):
-    """There is no catalogue here to fall back to, so the slot is dropped --
-    and dropping it quietly would size a plan the machine never agreed to."""
+def test_the_image_slot_answers_honestly_when_it_cannot_answer_fully(helper, monkeypatch):
+    """Two degradations, and neither may be silent.
+
+    With **no helper at all** there is no catalogue here to fall back to, so
+    the slot is dropped -- and dropping it quietly would size a plan the
+    machine never agreed to.
+
+    With **no bandwidth** the timing is unknown, and `seconds_per_image` being
+    None is what makes `usable` False. The warning explaining the unusable
+    choice was formatting that None, which is a crash found by calling the
+    slot the way a library caller would. "Could not be timed" and "too slow"
+    are different sentences and it has to be able to say either.
+    """
+    if not hasattr(helper, "imagine_rank"):
+        pytest.skip("the installed best-engine-ai-helper offers no image picker")
+
+    # No bandwidth, and an accelerator named -- so there is nothing to borrow
+    # this machine's figure for, which is the combination that crashed.
+    monkeypatch.setattr(helper, "compute_profile", lambda: {}, raising=False)
+    untimed = choose("image", vram_gib=96)
+    assert untimed.model_id
+    assert untimed.detail["seconds_per_image"] is None
+    assert untimed.warnings and "could not be timed" in untimed.warnings[0]
+
     import types
 
     stub = types.ModuleType("best_engine_ai_helper")  # no imagine_* at all
     monkeypatch.setitem(__import__("sys").modules, "best_engine_ai_helper", stub)
-    choice = choose("image", vram_gib=96)
-    assert choice.asked is False
-    assert choice.model_id == ""
-    assert choice.warnings and "left out" in choice.warnings[0]
-
-
-def test_an_image_model_that_could_not_be_timed_still_answers(helper, monkeypatch):
-    """A crash, found by calling the slot the way a library caller would.
-
-    `seconds_per_image` is None when the machine's bandwidth is unknown and no
-    measurement exists, and `usable` is False whenever it is -- so the warning
-    that explains the unusable choice was formatting a None. "Could not be
-    timed" and "too slow" are different sentences and the warning has to be
-    able to say either."""
-    if not hasattr(helper, "imagine_rank"):
-        pytest.skip("the installed best-engine-ai-helper offers no image picker")
-    # No bandwidth, and an accelerator named -- so there is nothing to borrow
-    # this machine's figure for, which is the combination that crashed.
-    monkeypatch.setattr(helper, "compute_profile", lambda: {}, raising=False)
-    choice = choose("image", vram_gib=96)
-    assert choice.model_id
-    assert choice.detail["seconds_per_image"] is None
-    assert choice.warnings and "could not be timed" in choice.warnings[0]
+    dropped = choose("image", vram_gib=96)
+    assert dropped.asked is False
+    assert dropped.model_id == ""
+    assert dropped.warnings and "left out" in dropped.warnings[0]
 
 
 def test_the_local_machines_bandwidth_is_borrowed_only_for_the_local_machine(helper):

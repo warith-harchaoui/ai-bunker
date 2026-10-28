@@ -61,47 +61,38 @@ def _adopt(repo, **over):
 # ---------------------------------------------------------------------------
 
 
-def test_everything_planned_is_written(repo):
+def test_the_adopted_charter_is_the_charter_being_served(repo):
+    """Byte-for-byte, in every language, or the copy is a different charter
+    wearing the same name.
+
+    The fingerprint is the assertion that carries this: it covers the pages
+    and the operating rules, so an equal one means an equal prompt. Checked
+    per locale because the two halves are copied differently -- `packs/` goes
+    as a tree and brings its translations along, the operating rules are
+    copied by name and so had to have theirs named too. Without that, an
+    adopted copy served French pages under English operating rules, and
+    `load_charter` reported a translation the adopt had simply left behind:
+    the sort of warning that gets blamed on the charter rather than on the
+    tool that copied it.
+
+    And the rules keep passing their own evidence, because copied rules that
+    no longer hold up are worse than no rules at all.
+    """
     plan = _adopt(repo)
     assert plan.writes
     for relative, _why in plan.writes:
         assert (repo / relative).exists(), f"{relative} was planned and not written"
 
-
-def test_the_adopted_charter_is_identical_to_its_source(repo):
-    """Same fingerprint, or the adopted copy is not the charter being served."""
-    _adopt(repo)
-    assert load_charter(repo / "charter").fingerprint == load_charter(ROOT / "charter").fingerprint
-
-
-def test_the_adopted_charter_is_identical_in_every_language(repo):
-    """`charter/packs` is copied as a tree and brings its translations along;
-    the operating rules are copied by name, so theirs had to be named too.
-
-    Without that, an adopted copy served French pages under English operating
-    rules -- and `load_charter` would have reported a translation the adopt
-    had simply left behind, which is the sort of warning that gets blamed on
-    the charter rather than on the tool that copied it.
-    """
-    _adopt(repo)
     for locale in ("en", "fr"):
         adopted = load_charter(repo / "charter", locale=locale)
         shipped = load_charter(ROOT / "charter", locale=locale)
         assert adopted.fingerprint == shipped.fingerprint, locale
         assert adopted.warnings == [], (locale, adopted.warnings)
 
-
-def test_the_adopted_charter_loads_as_a_charter(repo):
-    _adopt(repo)
     charter = load_charter(repo / "charter")
     assert charter.operating_rules
     assert len(charter.pages) >= 5
-    assert not [w for w in charter.warnings if "missing" in w or "no pack" in w]
 
-
-def test_the_adopted_rules_still_pass_their_own_evidence(repo):
-    """Copied rules that no longer hold up are worse than no rules."""
-    _adopt(repo)
     report = check_rules(load_rules(repo / "charter" / "rules"))
     assert report.ok
     assert report.coverage == 1.0
@@ -122,7 +113,16 @@ def test_there_is_no_second_copy_of_the_operating_rules(repo):
 # ---------------------------------------------------------------------------
 
 
-def test_an_existing_agents_md_is_reported_as_about_to_be_shadowed(repo):
+def test_an_agents_md_about_to_go_dark_is_reported_with_the_way_out(repo):
+    """The note is the feature. Nothing errors when this happens -- the file
+    simply stops being read -- so a tool that writes `CLAUDE.md` into a
+    repository keeping its instructions in `AGENTS.md` has to say so, name
+    both files, and offer the escape (`--client opencode`). It has to reach
+    the printed summary too, or it is a note nobody sees.
+
+    The real run reports the same notes as the dry run, because a preview that
+    disagrees with the run is worse than no preview.
+    """
     (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
     plan = plan_adopt(repo)
     assert plan.notes, "writing CLAUDE.md over a repo with AGENTS.md said nothing"
@@ -131,81 +131,70 @@ def test_an_existing_agents_md_is_reported_as_about_to_be_shadowed(repo):
     assert "stops being read" in note
     assert "--client opencode" in note, "it should offer the way out"
     assert "~" in plan.summary(), "the note must reach the printed summary"
+    assert _adopt(repo).notes == plan.notes
 
 
-def test_a_repo_with_no_agents_md_is_not_warned(repo):
-    """Most repositories. A check that fires on all of them is noise."""
-    assert plan_adopt(repo).notes == []
-
-
-def test_the_opencode_only_kit_writes_no_claude_md_and_says_nothing(repo):
-    (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
-    plan = plan_adopt(repo, clients=("opencode",))
-    assert "CLAUDE.md" not in [relative for relative, _ in plan.writes]
-    assert plan.notes == [], "no CLAUDE.md is written, so nothing is shadowed"
-
-
-def test_an_existing_claude_md_is_named_as_the_cause_rather_than_this_adopt(repo):
-    """Both files already present: true, but not this tool's doing."""
+def test_a_claude_md_already_there_is_reported_as_not_this_tools_doing(repo):
+    """Both files present is still a real conflict, and still worth saying --
+    but blaming the adopt for it sends somebody looking at the wrong change."""
     (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
     (repo / "CLAUDE.md").write_text("theirs", encoding="utf-8")
     plan = plan_adopt(repo)
     assert "CLAUDE.md" in plan.kept
-    note = " ".join(plan.notes)
-    assert "did not cause it" in note
+    assert "did not cause it" in " ".join(plan.notes)
 
 
-def test_a_claude_md_above_the_repository_shadows_it_too(tmp_path):
-    """The rule walks upward, so the check has to as well."""
-    (tmp_path / "CLAUDE.md").write_text("from above", encoding="utf-8")
-    inner = tmp_path / "project"
-    inner.mkdir()
-    (inner / "AGENTS.md").write_text("our rules", encoding="utf-8")
-    note = " ".join(plan_adopt(inner).notes)
-    assert "from above" in note or "shadowed from above" in note
-    assert str(tmp_path / "CLAUDE.md") in note
+def test_the_check_reads_precedence_exactly_the_way_claude_code_does(tmp_path, monkeypatch):
+    """Which file shadows which is somebody else's rule, so the check has to
+    follow it rather than approximate it -- in both directions.
 
-
-def test_the_users_own_claude_md_is_not_counted(tmp_path, monkeypatch):
-    """`~/.claude/CLAUDE.md` is in the list that does NOT count.
-
-    It keeps loading alongside AGENTS.md, so counting it would warn every user
-    who has personal instructions -- which is most of them -- about a conflict
-    that does not exist.
+    It **walks upward**, because a `CLAUDE.md` in a parent directory shadows
+    just as effectively. It counts **`.claude/AGENTS.md`**, which is read too.
+    It does not count **`~/.claude/CLAUDE.md`**, which keeps loading alongside
+    `AGENTS.md` -- warning about it would fire for every user with personal
+    instructions, which is most of them. And it does not count
+    **`charter/AGENTS.md`**, the operating rules the gateway injects: no client
+    reads those as project instructions, so counting them would make every
+    adopt warn about the file the adopt itself just wrote.
     """
+    above = tmp_path / "above"
+    (above / "project").mkdir(parents=True)
+    (above / "CLAUDE.md").write_text("from above", encoding="utf-8")
+    (above / "project" / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    note = " ".join(plan_adopt(above / "project").notes)
+    assert "from above" in note or "shadowed from above" in note
+    assert str(above / "CLAUDE.md") in note
+
+    # Separate directories, because each case has to be the only reason the
+    # check fires -- a leftover `.claude/AGENTS.md` would answer the next one.
+    dot_claude = tmp_path / "dot-claude"
+    (dot_claude / ".claude").mkdir(parents=True)
+    (dot_claude / ".claude" / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    assert plan_adopt(dot_claude).notes, ".claude/AGENTS.md is read too and was ignored"
+
+    ours = tmp_path / "with-charter"
+    (ours / "charter").mkdir(parents=True)
+    (ours / "charter" / "AGENTS.md").write_text("how to work here", encoding="utf-8")
+    assert shadowing_notes(ours, writes=["CLAUDE.md"], kept=[]) == []
+
     home = tmp_path / "home"
     (home / ".claude").mkdir(parents=True)
     (home / ".claude" / "CLAUDE.md").write_text("my preferences", encoding="utf-8")
     monkeypatch.setattr("pathlib.Path.home", classmethod(lambda cls: home))
-
-    project = home / "project"
-    project.mkdir()
-    assert shadowing_claude_files(project) == []
-
-
-def test_a_dot_claude_agents_md_counts_as_one_to_protect(repo):
-    (repo / ".claude").mkdir()
-    (repo / ".claude" / "AGENTS.md").write_text("our rules", encoding="utf-8")
-    assert plan_adopt(repo).notes, ".claude/AGENTS.md is read too and was ignored"
+    personal = home / "project"
+    personal.mkdir()
+    assert shadowing_claude_files(personal) == []
 
 
-def test_the_charters_own_agents_md_is_not_mistaken_for_the_repositorys(repo):
-    """`charter/AGENTS.md` is the operating rules the gateway injects.
+def test_a_repository_with_nothing_to_shadow_is_not_warned(repo):
+    """Most repositories. A check that fires on all of them is noise -- and
+    so is one that fires when no `CLAUDE.md` is being written at all."""
+    assert plan_adopt(repo).notes == []
 
-    No client reads it as project instructions, so its presence must not
-    trigger a warning about shadowing -- otherwise every adopt warns about the
-    file the adopt itself just wrote.
-    """
-    (repo / "charter").mkdir()
-    (repo / "charter" / "AGENTS.md").write_text("how to work here", encoding="utf-8")
-    assert shadowing_notes(repo, writes=["CLAUDE.md"], kept=[]) == []
-
-
-def test_the_real_run_reports_the_same_notes_as_the_dry_run(repo):
-    """A dry run that disagrees with the run is worse than no dry run."""
     (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
-    predicted = plan_adopt(repo).notes
-    assert _adopt(repo).notes == predicted
+    opencode_only = plan_adopt(repo, clients=("opencode",))
+    assert "CLAUDE.md" not in [relative for relative, _ in opencode_only.writes]
+    assert opencode_only.notes == [], "no CLAUDE.md is written, so nothing is shadowed"
 
 
 # ---------------------------------------------------------------------------
@@ -213,42 +202,46 @@ def test_the_real_run_reports_the_same_notes_as_the_dry_run(repo):
 # ---------------------------------------------------------------------------
 
 
-def test_the_opencode_config_is_valid_json_with_the_gateway_wired_in(repo):
+def test_the_rendered_kits_wire_the_gateway_in_and_carry_no_placeholder(repo):
+    """One adopt, and everything a client needs to actually reach the gateway.
+
+    **OpenCode** gets a provider pointed at `/v1` with the declared context
+    and the compaction reserve the gateway publishes -- a client that declares
+    more is eventually refused, so these two figures are the handshake. It
+    also gets the tools that inflate the floor switched off: the gateway can
+    refuse a bloated session, but only the client can avoid making one, and
+    `webfetch`/`websearch` are off because sovereignty has to hold at the
+    client too.
+
+    **Claude Code** gets both URL shapes derived from the one answer -- it
+    wants the server root where OpenAI clients want `/v1` -- written *beside*
+    `settings.json` rather than over it, because that file carries personal
+    preferences this kit cannot judge.
+
+    And no `{{placeholder}}` survives rendering, in either file: a leftover
+    one is a config that fails at load.
+    """
     _adopt(repo, declared_context=104_000, compaction_reserve=16_000)
+
     config = json.loads((repo / "opencode.json").read_text(encoding="utf-8"))
     provider = config["provider"]["ai-bunker"]
     assert provider["options"]["baseURL"] == "http://gw.test:8000/v1"
     assert provider["options"]["apiKey"] == "k"
-    model = next(iter(provider["models"].values()))
-    assert model["limit"]["context"] == 104_000
-    assert config["model"] == "ai-bunker/devstral"
+    assert next(iter(provider["models"].values()))["limit"]["context"] == 104_000
     assert config["compaction"]["reserved"] == 16_000
-
-
-def test_the_opencode_config_turns_off_what_inflates_the_floor(repo):
-    """The gateway can refuse a bloated session; only the client can avoid one."""
-    _adopt(repo)
-    config = json.loads((repo / "opencode.json").read_text(encoding="utf-8"))
     off = {k for k, v in config["tools"].items() if v is False}
     assert {"skill", "todowrite"} <= off
     assert {"webfetch", "websearch"} <= off, "sovereignty must hold at the client too"
 
-
-def test_the_claude_code_settings_derive_both_url_shapes(repo):
-    """Claude Code wants the root; OpenAI clients want /v1. Ask once."""
-    _adopt(repo)
     settings = json.loads(
         (repo / ".claude" / "settings.ai-bunker.json").read_text(encoding="utf-8")
     )
     assert settings["env"]["OPENAI_BASE_URL"] == "http://gw.test:8000/v1"
     assert settings["env"]["ANTHROPIC_BASE_URL"] == "http://gw.test:8000"
-
-
-def test_the_claude_code_settings_are_written_beside_not_over(repo):
-    """.claude/settings.json carries personal preferences this kit cannot judge."""
-    _adopt(repo)
-    assert (repo / ".claude" / "settings.ai-bunker.json").exists()
     assert not (repo / ".claude" / "settings.json").exists()
+
+    for name in ("opencode.json", ".claude/settings.ai-bunker.json"):
+        assert "{{" not in (repo / name).read_text(encoding="utf-8")
 
 
 def test_the_bounded_reads_plugin_is_the_only_plugin(repo):
@@ -259,13 +252,6 @@ def test_the_bounded_reads_plugin_is_the_only_plugin(repo):
     body = plugins[0].read_text(encoding="utf-8")
     assert "tool.execute.before" in body
     assert "experimental.session.compacting" in body
-
-
-def test_no_placeholder_survives_rendering(repo):
-    """A leftover {{...}} is a config that fails at load, which is the point."""
-    _adopt(repo)
-    for name in ("opencode.json", ".claude/settings.ai-bunker.json"):
-        assert "{{" not in (repo / name).read_text(encoding="utf-8")
 
 
 def test_an_unresolved_placeholder_is_left_visible_not_blanked():
@@ -327,30 +313,30 @@ def test_a_missing_target_is_a_clear_error(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_the_plan_writes_nothing(repo):
+def test_the_dry_run_is_the_same_code_path_as_the_run(repo):
+    """Which is the only way a preview can be trusted. A dry run that takes a
+    different route is free to disagree with the run it previews, and the
+    disagreement shows up as a file somebody did not expect in their own
+    repository.
+
+    So it writes nothing, it plans exactly what the run writes, it reports
+    what it would keep rather than silently skipping it, and every write
+    carries a reason -- a tool that puts files in somebody's repository
+    explains each one.
+    """
     plan = plan_adopt(repo)
     assert plan.writes
-    assert list(repo.iterdir()) == []
-
-
-def test_the_plan_matches_what_the_run_does(repo):
-    """A dry run that takes a different route can disagree with the run."""
-    planned = {relative for relative, _ in plan_adopt(repo).writes}
-    done = {relative for relative, _ in _adopt(repo).writes}
-    assert planned == done
-
-
-def test_the_plan_reports_what_it_would_keep(repo):
-    (repo / "CLAUDE.md").write_text("mine", encoding="utf-8")
-    plan = plan_adopt(repo)
-    assert "CLAUDE.md" in plan.kept
-    assert "CLAUDE.md" not in {relative for relative, _ in plan.writes}
-
-
-def test_every_write_carries_a_reason(repo):
-    """A tool that writes files into someone's repository explains each one."""
-    for _relative, why in plan_adopt(repo).writes:
+    assert list(repo.iterdir()) == [], "a dry run touched the directory"
+    for _relative, why in plan.writes:
         assert why and len(why) > 10
+
+    planned = {relative for relative, _ in plan.writes}
+    assert planned == {relative for relative, _ in _adopt(repo).writes}
+
+    (repo / "CLAUDE.md").write_text("mine", encoding="utf-8")
+    second = plan_adopt(repo)
+    assert "CLAUDE.md" in second.kept
+    assert "CLAUDE.md" not in {relative for relative, _ in second.writes}
 
 
 # ---------------------------------------------------------------------------

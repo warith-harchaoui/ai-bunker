@@ -87,59 +87,55 @@ def call(command: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_the_breaker_opens_at_the_threshold_and_not_before(breaker):
+def test_the_breaker_opens_at_the_threshold_on_the_outcomes_that_mean_intent(breaker):
+    """What counts is the whole design, and it is narrower than it looks.
+
+    A **redaction** does not count: text arriving with a secret in it is the
+    gateway working as intended on somebody else's file, and counting it would
+    stop a session for reading a repository that merely contains credentials.
+    A **withheld tool** does: a declaration carrying an injection is somebody
+    trying something, and three of those inside the window is exactly the
+    signal this exists to act on. The count is per session, so one agent in a
+    loop never stops another.
+    """
     assert breaker.record("s", refusals(1)) is None
     assert breaker.record("s", refusals(1)) is None
     trip = breaker.record("s", refusals(1))
-    assert trip is not None
-    assert trip.count == 3
+    assert trip is not None and trip.count == 3
+
+    assert breaker.record("quiet", [{"outcome": "redacted", "rule_id": "global.x"}] * 20) is None
+    assert breaker.state("quiet") is None
+    assert breaker.record("tried", [{"outcome": "withheld", "rule_id": "tool.x"}] * 3) is not None
+
+    assert breaker.state("s") is not None
+    assert breaker.state("untouched") is None, "sessions are counted separately"
 
 
-def test_a_redaction_does_not_count(breaker):
-    """Text arriving with a secret in it is the gateway working as intended on
-    somebody else's file. Counting it would stop a session for reading a
-    repository that merely contains credentials."""
-    assert breaker.record("s", [{"outcome": "redacted", "rule_id": "global.x"}] * 20) is None
-    assert breaker.state("s") is None
-
-
-def test_a_withheld_tool_counts(breaker):
-    """A declaration carrying an injection is somebody trying something, and
-    three of those in five minutes is the signal this exists to act on."""
-    assert breaker.record("s", [{"outcome": "withheld", "rule_id": "tool.x"}] * 3) is not None
-
-
-def test_sessions_are_counted_separately(breaker):
-    breaker.record("a", refusals(3))
-    assert breaker.state("a") is not None
-    assert breaker.state("b") is None
-
-
-def test_the_window_slides(breaker, clock):
-    """Two refusals now and one in ten minutes is not a loop."""
+def test_the_window_slides_so_a_session_recovers_on_its_own(breaker, clock):
+    """Two refusals now and one in ten minutes is not a loop, and a session
+    that was stopped has to become workable again without an operator -- the
+    breaker is a quarantine with a timer, not a ban list."""
     breaker.record("s", refusals(2))
     clock.tick(61)
     assert breaker.record("s", refusals(1)) is None, "stale refusals were still counted"
 
-
-def test_an_open_breaker_closes_on_its_own(breaker, clock):
     breaker.record("s", refusals(3))
     assert breaker.state("s") is not None
     clock.tick(61)
     assert breaker.state("s") is None, "the session never recovered"
 
 
-def test_a_threshold_of_zero_disables_it():
-    """A deployment's choice to make, and it has to actually work."""
+def test_the_breaker_declines_to_count_what_it_cannot_attribute(breaker):
+    """Two ways not to act, both deliberate. A threshold of zero is a
+    deployment's choice and has to actually disable it. An unidentifiable
+    request is not counted at all, rather than lumped with every other one
+    into a single bucket that stops all of them together.
+    """
     off = Breaker(threshold=0)
     assert not off.enabled
     assert off.record("s", refusals(50)) is None
     assert off.state("s") is None
 
-
-def test_an_empty_session_identifier_is_never_counted(breaker):
-    """Rather than lumping every unidentifiable request into one bucket and
-    stopping all of them together."""
     assert breaker.record("", refusals(10)) is None
 
 
@@ -148,36 +144,31 @@ def test_an_empty_session_identifier_is_never_counted(breaker):
 # ---------------------------------------------------------------------------
 
 
-def test_an_open_breaker_refuses_a_tool_call(shipped, breaker):
+def test_an_open_breaker_quarantines_the_session_rather_than_killing_it(shipped, breaker):
+    """The distinction this module is built on.
+
+    A tool call from a stopped session is refused, as a BLOCKER, recorded as a
+    decision like any other refusal. But an answer carrying no tool call is a
+    sentence to the user -- very likely the explanation of what just happened
+    -- and stopping that would throw the explanation away. And another session
+    is untouched, because the loop belongs to one conversation.
+    """
     for _ in range(3):
         apply_outbound(call("rm -rf ~"), rules=shipped, breaker=breaker, session="s")
+
     stopped = apply_outbound(call("ls -la"), rules=shipped, breaker=breaker, session="s")
     assert stopped.refusal is not None
     assert stopped.refusal.id == RULE_ID
     assert stopped.refusal.severity == "BLOCKER"
+    assert [(d.rule_id, d.outcome) for d in stopped.decisions] == [(RULE_ID, "refused")]
 
-
-def test_a_stopped_session_can_still_talk(shipped, breaker):
-    """The quarantine, not the kill. An answer carrying no tool call is a
-    sentence to the user, and stopping that would throw away the explanation
-    of what just happened."""
-    breaker.record("s", refusals(3))
     prose = {"choices": [{"message": {"content": "I was stopped and here is why."}}]}
     passed = apply_outbound(prose, rules=shipped, breaker=breaker, session="s")
     assert passed.refusal is None
     assert passed.request is prose
 
-
-def test_another_session_is_untouched(shipped, breaker):
-    breaker.record("s", refusals(3))
     other = apply_outbound(call("ls -la"), rules=shipped, breaker=breaker, session="other")
     assert other.refusal is None
-
-
-def test_the_refusal_is_recorded_as_a_decision(shipped, breaker):
-    breaker.record("s", refusals(3))
-    stopped = apply_outbound(call("ls"), rules=shipped, breaker=breaker, session="s")
-    assert [(d.rule_id, d.outcome) for d in stopped.decisions] == [(RULE_ID, "refused")]
 
 
 def test_this_turn_s_refusal_is_part_of_the_evidence(shipped, breaker):
@@ -244,53 +235,46 @@ def test_a_reset_closes_one_session_or_all(breaker):
 # ---------------------------------------------------------------------------
 
 
-def test_the_header_wins_when_a_client_sends_one():
-    """The only source that is a fact rather than an inference."""
-    request = {"messages": [{"role": "user", "content": "fix the auth bug"}]}
-    assert session_of(request, header="abc") != session_of(request)
-    assert session_of(request, header="abc") == session_of({}, header="abc")
+def test_a_session_is_identified_by_the_best_evidence_available(shipped):
+    """The approximate part of this module, and the order is the design.
 
+    A **header** is the only source that is a fact rather than an inference,
+    so it wins outright. Failing that, the **opening turn** is inferred from:
+    a coding session starts with a task statement, and the breaker has to
+    still recognise the session twenty turns later -- so growth and whitespace
+    must not change the identity, while a different task must. The content is
+    read in both shapes clients send it, because reading only the string one
+    would silently fall back to the credential for every client that sends
+    parts, and one breaker shared by every session is not the design. The
+    **credential** is the last resort, and with nothing at all there is no
+    session rather than a shared one.
+    """
+    task = {"role": "user", "content": "fix the authentication bug in gateway.py"}
+    opening = {"messages": [task]}
 
-def test_the_same_conversation_keeps_its_identity_as_it_grows():
-    """The inference that has to hold: a coding session's first turn is the
-    task statement, and the breaker has to still recognise the session twenty
-    turns later."""
-    opening = {"role": "user", "content": "fix the authentication bug in gateway.py"}
-    early = {"messages": [opening]}
-    later = {
+    assert session_of(opening, header="abc") != session_of(opening)
+    assert session_of(opening, header="abc") == session_of({}, header="abc")
+
+    twenty_turns_in = {
         "messages": [
-            opening,
+            task,
             {"role": "assistant", "content": "Looking."},
             {"role": "tool", "content": "..."},
             {"role": "user", "content": "try again"},
         ]
     }
-    assert session_of(early) == session_of(later)
+    assert session_of(opening) == session_of(twenty_turns_in)
 
+    spaced = {"messages": [{"role": "user", "content": "fix  the\n bug"}]}
+    tidy = {"messages": [{"role": "user", "content": "fix the bug"}]}
+    assert session_of(spaced) == session_of(tidy)
+    assert session_of(tidy) != session_of(
+        {"messages": [{"role": "user", "content": "add a changelog entry"}]}
+    )
 
-def test_whitespace_does_not_change_the_identity():
-    a = {"messages": [{"role": "user", "content": "fix  the\n bug"}]}
-    b = {"messages": [{"role": "user", "content": "fix the bug"}]}
-    assert session_of(a) == session_of(b)
+    parts = {"messages": [{"role": "user", "content": [{"type": "text", "text": "fix it"}]}]}
+    assert session_of(parts).startswith("c:")
 
-
-def test_different_conversations_get_different_identities():
-    a = {"messages": [{"role": "user", "content": "fix the auth bug"}]}
-    b = {"messages": [{"role": "user", "content": "add a changelog entry"}]}
-    assert session_of(a) != session_of(b)
-
-
-def test_the_multipart_content_shape_is_read():
-    """Some clients send content as a list of parts. Reading only the string
-    shape would silently fall back to the credential for those clients, and
-    one breaker shared by every session is not the design."""
-    request = {
-        "messages": [{"role": "user", "content": [{"type": "text", "text": "fix the auth bug"}]}]
-    }
-    assert session_of(request).startswith("c:")
-
-
-def test_the_credential_is_the_last_resort():
     assert session_of({}, credential="key").startswith("k:")
     assert session_of({}) == "", "with nothing to go on, there is no session"
 

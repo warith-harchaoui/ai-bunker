@@ -53,6 +53,10 @@ def _charter(
     locale: str = i18n.DEFAULT_LOCALE,
 ):
     """Build a charter on disk from a {pack: {page: text}} description."""
+    # Created rather than assumed, so a caller can build several charters in
+    # subdirectories of one `tmp_path` -- which is what a test covering more
+    # than one shape of charter has to do.
+    tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "AGENTS.md").write_text(rules, encoding="utf-8")
     for pack, pages in packs.items():
         d = tmp_path / PACKS_DIR / pack
@@ -92,54 +96,53 @@ def test_the_index_costs_a_fraction_of_the_pages(tmp_path):
     )
 
 
-def test_the_index_is_capped_rather_than_allowed_to_grow(tmp_path):
-    """An index that costs what the pages cost has reinvented concatenation."""
-    packs = {
-        f"pack{p}": {f"a_rather_long_page_name_{i}.md": "x" for i in range(40)} for p in range(10)
-    }
-    charter = _charter(tmp_path, packs)
-    index = build_index(charter)
-    assert len(charter.pages) == 400
-    assert len(index) < MAX_INDEX_CHARS * 2, "the cap did not engage"
-    assert "pages)" in index, "it should degrade to counts, not truncate mid-list"
-    assert f"ls {PACKS_DIR}/" in index, "and say how to list one"
-
-
-def test_one_large_pack_costs_its_own_names_not_everyone_elses(tmp_path):
-    """Found by importing a 77-page pack into the shipped charter.
-
-    The cap used to degrade the body as a whole, so one big pack turned
-    `python: 10_style.md, tests.md` into `python (2 pages)` -- spending the
-    agent's knowledge of two page names to save the forty-five characters
-    that named them. The degradation is per pack now, biggest first.
-    """
-    packs = {
-        "python": {"10_style.md": "x", "tests.md": "x"},
-        "default": {"00_principles.md": "x"},
-        "big": {f"a_rather_long_page_name_{i}.md": "x" for i in range(80)},
-    }
-    index = build_index(_charter(tmp_path, packs))
-
-    assert "- big (80 pages)" in index, "the pack that overflowed must collapse"
-    assert "10_style.md" in index, "a two-page pack must keep its names"
-    assert "tests.md" in index
-    assert "00_principles.md" in index
-    assert f"ls {PACKS_DIR}/" in index, "and it must say how to list the collapsed one"
-
-
 @pytest.mark.parametrize("locale", i18n.available())
-def test_a_single_page_pack_is_not_described_as_1_pages(tmp_path, locale):
-    """A plural that only shows up once a pack collapses -- and it has to
-    survive translation, so every catalogue is measured, not just English."""
-    packs = {
-        "solo": {"only.md": "x"},
-        "big": {f"a_rather_long_page_name_{i}.md": "x" for i in range(200)},
-    }
-    index = build_index(_charter(tmp_path, packs, locale=locale))
-    assert "(1 pages)" not in index
-    assert "(200 page)" not in index
+def test_the_index_is_capped_by_collapsing_the_biggest_pack_first(tmp_path, locale):
+    """An index that costs what the pages cost has reinvented concatenation.
+
+    So the listing is capped -- but *how* it degrades is the feature, and the
+    first version got it wrong. It degraded the body as a whole, so importing
+    one 77-page pack turned `python: 10_style.md, tests.md` into
+    `python (2 pages)`: it spent the agent's knowledge of two page names to
+    save the forty-five characters that named them. The degradation is per
+    pack now, biggest first, and it has to say how to list what it collapsed
+    or the collapsed pack is simply gone.
+
+    Run per locale because the collapsed form is prose -- including a plural
+    that exists only once a pack collapses, and that a translator can get
+    wrong in a language English never exercises.
+    """
+    mixed = _charter(
+        tmp_path / "mixed",
+        {
+            "python": {"10_style.md": "x", "tests.md": "x"},
+            "solo": {"only.md": "x"},
+            "big": {f"a_rather_long_page_name_{i}.md": "x" for i in range(200)},
+        },
+        locale=locale,
+    )
+    index = build_index(mixed)
+
+    assert "big (200 page" in index, "the pack that overflowed must collapse"
+    for kept in ("10_style.md", "tests.md", "only.md"):
+        assert kept in index, f"{kept}: a small pack must keep its names"
+    assert f"ls {PACKS_DIR}/" in index, "and it must say how to list the collapsed one"
+    assert "(1 pages)" not in index and "(200 page)" not in index, "the plural is wrong"
     if "solo (" in index:
         assert "solo (1 page)" in index
+
+    # And the cap holds when *every* pack is large, which is the case that
+    # proves it is a cap rather than a preference.
+    huge = _charter(
+        tmp_path / "huge",
+        {
+            f"pack{p}": {f"a_rather_long_page_name_{i}.md": "x" for i in range(40)}
+            for p in range(10)
+        },
+        locale=locale,
+    )
+    assert len(huge.pages) == 400
+    assert len(build_index(huge)) < MAX_INDEX_CHARS * 2, "the cap did not engage"
 
 
 @pytest.mark.parametrize("locale", i18n.available())
@@ -164,9 +167,13 @@ def test_the_shipped_index_stays_within_its_budget(locale):
 # ---------------------------------------------------------------------------
 
 
-def test_the_index_is_rendered_in_the_charters_locale():
+def test_the_index_is_served_in_the_charters_language(shipped):
     """`locale` circulated as far as refusals and stopped there, so the block
-    paid on *every* request went out in English whatever `language:` said."""
+    paid on *every* request went out in English whatever `language:` said.
+
+    English stays the default, like every other agent-facing string here: a
+    deployment opts into another language rather than out of this one.
+    """
     french = build_index(load_charter(SHIPPED, locale="fr"))
     assert "Les pages vivent sous" in french
     assert "Une seule page à la fois" in french
@@ -175,6 +182,8 @@ def test_the_index_is_rendered_in_the_charters_locale():
     english = build_index(load_charter(SHIPPED, locale="en"))
     assert "Pages live under" in english
     assert "Les pages vivent sous" not in english
+
+    assert build_index(load_charter(SHIPPED)) == english, "no locale means English"
 
 
 def test_the_english_index_is_byte_identical_to_before_translation():
@@ -202,57 +211,49 @@ def test_the_english_index_is_byte_identical_to_before_translation():
     assert index.splitlines()[-1].startswith(f"Example: read {PACKS_DIR}/")
 
 
-def test_the_default_index_is_still_english():
-    """A charter loaded without a locale is English, like every other
-    agent-facing string: a deployment opts in."""
-    assert build_index(load_charter(SHIPPED)) == build_index(load_charter(SHIPPED, locale="en"))
-
-
-def test_the_fingerprint_covers_the_locale():
-    """Two deployments of the same files that serve prompts differing in bytes
-    must not report the same fingerprint.
-
-    It is a cache key and it is provenance, and the lie is worse in the second
-    role: a decision record naming charter `9f2c` has to mean one prompt. The
-    English digest is the one that must stay put relative to its own locale --
-    see `test_the_english_index_is_byte_identical_to_before_translation` for
-    the bytes it keys.
-    """
-    english = load_charter(SHIPPED, locale="en")
-    french = load_charter(SHIPPED, locale="fr")
-    assert build_index(english) != build_index(french), "the premise of this test"
-    assert english.fingerprint != french.fingerprint
-    assert load_charter(SHIPPED).fingerprint == english.fingerprint
-
-
-@pytest.mark.parametrize("spelling", ["", "en", "EN", "en-US", "en_GB", "zz"])
-def test_every_spelling_that_renders_english_reports_one_fingerprint(spelling):
+@pytest.mark.parametrize(
+    "spelling,resolved",
+    [
+        # Every spelling that resolves to English: the default, the tag, the
+        # case, the region, and a locale with no catalogue at all.
+        ("", "en"),
+        ("en", "en"),
+        ("EN", "en"),
+        ("en-US", "en"),
+        ("en_GB", "en"),
+        ("zz", "en"),
+        # And the same in the other direction, so this cannot pass by
+        # everything collapsing to English.
+        ("fr", "fr"),
+        ("FR", "fr"),
+        ("fr-CA", "fr"),
+        ("fr_FR", "fr"),
+    ],
+)
+def test_one_prompt_reports_one_fingerprint_however_the_locale_is_spelled(spelling, resolved):
     """The locale is stored resolved, and this is why.
 
-    Found in this change rather than reasoned about: `language:` defaults to
-    an empty string, an unknown locale falls back, and a region tag is
-    stripped -- so `""`, `"zz"` and `"en-US"` all serve the byte-identical
-    English index. Keeping the raw string gave that one prompt three different
-    fingerprints, which is precisely the lie that putting the locale in the
-    digest was added to prevent. Same prompt, same fingerprint; the rule has
-    to hold in both directions or the digest means nothing.
+    The fingerprint is a cache key and it is provenance, and the lie is worse
+    in the second role: a decision record naming charter `9f2c` has to mean
+    one prompt. So the rule runs in both directions. Two locales that render
+    different bytes must report different digests -- that half is what putting
+    the locale in the digest was for. And every spelling that renders the
+    *same* bytes must report the same digest: `language:` defaults to an empty
+    string, an unknown locale falls back, and a region tag is stripped, so
+    `""`, `"zz"` and `"en-US"` all serve the byte-identical English index.
+    Keeping the raw string gave that one prompt three different fingerprints,
+    which is precisely the lie the digest was meant to prevent.
+
     """
-    english = load_charter(SHIPPED, locale="en")
-    charter = load_charter(SHIPPED, locale=spelling)
-    assert charter.locale == "en"
-    assert build_index(charter) == build_index(english)
-    assert charter.fingerprint == english.fingerprint
+    reference = load_charter(SHIPPED, locale=resolved)
+    other = load_charter(SHIPPED, locale="fr" if resolved == "en" else "en")
+    assert build_index(reference) != build_index(other), "the premise of this test"
 
-
-@pytest.mark.parametrize("spelling", ["fr", "FR", "fr-CA", "fr_FR"])
-def test_every_spelling_of_french_reports_one_fingerprint(spelling):
-    """And the same in the other direction, so the test above is not just
-    asserting that everything collapses to English."""
-    french = load_charter(SHIPPED, locale="fr")
     charter = load_charter(SHIPPED, locale=spelling)
-    assert charter.locale == "fr"
-    assert charter.fingerprint == french.fingerprint
-    assert charter.fingerprint != load_charter(SHIPPED, locale="en").fingerprint
+    assert charter.locale == resolved
+    assert build_index(charter) == build_index(reference)
+    assert charter.fingerprint == reference.fingerprint
+    assert charter.fingerprint != other.fingerprint
 
 
 def test_a_request_cannot_choose_the_language_an_agent_is_instructed_in():
@@ -289,33 +290,34 @@ def test_a_page_costs_nothing_until_it_is_opened(shipped):
 # ---------------------------------------------------------------------------
 
 
-def test_the_index_says_the_pages_are_not_in_the_prompt(shipped):
-    """Otherwise a model asked about naming answers from habit, not the page."""
-    index = build_index(shipped).lower()
-    assert "not loaded into this prompt" in index
+#: Each phrase the index has to carry, and the failure it prevents. The index
+#: is the only thing the model reads about the charter, so every one of these
+#: is load-bearing prose rather than decoration -- which is why they are data
+#: here and not five separate tests of the same string.
+INDEX_MUST_SAY = [
+    ("not loaded into this prompt", "or a model answers about naming from habit, not the page"),
+    ("before writing or reviewing code", "'available if needed' is not an instruction"),
+    ("wins over your habits", "the charter has to outrank the training data"),
+    ("one page at a time", "an agent told to consult the charter reads the whole pack"),
+    ("never a whole pack", "the same, said the other way, because one spelling was ignored"),
+]
 
 
-def test_the_index_says_when_to_open_a_page(shipped):
-    """ "Available if needed" is not an instruction a model acts on."""
-    index = build_index(shipped).lower()
-    assert "before writing or reviewing code" in index
-    assert "wins over your habits" in index
+def test_the_index_tells_the_model_how_to_use_it(shipped):
+    """The index's wording is the feature, not an implementation detail.
 
-
-def test_the_index_says_one_page_at_a_time(shipped):
-    """An agent told to consult the charter will otherwise read the whole pack."""
-    index = build_index(shipped).lower()
-    assert "one page at a time" in index
-    assert "never a whole pack" in index
-
-
-def test_the_index_shows_a_concrete_example(shipped):
+    It is the entire contract between the charter and the model: the pages are
+    not in the prompt, so what the model does with them is decided by these
+    sentences and nothing else. It also has to show the catalogue it is an
+    index *of* -- a concrete example and every pack and page -- or a model
+    cannot name the thing it wants to open.
+    """
     index = build_index(shipped)
-    assert f"Example: read {PACKS_DIR}/" in index
+    lowered = index.lower()
+    for phrase, why in INDEX_MUST_SAY:
+        assert phrase in lowered, f"the index no longer says {phrase!r}: {why}"
 
-
-def test_the_index_lists_every_pack_and_page(shipped):
-    index = build_index(shipped)
+    assert f"Example: read {PACKS_DIR}/" in index, "a rule with no example is a rule guessed at"
     for pack, pages in shipped.packs.items():
         assert pack in index
         for page in pages:
@@ -338,31 +340,32 @@ def test_nested_packs_keep_their_path(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_a_page_is_served_by_its_index_reference(shipped):
-    ref = shipped.pages[0].ref
-    assert read_page(shipped, ref) == shipped.pages[0].path.read_text(encoding="utf-8")
+def test_a_page_is_served_however_the_model_spells_its_reference(shipped):
+    """What a model sends back is the index's own string, give or take a prefix.
+
+    The index shows `packs/python/10_style.md`; a model may send either half,
+    with or without a leading slash, and all of them have to arrive at the same
+    page -- otherwise the charter is navigable only by a client that normalises
+    for it.
+    """
+    page = shipped.pages[0]
+    expected = page.path.read_text(encoding="utf-8")
+    for spelling in (page.ref, f"{PACKS_DIR}/{page.ref}", f"/{PACKS_DIR}/{page.ref}"):
+        assert read_page(shipped, spelling) == expected, spelling
 
 
-def test_a_reference_works_with_or_without_the_packs_prefix(shipped):
-    """The index shows `packs/python/tests.md`; a model may send either half."""
-    ref = shipped.pages[0].ref
-    assert read_page(shipped, f"{PACKS_DIR}/{ref}") == read_page(shipped, ref)
-    assert read_page(shipped, f"/{PACKS_DIR}/{ref}") == read_page(shipped, ref)
-
-
-def test_a_near_miss_is_answered_with_the_real_names(shipped):
-    """The realistic failure is a wrong filename; the fix is seeing the right one."""
-    with pytest.raises(AssertionError) as caught:
+def test_a_reference_that_misses_is_answered_with_the_real_names(shipped):
+    """The realistic failure is a wrong filename, and the fix is seeing the
+    right one -- at whichever level the model got it wrong. A refusal that only
+    says "no" costs a round trip and teaches nothing."""
+    with pytest.raises(AssertionError) as wrong_page:
         read_page(shipped, "python/style.md")
-    message = str(caught.value)
-    assert "no page" in message
-    assert "10_style.md" in message, "it must list the pack's actual pages"
+    assert "no page" in str(wrong_page.value)
+    assert "10_style.md" in str(wrong_page.value), "it must list the pack's actual pages"
 
-
-def test_an_unknown_pack_is_answered_with_the_pack_list(shipped):
-    with pytest.raises(AssertionError) as caught:
+    with pytest.raises(AssertionError) as wrong_pack:
         read_page(shipped, "cobol/style.md")
-    assert "Known packs" in str(caught.value)
+    assert "Known packs" in str(wrong_pack.value)
 
 
 def test_reading_a_page_cannot_escape_the_charter(shipped):
@@ -385,30 +388,44 @@ def test_a_missing_charter_is_a_choice_not_an_error(tmp_path):
     assert charter.warnings
 
 
-def test_missing_operating_rules_are_reported(tmp_path):
-    """An index with no instruction to consult it is a charter nobody reads."""
-    (tmp_path / PACKS_DIR / "default").mkdir(parents=True)
-    (tmp_path / PACKS_DIR / "default" / "a.md").write_text("# A\n", encoding="utf-8")
-    charter = load_charter(tmp_path)
+def test_a_charter_that_is_wrong_in_some_way_says_so_and_keeps_serving(tmp_path):
+    """One feature, three shapes of wrong, and the same answer to each.
+
+    A charter is a directory a human edits, so it is routinely slightly wrong.
+    The rule is that loading reports the problem and serves what it can: a
+    charter that refused to load over one oversized page would take the
+    gateway down for a typo, and one that loaded silently would leave the
+    operator to infer the problem from a model's behaviour weeks later.
+
+    The three cases are the three that actually happen -- forgetting
+    `AGENTS.md`, letting a page grow past the budget, and dropping a page
+    beside the packs rather than inside one -- and each has its own verdict
+    about whether the content still gets served.
+    """
+    no_rules = tmp_path / "no-rules"
+    (no_rules / PACKS_DIR / "default").mkdir(parents=True)
+    (no_rules / PACKS_DIR / "default" / "a.md").write_text("# A\n", encoding="utf-8")
+    charter = load_charter(no_rules)
     assert charter.operating_rules == ""
-    assert any("AGENTS.md is missing" in w for w in charter.warnings)
+    assert any("AGENTS.md is missing" in w for w in charter.warnings), (
+        "an index with no instruction to consult it is a charter nobody reads"
+    )
 
+    # Over the budget an agent reads the beginning and guesses the rest -- bad
+    # enough to report, not bad enough to withhold the page.
+    big = _charter(tmp_path / "big", {"default": {"huge.md": "x" * (MAX_PAGE_CHARS + 1)}})
+    assert any("over the" in w and "page budget" in w for w in big.warnings)
+    assert read_page(big, "default/huge.md")
 
-def test_an_oversized_page_is_reported_but_still_served(tmp_path):
-    """Past the budget an agent reads the beginning and guesses the rest."""
-    charter = _charter(tmp_path, {"default": {"huge.md": "x" * (MAX_PAGE_CHARS + 1)}})
-    assert any("over the" in w and "page budget" in w for w in charter.warnings)
-    assert read_page(charter, "default/huge.md")
-
-
-def test_a_page_with_no_pack_is_reported_and_skipped(tmp_path):
-    """The index groups by pack, so a page outside one has nowhere to go."""
-    (tmp_path / "AGENTS.md").write_text("# rules\n", encoding="utf-8")
-    (tmp_path / PACKS_DIR).mkdir(parents=True)
-    (tmp_path / PACKS_DIR / "orphan.md").write_text("# Orphan\n", encoding="utf-8")
-    charter = load_charter(tmp_path)
-    assert charter.pages == []
-    assert any("no pack" in w for w in charter.warnings)
+    # The index groups by pack, so a page outside one has nowhere to go. Here
+    # the page IS withheld, because there is no reference that would reach it.
+    orphan = tmp_path / "orphan"
+    (orphan / PACKS_DIR).mkdir(parents=True)
+    (orphan / "AGENTS.md").write_text("# rules\n", encoding="utf-8")
+    (orphan / PACKS_DIR / "orphan.md").write_text("# Orphan\n", encoding="utf-8")
+    loose = load_charter(orphan)
+    assert loose.pages == []
+    assert any("no pack" in w for w in loose.warnings)
 
 
 def test_packs_and_pages_are_ordered_deterministically(tmp_path):
@@ -425,25 +442,27 @@ def test_packs_and_pages_are_ordered_deterministically(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_the_fingerprint_changes_with_content(tmp_path):
-    """Provenance: a session can record which charter it actually ran under."""
-    charter = _charter(tmp_path, {"default": {"a.md": "original"}})
-    before = charter.fingerprint
+def test_the_fingerprint_identifies_the_charter_a_session_ran_under(tmp_path):
+    """Two jobs, one value, and both of them need the same property.
+
+    As **provenance**, a session records which charter it actually ran under,
+    so the value has to move when any part of what was served moves -- a page
+    or the operating rules alike. As a **cache key**, an unchanged charter has
+    to re-serve from the engine's prefix cache, so the value must not move when
+    nothing did. A digest that covered only the pages would satisfy the second
+    and quietly fail the first.
+    """
+    charter = _charter(tmp_path, {"default": {"a.md": "original"}}, rules="# One\n")
+    original = charter.fingerprint
+
+    assert load_charter(tmp_path).fingerprint == original, "nothing changed; neither may this"
+
     (tmp_path / PACKS_DIR / "default" / "a.md").write_text("changed", encoding="utf-8")
-    assert load_charter(tmp_path).fingerprint != before
+    after_page = load_charter(tmp_path).fingerprint
+    assert after_page != original, "a page changed"
 
-
-def test_the_fingerprint_is_stable_for_unchanged_content(tmp_path):
-    """Also a cache key: an unchanged prompt re-serves from the prefix cache."""
-    charter = _charter(tmp_path, {"default": {"a.md": "text", "b.md": "more"}})
-    assert charter.fingerprint == load_charter(tmp_path).fingerprint
-
-
-def test_the_fingerprint_covers_the_operating_rules(tmp_path):
-    charter = _charter(tmp_path, {"default": {"a.md": "x"}}, rules="# One\n")
-    before = charter.fingerprint
     (tmp_path / "AGENTS.md").write_text("# Two\n", encoding="utf-8")
-    assert load_charter(tmp_path).fingerprint != before
+    assert load_charter(tmp_path).fingerprint != after_page, "the operating rules changed"
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +500,7 @@ def test_our_own_contribution_is_small(shipped):
 
 def _bilingual(tmp_path):
     """A charter with one translated page, one untranslated, and rules in both."""
+    tmp_path.mkdir(parents=True, exist_ok=True)  # usable in a subdirectory, like `_charter`
     (tmp_path / "AGENTS.md").write_text("# How to work\nRead in slices.\n", encoding="utf-8")
     (tmp_path / "AGENTS.fr.md").write_text(
         "# Comment travailler\nLisez par tranches.\n", encoding="utf-8"
@@ -493,47 +513,46 @@ def _bilingual(tmp_path):
     return tmp_path
 
 
-def test_one_reference_resolves_in_either_language(tmp_path):
+def test_one_reference_names_one_page_in_every_language(tmp_path):
     """The hard point of this feature, and the reason translations are
     siblings rather than a parallel tree.
 
-    `read_page` must answer the same question whatever the charter's locale.
-    An index that named `10_style.fr.md` would teach an agent a path that
-    resolves in one language only; an index that named both would cost double,
-    on the one block paid for on every request.
+    Three things follow from "one reference", and they are the same property
+    seen from three sides. `read_page` answers the same reference in either
+    locale with the right file. A translation is never a page of its own --
+    an index naming `10_style.fr.md` would teach an agent a path that resolves
+    in one language only, and an index naming both would cost double on the
+    one block paid for on every request. And the page *list* is identical
+    across locales: what the agent is told exists cannot change with the
+    language, or the charter is two charters wearing one name.
     """
-    root = _bilingual(tmp_path)
-    english = read_page(load_charter(root, locale="en"), "python/10_style.md")
-    french = read_page(load_charter(root, locale="fr"), "python/10_style.md")
-
-    assert english.startswith("# Python style")
-    assert french.startswith("# Style Python")
-
-
-def test_a_translation_is_not_a_page_of_its_own(tmp_path):
-    """Otherwise every translated charter pays twice for the same index."""
-    root = _bilingual(tmp_path)
-    for locale in ("en", "fr"):
-        charter = load_charter(root, locale=locale)
-        refs = sorted(p.ref for p in charter.pages)
-        assert refs == ["python/10_style.md", "python/tests.md"], locale
-        assert ".fr.md" not in build_index(charter)
-
-
-def test_the_page_list_does_not_change_with_the_locale(tmp_path):
-    """What the agent is told *exists* is the same in every language; only the
-    file served changes. A charter whose index gained and lost pages with the
-    locale would be two different charters wearing one name."""
     root = _bilingual(tmp_path)
     english = load_charter(root, locale="en")
     french = load_charter(root, locale="fr")
+
+    assert read_page(english, "python/10_style.md").startswith("# Python style")
+    assert read_page(french, "python/10_style.md").startswith("# Style Python")
+
+    for charter, locale in ((english, "en"), (french, "fr")):
+        refs = sorted(p.ref for p in charter.pages)
+        assert refs == ["python/10_style.md", "python/tests.md"], locale
+        assert ".fr.md" not in build_index(charter), locale
+
     assert [p.ref for p in english.pages] == [p.ref for p in french.pages]
 
 
-def test_a_page_with_no_translation_falls_back_to_its_original(tmp_path):
-    """A partial translation has to stay usable. The alternative -- refusing to
-    serve a page that has not been translated yet -- turns an incomplete
-    translation into a charter with holes in it."""
+def test_a_partial_translation_stays_usable_and_says_what_is_behind(tmp_path):
+    """Falling behind is the normal state of any translation, so it is a case
+    to serve rather than an error to raise.
+
+    An untranslated page falls back to its original -- refusing to serve it
+    would turn an incomplete translation into a charter with holes. The
+    operator is told which pages are behind, once with the list rather than
+    once per page, and the translated ones are not named in that warning. The
+    operating rules get their own line, because they are the block injected
+    into every request and being in a different language than the rest of the
+    prompt is a bigger problem than one page being so.
+    """
     charter = load_charter(_bilingual(tmp_path), locale="fr")
     served = {p.ref: p for p in charter.pages}
 
@@ -542,65 +561,54 @@ def test_a_page_with_no_translation_falls_back_to_its_original(tmp_path):
     assert not served["python/tests.md"].translated
     assert read_page(charter, "python/tests.md").startswith("# Python tests")
 
-
-def test_a_page_served_in_the_wrong_language_is_reported(tmp_path):
-    """The normal failure mode of any translation is falling behind, so the
-    operator is told which pages have -- once, with the list, not once per
-    page."""
-    charter = load_charter(_bilingual(tmp_path), locale="fr")
     behind = [w for w in charter.warnings if "no fr translation" in w]
     assert len(behind) == 1
     assert "python/tests.md" in behind[0]
     assert "10_style" not in behind[0], "the translated page must not be named"
 
+    # The rules follow the locale when they have a sibling...
+    assert charter.operating_rules.startswith("# Comment travailler")
+    assert load_charter(_bilingual(tmp_path / "en"), locale="en").operating_rules.startswith(
+        "# How to work"
+    )
 
-def test_untranslated_operating_rules_are_reported(tmp_path):
-    """The rules are the block injected into every request, so them being in
-    another language than the rest of the prompt is worth its own warning."""
-    (tmp_path / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
-    d = tmp_path / PACKS_DIR / "python"
-    d.mkdir(parents=True)
-    (d / "10_style.md").write_text("# Python style\n", encoding="utf-8")
-
-    charter = load_charter(tmp_path, locale="fr")
-    assert any("AGENTS.md has no fr translation" in w for w in charter.warnings)
-    assert not any("AGENTS" in w for w in load_charter(tmp_path, locale="en").warnings)
-
-
-def test_the_operating_rules_are_served_in_the_charters_locale(tmp_path):
-    root = _bilingual(tmp_path)
-    assert load_charter(root, locale="en").operating_rules.startswith("# How to work")
-    assert load_charter(root, locale="fr").operating_rules.startswith("# Comment travailler")
+    # ...and are reported by name when they do not.
+    bare = tmp_path / "bare"
+    (bare / PACKS_DIR / "python").mkdir(parents=True)
+    (bare / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
+    (bare / PACKS_DIR / "python" / "10_style.md").write_text("# Python style\n", encoding="utf-8")
+    assert any(
+        "AGENTS.md has no fr translation" in w for w in load_charter(bare, locale="fr").warnings
+    )
+    assert not any("AGENTS" in w for w in load_charter(bare, locale="en").warnings)
 
 
-def test_a_translation_of_nothing_is_reported_rather_than_served(tmp_path):
-    """`10_style.fr.md` with no `10_style.md` is reached by nobody: a
-    translation is served through the page it translates. Silently dropping it
-    would leave someone's written standards on disk and out of the charter."""
-    (tmp_path / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
-    d = tmp_path / PACKS_DIR / "python"
-    d.mkdir(parents=True)
-    (d / "orphan.fr.md").write_text("# Orpheline\n", encoding="utf-8")
-    (d / "10_style.md").write_text("# Python style\n", encoding="utf-8")
+def test_a_file_that_merely_looks_like_a_translation_is_not_treated_as_one(tmp_path):
+    """Two ways to misread a filename, and both cost a page out of the index.
 
-    charter = load_charter(tmp_path, locale="fr")
+    `10_style.fr.md` with no `10_style.md` is reached by nobody, because a
+    translation is served through the page it translates -- so it is reported
+    rather than silently dropped, which would leave somebody's written
+    standards on disk and out of the charter. And only locales that have a
+    catalogue count as locales: reading any dotted segment as a language would
+    turn `api.v2.md` into a translation of `api.md` for a language called
+    `v2`, and the page would vanish to pay for the cleverness.
+    """
+    orphan = tmp_path / "orphan"
+    (orphan / PACKS_DIR / "python").mkdir(parents=True)
+    (orphan / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
+    (orphan / PACKS_DIR / "python" / "orphan.fr.md").write_text("# Orpheline\n", encoding="utf-8")
+    (orphan / PACKS_DIR / "python" / "10_style.md").write_text("# Python style\n", encoding="utf-8")
+    charter = load_charter(orphan, locale="fr")
     assert [p.ref for p in charter.pages] == ["python/10_style.md"]
     assert any("orphan.md" in w and "does not exist" in w for w in charter.warnings)
 
-
-def test_a_dotted_filename_is_not_mistaken_for_a_translation(tmp_path):
-    """Only locales that have a catalogue count as locales. Reading any
-    two-letter segment as a language would turn `api.v2.md` into a translation
-    of `api.md` for a language called `v2`, and the page would vanish from the
-    index to pay for the cleverness.
-    """
-    (tmp_path / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
-    d = tmp_path / PACKS_DIR / "api"
-    d.mkdir(parents=True)
-    (d / "api.v2.md").write_text("# Version 2\n", encoding="utf-8")
-    (d / "schema.v10.md").write_text("# Schema\n", encoding="utf-8")
-
-    refs = sorted(p.ref for p in load_charter(tmp_path, locale="fr").pages)
+    dotted = tmp_path / "dotted"
+    (dotted / PACKS_DIR / "api").mkdir(parents=True)
+    (dotted / "AGENTS.md").write_text("# How to work\n", encoding="utf-8")
+    (dotted / PACKS_DIR / "api" / "api.v2.md").write_text("# Version 2\n", encoding="utf-8")
+    (dotted / PACKS_DIR / "api" / "schema.v10.md").write_text("# Schema\n", encoding="utf-8")
+    refs = sorted(p.ref for p in load_charter(dotted, locale="fr").pages)
     assert refs == ["api/api.v2.md", "api/schema.v10.md"]
 
 

@@ -62,72 +62,68 @@ def keys(tmp_path_factory):
     return sign, str(jwks), directory
 
 
-def test_a_genuine_signature_verifies(keys):
-    sign, jwks, _d = keys
-    verdict = verify(sign({"iss": "a", "exp": time.time() + 60}), load_trust(jwks))
-    assert verdict.verified and verdict.algorithm == "ES256" and verdict.key_id == "k1"
+def test_a_mandate_verifies_only_when_every_check_passes(keys):
+    """Verification is a conjunction, and each term has its own way of being
+    skipped by an attacker who controls the token.
 
+    The **signature** has to be real, over the payload actually presented --
+    swapping the payload under a valid signature is the whole attack. The
+    **algorithm** has to be one this code chose, never one the token names:
+    `alg: none` selecting a path that skips verification is the oldest JWT bug
+    there is, and the defence is that the name is not in the table at all. The
+    **key** has to be one we hold.
 
-def test_a_tampered_payload_does_not(keys):
-    sign, jwks, _d = keys
-    header, _payload, signature = sign({"amount": 42}).split(".")
-    forged = _b64(json.dumps({"amount": 4200}).encode())
-    verdict = verify(f"{header}.{forged}.{signature}", load_trust(jwks))
-    assert not verdict.verified and any("not valid" in p for p in verdict.problems)
-
-
-def test_the_none_algorithm_is_never_accepted(keys):
-    """An algorithm field an attacker controls must never select a code path
-    that skips verification. This is the oldest JWT bug there is."""
-    _sign, jwks, _d = keys
-    token = f"{_b64(json.dumps({'alg': 'none'}).encode())}.{_b64(b'{}')}.AAAA"
-    verdict = verify(token, load_trust(jwks))
-    assert not verdict.verified
-    assert "none" not in ALGORITHMS
-
-
-def test_an_unknown_key_is_refused(keys):
-    sign, jwks, _d = keys
-    verdict = verify(sign({}, kid="k9"), load_trust(jwks))
-    assert not verdict.verified and any("no trusted key" in p for p in verdict.problems)
-
-
-def test_an_issuer_off_the_list_is_refused_even_when_signed(keys):
-    """Signed by a key we trust is not the same as signed by somebody we let
-    authorise payments."""
-    sign, jwks, _d = keys
-    trust = load_trust(jwks, issuers=("https://wallet.example",))
-    verdict = verify(sign({"iss": "https://elsewhere.example"}), trust)
-    assert not verdict.verified and any("issuer list" in p for p in verdict.problems)
-
-
-def test_no_issuer_list_accepts_any_issuer_with_a_trusted_key(keys):
-    sign, jwks, _d = keys
-    assert verify(sign({"iss": "https://anyone.example"}), load_trust(jwks)).verified
-
-
-def test_a_revoked_mandate_is_refused(keys):
-    sign, jwks, directory = keys
-    revoked = directory / "revoked.txt"
-    revoked.write_text("# a comment\nbad-mandate\n", encoding="utf-8")
-    trust = load_trust(jwks, revoked_file=str(revoked))
-    assert not verify(sign({"jti": "bad-mandate"}), trust).verified
-    assert verify(sign({"jti": "fine"}), trust).verified
-
-
-def test_expiry_and_not_before_are_enforced(keys):
+    And authorisation is not authentication: signed by a key we trust is not
+    the same as signed by somebody we let authorise payments, so the issuer is
+    checked against a list when one is configured -- and only then, because a
+    deployment that names no issuers is saying any holder of a trusted key
+    will do.
+    """
     sign, jwks, _d = keys
     trust = load_trust(jwks)
+
+    good = verify(sign({"iss": "a", "exp": time.time() + 60}), trust)
+    assert good.verified and good.algorithm == "ES256" and good.key_id == "k1"
+
+    header, _payload, signature = sign({"amount": 42}).split(".")
+    forged = _b64(json.dumps({"amount": 4200}).encode())
+    tampered = verify(f"{header}.{forged}.{signature}", trust)
+    assert not tampered.verified and any("not valid" in p for p in tampered.problems)
+
+    none_alg = f"{_b64(json.dumps({'alg': 'none'}).encode())}.{_b64(b'{}')}.AAAA"
+    assert not verify(none_alg, trust).verified
+    assert "none" not in ALGORITHMS
+
+    unknown = verify(sign({}, kid="k9"), trust)
+    assert not unknown.verified and any("no trusted key" in p for p in unknown.problems)
+
+    listed = load_trust(jwks, issuers=("https://wallet.example",))
+    off_list = verify(sign({"iss": "https://elsewhere.example"}), listed)
+    assert not off_list.verified and any("issuer list" in p for p in off_list.problems)
+    assert verify(sign({"iss": "https://anyone.example"}), trust).verified
+
+
+def test_a_mandate_is_refused_once_it_is_revoked_or_out_of_its_window(keys):
+    """Time and revocation are the two ways a mandate that was genuine stops
+    being usable, and both have to bite after the signature has passed.
+
+    Skew is tolerated deliberately: a mandate that expired four seconds ago,
+    on a machine whose clock is a few seconds off, is not an attack -- and
+    refusing it would make payments fail for the reason hardest to diagnose.
+    """
+    sign, jwks, directory = keys
+    trust = load_trust(jwks)
+
     assert not verify(sign({"exp": time.time() - 600}), trust).verified
     assert not verify(sign({"nbf": time.time() + 600}), trust).verified
     assert verify(sign({"exp": time.time() + 600, "nbf": time.time() - 10}), trust).verified
+    assert verify(sign({"exp": time.time() - 4}), trust).verified, "a few seconds is not an attack"
 
-
-def test_clock_skew_is_tolerated(keys):
-    """A mandate that expired four seconds ago, on a machine whose clock is a
-    few seconds off, is not an attack."""
-    sign, jwks, _d = keys
-    assert verify(sign({"exp": time.time() - 4}), load_trust(jwks)).verified
+    revoked = directory / "revoked.txt"
+    revoked.write_text("# a comment\nbad-mandate\n", encoding="utf-8")
+    with_list = load_trust(jwks, revoked_file=str(revoked))
+    assert not verify(sign({"jti": "bad-mandate"}), with_list).verified
+    assert verify(sign({"jti": "fine"}), with_list).verified
 
 
 # ---------------------------------------------------------------------------

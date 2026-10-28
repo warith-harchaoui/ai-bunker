@@ -157,23 +157,25 @@ def test_an_untranslated_rule_still_explains_itself(shipped):
 # ---------------------------------------------------------------------------
 
 
-def test_an_unknown_locale_falls_back_rather_than_failing():
-    """A typo in a configuration file must not stop a gateway from starting."""
+def test_the_deployment_decides_the_language_and_a_bad_answer_is_never_fatal():
+    """The resolution order is the opposite of a public website's, and right
+    for this one: which language an agent is *instructed* in is the operator's
+    decision, not a per-call flag a client gets to flip. The header is read
+    only when nothing is configured, where it is the best evidence available.
+
+    Nothing here may fail. A typo in a configuration file must not stop a
+    gateway from starting, so an unknown locale falls back; a region tag
+    resolves to its language; case does not matter; and an unparseable or
+    absent header lands on the default rather than raising.
+    """
     assert translator("kl").locale == DEFAULT_LOCALE
     assert translator("fr-CA").locale == "fr", "a region should resolve to its language"
     assert translator("FR").locale == "fr"
     assert translator(None).locale == DEFAULT_LOCALE
 
-
-def test_configuration_beats_the_request():
-    """The opposite of a public website, and right for this one: the language
-    an agent is instructed in is the operator's decision, not a per-call flag
-    a client gets to flip."""
     assert negotiate(header="fr", configured="en") == "en"
     assert negotiate(header="en", configured="fr") == "fr"
 
-
-def test_the_header_is_read_when_nothing_is_configured():
     assert negotiate(header="fr-CA,fr;q=0.9,en;q=0.8") == "fr"
     assert negotiate(header="de,en;q=0.5") == "en", "the first *available* match wins"
     assert negotiate(header="") == DEFAULT_LOCALE
@@ -202,17 +204,18 @@ def test_the_default_is_still_english(shipped):
     assert "This is a decision" in refusal_message(refused.refusal)
 
 
-def test_a_missing_key_is_loud_rather_than_empty():
-    """An empty string is a bug that ships. A key echoed back is a bug
-    somebody reports."""
+def test_a_message_the_catalogue_cannot_serve_degrades_visibly_not_silently():
+    """Two ways to ask for something the catalogue cannot give, and neither
+    may produce an empty string or an exception.
+
+    A **missing key** is echoed back: an empty string is a bug that ships, and
+    a key echoed back is a bug somebody reports. **Missing parameters** return
+    the template, braces and all, rather than raising -- because the caller
+    that forgets them is in the middle of explaining a refusal, and an
+    exception there replaces a guardrail's explanation with a stack trace.
+    """
     assert Translator(locale="en").gettext("no.such.key") == "no.such.key"
 
-
-def test_a_message_asked_for_without_parameters_is_returned_unformatted():
-    """Every message in the catalogue happens to take parameters today, so
-    this pins the branch that handles one that does not -- and the behaviour
-    a caller gets if it forgets them: the template, braces and all, rather
-    than an exception raised while explaining a refusal."""
     key = "payments.refusal"
     assert "{problems}" in translator("en")(key)
     assert "{problems}" not in translator("en")(key, problems="no mandate")

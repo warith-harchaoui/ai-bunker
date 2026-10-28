@@ -72,30 +72,27 @@ def numbers(text: str) -> set[int]:
 # ---------------------------------------------------------------------------
 
 
-def test_the_report_shows_what_was_assumed(sizing):
+def test_the_report_shows_the_chain_and_not_only_the_conclusion(sizing):
     """ "A sizing that prints only its conclusion is a sizing nobody can
-    check." A reader who disagrees has to be able to find the number to
-    change."""
+    check." Three things have to be on the page for a reader to argue with it.
+
+    **What was assumed**, so the number to change is findable -- efficiency
+    especially, which is the assumption a reader most often disagrees with and
+    would otherwise be buried in a flag's default. **Which constraint bound**,
+    because "it does not fit" is a verdict and `bandwidth` is a lever. And
+    **the figures it was given**, unrounded and unrecomputed: a view that
+    drifts from its model describes something that does not exist, and this
+    project's whole claim is that it does not.
+    """
     text = render(sizing)
     assert sizing.accelerator in text
-    # The efficiency assumption is the one a reader most often disagrees with,
-    # so it has to be on the page rather than buried in a flag's default.
+
     efficiency = sizing.assumptions["efficiency"]
     assert f"{efficiency:.0%}" in text or str(efficiency) in text
 
+    assert any(word in text.lower() for word in ("bandwidth", "memory", "vram", "context"))
 
-def test_the_report_names_the_constraint_that_bound(sizing):
-    """The most useful line in the report: not "it does not fit" but *what*
-    ran out. Without it a reader has a verdict and no lever."""
-    text = render(sizing).lower()
-    assert any(word in text for word in ("bandwidth", "memory", "vram", "context"))
-
-
-def test_the_report_prints_the_numbers_it_was_given(sizing):
-    """The view must not drift from the model. A report that rounds, recomputes
-    or stales its own inputs is a report that disagrees with the thing it is
-    describing, and this project's whole claim is that it does not."""
-    printed = numbers(render(sizing))
+    printed = numbers(text)
     assert round(sizing.vram_gib) in printed
     assert round(sizing.bandwidth_gbs) in printed
     assert sizing.concurrent_sessions in printed

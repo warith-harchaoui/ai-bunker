@@ -73,22 +73,31 @@ def test_the_name_rule_matches_the_specification(name, ok):
     assert bool(NAME_PATTERN.match(name)) is ok
 
 
-def test_a_description_over_the_limit_is_refused(skill):
-    too_long = Skill(name="x", description="y" * (MAX_DESCRIPTION + 1), body="b")
-    problems = validate(too_long)
-    assert any(str(MAX_DESCRIPTION) in p for p in problems)
+def test_the_validator_refuses_what_the_specification_refuses(skill):
+    """An auditor nobody has seen fail is an auditor nobody should trust, so
+    each rule is exercised on something that breaks it: a description over the
+    limit, an empty one, and a name the specification does not allow -- with a
+    skill that breaks several reporting several problems rather than the first.
+    """
+    too_long = validate(Skill(name="x", description="y" * (MAX_DESCRIPTION + 1), body="b"))
+    assert any(str(MAX_DESCRIPTION) in p for p in too_long)
 
-
-def test_an_empty_description_is_refused():
     assert any("description" in p for p in validate(Skill(name="x", description="  ", body="b")))
 
+    broken = validate(Skill(name="Bad--Name-", description="", body=""))
+    assert len(broken) >= 2
+    assert any("name" in p for p in broken)
 
-def test_the_validator_can_fail():
-    """An auditor nobody has seen fail is an auditor nobody should trust."""
-    broken = Skill(name="Bad--Name-", description="", body="")
-    problems = validate(broken)
-    assert len(problems) >= 2
-    assert any("name" in p for p in problems)
+
+def test_a_reference_is_one_level_deep_and_still_says_which_pack(skill):
+    """The specification asks for flat reference names, and `python/10_style.md`
+    is not one. Flattening to `10_style.md` would satisfy it and lose the
+    pack -- `tests.md` alone says nothing about which language's tests it
+    describes -- so the pack is folded into the name instead."""
+    for filename in skill.references:
+        assert "/" not in filename
+    assert "python-10_style.md" in skill.references
+    assert "python-tests.md" in skill.references
 
 
 def test_references_stay_one_level_deep(skill):
@@ -96,11 +105,6 @@ def test_references_stay_one_level_deep(skill):
     for filename in skill.references:
         assert "/" not in filename
     assert "python-10_style.md" in skill.references
-
-
-def test_the_pack_survives_in_the_reference_name(skill):
-    """`tests.md` alone says nothing about which language's tests it describes."""
-    assert "python-tests.md" in skill.references
 
 
 # ---------------------------------------------------------------------------
@@ -117,17 +121,16 @@ def test_the_body_stays_within_the_recommended_budget(skill):
     assert warnings(skill) == []
 
 
-def test_every_page_is_reachable_from_the_body(skill, charter):
-    """A page nothing links to is a page no agent will ever open."""
+def test_every_page_is_linked_from_the_body_and_none_is_pasted_into_it(skill, charter):
+    """The two halves of progressive disclosure, and either alone is useless.
+
+    A page nothing links to is a page no agent will ever open. A page pasted
+    into the body is a page every agent pays for on every turn -- which is the
+    format's whole point, and the charter's.
+    """
     for page in charter.pages:
         assert f"`{page.ref}`" in skill.body
-
-
-def test_the_body_does_not_inline_the_pages(skill, charter):
-    """If the pages were pasted in, the format's whole point would be lost."""
-    for page in charter.pages:
-        body = page.path.read_text(encoding="utf-8").strip()
-        assert body not in skill.body
+        assert page.path.read_text(encoding="utf-8").strip() not in skill.body
 
 
 # ---------------------------------------------------------------------------
@@ -135,12 +138,12 @@ def test_the_body_does_not_inline_the_pages(skill, charter):
 # ---------------------------------------------------------------------------
 
 
-def test_the_fingerprint_travels_with_the_skill(skill, charter):
+def test_the_fingerprint_travels_with_the_skill_under_a_namespaced_key(skill, charter):
+    """A copy on disk can drift from the charter the gateway enforces, and the
+    fingerprint is what makes the drift visible. The key is namespaced because
+    the specification advises it and because a bare `version` would collide
+    with somebody else's."""
     assert skill.metadata["ai-bunker.charter-fingerprint"] == charter.fingerprint
-
-
-def test_metadata_keys_are_namespaced(skill):
-    """The specification advises it, and a bare `version` would collide."""
     assert all(k.startswith("ai-bunker.") for k in skill.metadata)
 
 
@@ -149,34 +152,35 @@ def test_metadata_keys_are_namespaced(skill):
 # ---------------------------------------------------------------------------
 
 
-def test_the_directory_is_named_for_the_skill(skill, tmp_path):
-    """The specification requires `name` to match its parent directory, and a
-    mismatch is the kind some clients ignore in silence."""
+def test_a_skill_is_written_where_the_specification_says_and_reads_back_whole(skill, tmp_path):
+    """`name` has to match the parent directory -- a mismatch is the kind some
+    clients ignore in silence -- and what lands has to survive the round trip,
+    or the export is lossy in a way nobody would notice until an agent read
+    it.
+
+    Overwriting needs `force`, because a skills directory is somebody's own,
+    and an invalid skill never reaches the disk at all: half a skill looks
+    installed.
+    """
     written = write_skill(skill, tmp_path)
     assert (tmp_path / skill.name / "SKILL.md").exists()
     assert len(written) == 1 + len(skill.references)
 
-
-def test_it_refuses_to_overwrite_without_force(skill, tmp_path):
-    write_skill(skill, tmp_path)
-    with pytest.raises(AssertionError, match="already exist"):
-        write_skill(skill, tmp_path)
-    assert write_skill(skill, tmp_path, force=True)
-
-
-def test_what_is_written_reads_back_identically(skill, tmp_path):
-    write_skill(skill, tmp_path)
     again = read_skill(tmp_path / skill.name)
     assert again.name == skill.name
     assert again.description == " ".join(skill.description.split())
     assert set(again.references) == set(skill.references)
     assert validate(again) == []
 
+    with pytest.raises(AssertionError, match="already exist"):
+        write_skill(skill, tmp_path)
+    assert write_skill(skill, tmp_path, force=True)
 
-def test_an_invalid_skill_never_reaches_the_disk(tmp_path):
+    clean = tmp_path / "clean"
+    clean.mkdir()
     with pytest.raises(AssertionError, match="specification"):
-        write_skill(Skill(name="NOT VALID", description="x", body="y"), tmp_path)
-    assert not list(tmp_path.iterdir())
+        write_skill(Skill(name="NOT VALID", description="x", body="y"), clean)
+    assert not list(clean.iterdir())
 
 
 # ---------------------------------------------------------------------------

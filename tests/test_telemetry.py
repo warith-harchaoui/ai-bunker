@@ -46,45 +46,40 @@ RECORDS = [
 # ---------------------------------------------------------------------------
 
 
-def test_a_batch_of_decisions_becomes_one_span_with_events():
-    """A trajectory is the shape of a turn. Four decisions in one request is
-    one thing that happened; four unrelated spans would lose the ordering an
-    evaluator reads."""
+def test_a_turn_becomes_one_span_another_vendors_collector_will_accept():
+    """Two requirements at once, and the second is unforgiving.
+
+    A **trajectory is the shape of a turn**: four decisions in one request is
+    one thing that happened, and four unrelated spans would lose the ordering
+    an evaluator reads. Nothing to report produces no span at all rather than
+    an empty one.
+
+    And the **encoding has to be exactly right**, because a collector rejects
+    the whole batch when one attribute is wrong: typed key/value objects
+    rather than a flat map, identifiers at the widths OTLP expects, absent
+    values dropped rather than encoded as null. A refusal carries status OK --
+    it is the gateway working, and ERROR would light up every dashboard for a
+    guardrail doing its job.
+    """
+    assert span_from_decisions([]) is None
+
     span = span_from_decisions(RECORDS)
     assert span is not None
     assert len(span.events) == 2
     assert span.attributes["ai_bunker.decisions"] == 2
+    assert span.refused
+    assert span.as_otlp()["status"]["code"] == 1, "OK, not ERROR"
 
-
-def test_nothing_to_report_produces_no_span():
-    assert span_from_decisions([]) is None
-
-
-def test_the_otlp_encoding_types_its_attributes():
-    """OTLP wants typed key/value objects, not a flat map. A collector
-    rejects the whole batch when one is wrong."""
-    otlp = Span(name="t", attributes={"s": "x", "i": 3, "b": True, "f": 1.5}).as_otlp()
-    kinds = {a["key"]: next(iter(a["value"])) for a in otlp["attributes"]}
+    typed = Span(name="t", attributes={"s": "x", "i": 3, "b": True, "f": 1.5}).as_otlp()
+    kinds = {a["key"]: next(iter(a["value"])) for a in typed["attributes"]}
     assert kinds == {"s": "stringValue", "i": "intValue", "b": "boolValue", "f": "doubleValue"}
 
+    bare = Span(name="t").as_otlp()
+    assert len(bare["traceId"]) == 32
+    assert len(bare["spanId"]) == 16
 
-def test_ids_are_the_widths_otlp_expects():
-    otlp = Span(name="t").as_otlp()
-    assert len(otlp["traceId"]) == 32
-    assert len(otlp["spanId"]) == 16
-
-
-def test_a_refusal_is_not_an_error_status():
-    """A refusal is the gateway working. ERROR would light up every dashboard
-    for a guardrail doing its job."""
-    span = span_from_decisions(RECORDS)
-    assert span is not None and span.refused
-    assert span.as_otlp()["status"]["code"] == 1  # OK, not ERROR
-
-
-def test_none_values_are_dropped_rather_than_encoded_as_null():
-    otlp = Span(name="t", attributes={"present": "x", "absent": None}).as_otlp()
-    assert [a["key"] for a in otlp["attributes"]] == ["present"]
+    sparse = Span(name="t", attributes={"present": "x", "absent": None}).as_otlp()
+    assert [a["key"] for a in sparse["attributes"]] == ["present"]
 
 
 # ---------------------------------------------------------------------------
@@ -122,33 +117,28 @@ def test_the_endpoint_gets_the_otlp_traces_path():
 # ---------------------------------------------------------------------------
 
 
-def test_a_dead_collector_does_not_block_the_caller():
-    """The moment telemetry can delay a request it has become part of the
-    request path, and the deployment is worse than with none at all."""
+def test_a_collector_that_stopped_answering_costs_the_deployment_nothing():
+    """The rule this module lives under. The moment telemetry can delay a
+    request it has become part of the request path, and the deployment is
+    worse off than with no telemetry at all.
+
+    So against a port where nothing listens: five hundred exports do not
+    block, nothing raises, exporting nothing is a no-op, and the queue in
+    front of the collector has a ceiling -- an unbounded one is a memory leak
+    with a schedule.
+    """
     exporter = Exporter("http://127.0.0.1:9")  # nothing listens on port 9
+
     start = time.perf_counter()
     for _ in range(500):
         exporter.export(span_from_decisions(RECORDS))
     elapsed = time.perf_counter() - start
     assert elapsed < 1.0, f"exporting blocked the caller for {elapsed:.2f}s"
 
-
-def test_a_dead_collector_never_raises():
-    exporter = Exporter("http://127.0.0.1:9")
-    exporter.export(span_from_decisions(RECORDS))  # must not raise
-    time.sleep(0.3)
-
-
-def test_exporting_nothing_is_a_no_op():
-    Exporter("http://127.0.0.1:9").export(None)
-
-
-def test_the_queue_has_a_ceiling():
-    """An unbounded queue in front of a collector that stopped answering is a
-    memory leak with a schedule."""
+    exporter.export(None)  # must not raise either
     assert MAX_QUEUED > 0
-    exporter = Exporter("http://127.0.0.1:9")
     assert exporter._queue.maxsize == MAX_QUEUED
+    time.sleep(0.3)  # let the worker drain before the fixture tears down
 
 
 # ---------------------------------------------------------------------------

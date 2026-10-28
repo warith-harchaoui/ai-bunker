@@ -160,28 +160,43 @@ def test_a_bare_string_that_is_not_a_jws_is_refused(signer):
 # ---------------------------------------------------------------------------
 
 
-def test_a_properly_signed_mandate_for_this_charge_passes(signer):
-    sign, trust = signer
-    finding = inspect(
+def _charge(sign, trust, **over):
+    """Run the whole check over a charge of 42 EUR to Acme."""
+    claims = _authorised(**over)
+    return inspect(
         "create_payment",
         {
-            "amount": "42.00",
-            "currency": "EUR",
-            "payee": "Acme",
-            "payment_mandate": sign(**_authorised()),
+            "amount": claims["amount"],
+            "currency": claims["currency"],
+            "payee": claims["payee"],
+            "payment_mandate": sign(**claims),
         },
         trust,
     )
-    assert finding.ok and finding.verified
-    assert finding.issuer == "https://wallet.example"
 
 
-def test_a_tampered_payload_fails_verification(signer):
+def test_a_signed_mandate_passes_and_every_way_of_faking_one_does_not(signer):
+    """The presence check this replaced let any string through, so each of
+    these is a forgery that used to work.
+
+    The **payload** cannot be swapped under a valid signature. The
+    **algorithm** cannot be chosen by the token -- `alg: none` selecting a
+    path that skips verification is the classic JWT forgery, and it is refused
+    both at the verifier and through the whole check. The **issuer** has to be
+    one this deployment lets authorise payments, which is not the same as one
+    whose key we hold. And a mandate that was genuine stops counting once it
+    is **revoked** or **expired**.
+    """
     sign, trust = signer
+
+    good = _charge(sign, trust)
+    assert good.ok and good.verified
+    assert good.issuer == "https://wallet.example"
+
     token = sign(**_authorised())
     header, _payload, signature = token.split(".")
     forged = _b64(json.dumps(_authorised(amount="99999.00")).encode())
-    finding = inspect(
+    tampered = inspect(
         "create_payment",
         {
             "amount": "99999.00",
@@ -191,72 +206,27 @@ def test_a_tampered_payload_fails_verification(signer):
         },
         trust,
     )
-    assert not finding.ok and not finding.verified
-    assert any("not valid" in p for p in finding.problems)
+    assert not tampered.ok and not tampered.verified
+    assert any("not valid" in p for p in tampered.problems)
 
-
-def test_the_none_algorithm_is_refused(signer):
-    """The classic JWT forgery. An algorithm field an attacker controls must
-    never select a code path that skips verification."""
-    _sign, trust = signer
     from ai_bunker.mandates import verify
 
     none_header = _b64(json.dumps({"alg": "none"}).encode())
-    token = f"{none_header}.{_b64(json.dumps(_authorised()).encode())}.AAAA"
-    verdict = verify(token, trust)
-    assert not verdict.verified
-    assert any("not accepted" in p for p in verdict.problems)
+    none_token = f"{none_header}.{_b64(json.dumps(_authorised()).encode())}.AAAA"
+    verdict = verify(none_token, trust)
+    assert not verdict.verified and any("not accepted" in p for p in verdict.problems)
+    assert not inspect(
+        "create_payment", {"amount": "42.00", "payment_mandate": none_token}, trust
+    ).ok
 
-    # And through the whole check, where it is refused either way.
-    finding = inspect("create_payment", {"amount": "42.00", "payment_mandate": token}, trust)
-    assert not finding.ok
+    off_list = _charge(sign, trust, iss="https://elsewhere.example")
+    assert not off_list.ok and any("issuer list" in p for p in off_list.problems)
 
+    revoked = _charge(sign, trust, jti="revoked-mandate")
+    assert not revoked.ok and any("revoked" in p for p in revoked.problems)
 
-def test_an_untrusted_issuer_is_refused(signer):
-    """Signed by a key we trust is not the same as signed by somebody we let
-    authorise payments."""
-    sign, trust = signer
-    finding = inspect(
-        "create_payment",
-        {
-            "amount": "42.00",
-            "currency": "EUR",
-            "payee": "Acme",
-            "payment_mandate": sign(**_authorised(iss="https://elsewhere.example")),
-        },
-        trust,
-    )
-    assert not finding.ok and any("issuer list" in p for p in finding.problems)
-
-
-def test_a_revoked_mandate_is_refused(signer):
-    sign, trust = signer
-    finding = inspect(
-        "create_payment",
-        {
-            "amount": "42.00",
-            "currency": "EUR",
-            "payee": "Acme",
-            "payment_mandate": sign(**_authorised(jti="revoked-mandate")),
-        },
-        trust,
-    )
-    assert not finding.ok and any("revoked" in p for p in finding.problems)
-
-
-def test_an_expired_mandate_is_refused(signer):
-    sign, trust = signer
-    finding = inspect(
-        "create_payment",
-        {
-            "amount": "42.00",
-            "currency": "EUR",
-            "payee": "Acme",
-            "payment_mandate": sign(**_authorised(exp=time.time() - 600)),
-        },
-        trust,
-    )
-    assert not finding.ok and any("expired" in p for p in finding.problems)
+    expired = _charge(sign, trust, exp=time.time() - 600)
+    assert not expired.ok and any("expired" in p for p in expired.problems)
 
 
 def test_without_a_trust_a_mandate_is_refused_not_believed(signer):
@@ -276,11 +246,22 @@ def test_without_a_trust_a_mandate_is_refused_not_believed(signer):
 # ---------------------------------------------------------------------------
 
 
-def test_an_inflated_amount_is_refused_despite_a_valid_signature(signer):
-    """The attack this whole module exists for. The mandate is genuine, the
-    signature verifies, and the charge is a hundred times what was agreed."""
+def test_a_valid_signature_only_authorises_the_charge_it_was_signed_for(signer):
+    """The attack this whole module exists for, in its three shapes.
+
+    In each one the mandate is genuine and the signature verifies -- the
+    presence check this replaced would have waved all three through. What is
+    checked is *what* was signed: a charge a hundred times the agreed amount,
+    to a different payee, or in a different currency, is not the payment the
+    user authorised however real the token is.
+
+    Charging **less** is allowed, because a mandate is a ceiling rather than
+    an instruction, and refusing a smaller charge would break every
+    legitimate partial capture.
+    """
     sign, trust = signer
-    finding = inspect(
+
+    inflated = inspect(
         "create_payment",
         {
             "amount": "4200.00",
@@ -290,46 +271,22 @@ def test_an_inflated_amount_is_refused_despite_a_valid_signature(signer):
         },
         trust,
     )
-    assert finding.verified, "the signature really is valid"
-    assert not finding.ok, "and the payment is still not the authorised one"
-    assert any("exceeds what was authorised" in p for p in finding.problems)
+    assert inflated.verified, "the signature really is valid"
+    assert not inflated.ok, "and the payment is still not the authorised one"
+    assert any("exceeds what was authorised" in p for p in inflated.problems)
 
-
-def test_a_substituted_payee_is_refused(signer):
-    sign, trust = signer
-    finding = inspect(
-        "create_payment",
-        {
+    for field, value in (("payee", "Evil Ltd"), ("currency", "USD")):
+        arguments = {
             "amount": "42.00",
             "currency": "EUR",
-            "payee": "Evil Ltd",
-            "payment_mandate": sign(**_authorised()),
-        },
-        trust,
-    )
-    assert finding.verified and not finding.ok
-
-
-def test_a_substituted_currency_is_refused(signer):
-    sign, trust = signer
-    finding = inspect(
-        "create_payment",
-        {
-            "amount": "42.00",
-            "currency": "USD",
             "payee": "Acme",
             "payment_mandate": sign(**_authorised()),
-        },
-        trust,
-    )
-    assert not finding.ok
+        }
+        arguments[field] = value
+        substituted = inspect("create_payment", arguments, trust)
+        assert substituted.verified and not substituted.ok, field
 
-
-def test_charging_less_than_authorised_is_allowed(signer):
-    """A mandate is a ceiling, not an instruction. Refusing a smaller charge
-    would break every legitimate partial capture."""
-    sign, trust = signer
-    finding = inspect(
+    partial = inspect(
         "create_payment",
         {
             "amount": "20.00",
@@ -339,7 +296,7 @@ def test_charging_less_than_authorised_is_allowed(signer):
         },
         trust,
     )
-    assert finding.ok
+    assert partial.ok, "a mandate is a ceiling, not an instruction"
 
 
 def test_a_mandate_that_constrains_nothing_is_refused(signer):
