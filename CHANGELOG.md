@@ -5,6 +5,40 @@ Standardization's year-month-day order.
 
 ## [Unreleased]
 
+### The task description reaches the ranking it was written for
+
+`engine.TASK` is the sentence this project uses to describe itself to
+`best-engine-ai-helper`, and the README has said for several releases that
+*ai-bunker describes what it is for in words and lets the helper choose*. The
+words reached nobody. `choose` took a `task` argument, documented it as
+defaulting to `TASK`, and ranked on `AXES` — a table indexed by role — without
+ever reading it. Three tests asserted things about the string, none of which
+touched the code path that was supposed to consume it.
+
+- **`parse_task` now picks the axis.** The helper parses a task description
+  and answers with the benchmark it would score that work on — `application`
+  for a language model, `vlm_application` for a vision one — and that is the
+  axis the ranking, the anti-greed tie-break and the published reasoning all
+  use. No choice changes: `parse_task(TASK)` answers `code` and
+  `parse_task(VISION_TASK)` answers `vision`, which is exactly what the table
+  said. Nothing was wrong with the model being served; the sentence about how
+  it was picked was wrong.
+- **`AXES` is the fallback, and the fallback reports itself.** Two ways the
+  words can fail to give an axis, and neither is silent: a helper too old to
+  parse, and a parse that lands on a column this catalogue scores nothing on.
+  The second is live — a near-miss phrasing of `VISION_TASK` returns `ocr`,
+  and this catalogue's vision models record no `ocr` column, so ranking on it
+  would have scored every candidate zero, returned them in catalogue order
+  and printed a confident reason. The slot now falls back and says so in
+  `Choice.warnings`.
+- **The module docstring said `recommend_engines`.** It calls `rank`. Both
+  halves of that paragraph are now what the code does.
+
+The four slots were checked end to end against the installed helper while this
+was done: `ai-bunker sizing --accelerator h100-80 --image auto` fills code,
+vision, embed and image, and prints the budget, axis, score and passed-over
+candidates for each.
+
 ### The fourth model, and the reasoning that was built and dropped
 
 The helper answers for three kinds of model — language, vision-language and

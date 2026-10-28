@@ -120,30 +120,47 @@ def test_the_sentinel_is_a_word_because_none_already_means_something():
 # ---------------------------------------------------------------------------
 
 
-def test_the_task_description_selects_the_code_axis(helper):
-    """This is the sentence ai-bunker uses to describe itself to another
-    program, and the parse decides which benchmark the ranking reads. Phrase it
-    loosely and the helper ranks on its general axis, which would recommend a
-    good conversationalist to a machine that has to emit patches."""
-    parsed = helper.parse_task(TASK)
-    assert parsed["application"] == "code"
-    assert parsed["kinds"] == ["llm"]
+def test_the_task_description_is_what_picks_the_ranking_axis(helper):
+    """The sentence ai-bunker uses to describe itself to another program, and
+    the four things that have to be true of it for the delegation to mean
+    anything.
 
+    It has to *parse* the way this project needs: `TASK` on the code axis,
+    `VISION_TASK` on vision rather than `ocr` -- an earlier phrasing said
+    "scanned documents" and got `ocr`, a different axis and a different model.
+    It has to be *specific*, because a description that would fit any project
+    would rank for any project. And it has to actually *reach the ranking*,
+    which for several releases it did not: `choose` took a `task` argument,
+    documented it, and ranked on a table indexed by role without ever reading
+    it. The last assertion is the one that would have caught that -- a task
+    the catalogue scores nothing on has to be reported, not silently ignored.
+    """
+    code = helper.parse_task(TASK)
+    assert code["application"] == "code"
+    assert code["kinds"] == ["llm"]
 
-def test_the_vision_task_asks_for_vision_and_not_for_text_recognition(helper):
-    """An earlier phrasing said "scanned documents" and the helper answered
-    `ocr`, which is a different axis and a different model. This project's
-    vision slot is for looking at a running application and returning a
-    schema."""
-    parsed = helper.parse_task(VISION_TASK)
-    assert parsed["vlm_application"] == "vision"
-    assert "vlm" in parsed["kinds"]
+    vision = helper.parse_task(VISION_TASK)
+    assert vision["vlm_application"] == "vision"
+    assert "vlm" in vision["kinds"]
 
-
-def test_the_task_describes_this_project_rather_than_a_generic_model():
-    """A description that would fit any project would rank for any project."""
     for word in ("coding", "tool", "schema", "context"):
         assert word in TASK.lower(), f"the task description never mentions {word}"
+
+    # The words reach the ranking. An OCR task parses to an axis this
+    # catalogue records no benchmark for, so the slot falls back to its
+    # default and says so -- which is only observable if `task` is read.
+    ocr = choose(
+        "vision",
+        vram_gib=80,
+        task="Read scanned paper documents and extract their text accurately.",
+    )
+    assert ocr.axis == "vision"
+    assert any("ocr" in w for w in ocr.warnings), ocr.warnings
+
+    # And the shipped strings leave no warning, because they parse onto the
+    # axis this catalogue actually scores.
+    assert choose("vision", vram_gib=80).warnings == []
+    assert choose("code", vram_gib=80).warnings == []
 
 
 # ---------------------------------------------------------------------------

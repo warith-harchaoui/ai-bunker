@@ -15,16 +15,26 @@ backend" and has been all along.
 
 What is asked, and what is answered
 -----------------------------------
-The helper's ``recommend_engines`` takes a catalogue, a hardware budget and a
-task in words. It is not asked about *its* catalogue, which is the workstation
-one -- Ollama tags, models that fit a laptop. It is asked about **this**
-project's catalogue, the server one, translated into the shape it expects:
+Two of the helper's functions, and a sentence. ``parse_task`` reads what this
+project is for -- :data:`TASK`, or :data:`VISION_TASK` for the vision slot --
+and answers with the benchmark axis it would score that work on. ``rank`` then
+orders a catalogue on that axis for a given hardware budget. It is not asked
+about *its* catalogue, which is the workstation one -- Ollama tags, models that
+fit a laptop. It is asked about **this** project's catalogue, the server one,
+translated into the shape it expects:
 
     ai-bunker ``catalog/serving.yaml``  ->  helper entry schema  ->  the choice
 
 That translation is :func:`as_helper_entries`, and the join between the two
 worlds is a field the helper's own catalogue already carries: ``vllm_id``,
 which is the same Hugging Face reference this project stores as ``hf``.
+
+The axis is derived rather than tabulated, and that is recent: ``choose`` took
+a ``task`` argument, documented it, and ranked on :data:`AXES` -- a table
+indexed by role -- without ever reading it. The two agree for the strings
+shipped here, so no choice was ever wrong; the claim was. :func:`_axis_from_task`
+is where the words now arrive, and :data:`AXES` is what it falls back to when
+they cannot be parsed or land on a column this catalogue scores nothing on.
 
 **Which half of the answer is used, and why only that half.** The helper is
 asked to *rank*, not to judge fit. Two measured reasons. Its ``headroom``
@@ -169,6 +179,14 @@ VISION_TASK = (
     "schema-constrained JSON."
 )
 
+#: The benchmark columns :func:`as_helper_entries` publishes, which is the set
+#: a derived axis has to land in to mean anything. ``parse_task`` answers with
+#: the helper's own vocabulary, and the two have to agree: an axis this
+#: catalogue records nothing on ranks every candidate at zero, which is not
+#: ranking, it is accepting whatever order the list was already in.
+BENCHMARK_AXES = ("code", "general", "vision", "ocr", "math")
+
+
 #: Benchmark points a co-resident model may give up to save memory. The
 #: helper's own ``pick`` names this the anti-greed rule and gives the reason
 #: this project needs it: a gibibyte of footprint "is paid on every run and
@@ -266,7 +284,7 @@ def as_helper_entries(catalog: dict[str, Any] | None = None) -> list[dict[str, A
     ``kind``                  ``role``, through :data:`ROLE_KINDS`
     ``size_b``                ``params_b``
     ``ram_gb``/``disk_gb``    the recommended quantization's weights
-    ``benchmarks``            ``benchmarks``, on the ``code`` axis
+    ``benchmarks``            ``benchmarks``, mapped onto the helper's axes
     ``structured_output``     whether a tool-call parser is configured
     ``vllm_id``               ``hf`` -- the join between the two worlds
     ========================  =======================================
@@ -274,7 +292,7 @@ def as_helper_entries(catalog: dict[str, Any] | None = None) -> list[dict[str, A
     Returns
     -------
     list of dict
-        One entry per catalogue model, ready for ``recommend_engines``.
+        One entry per catalogue model, ready for ``rank``.
     """
     cat = catalog or load_catalog()
     out: list[dict[str, Any]] = []
@@ -602,6 +620,78 @@ def _choose_image(
     )
 
 
+def _axis_from_task(
+    be: Any,
+    role: str,
+    task: str,
+    affordable: list[dict[str, Any]],
+) -> tuple[str, list[str]]:
+    """Which benchmark column to rank on, read from the words rather than a table.
+
+    This is the function that makes :data:`TASK` an input instead of a
+    paragraph. The helper parses a task description (``parse_task``) and
+    answers with the axis it would score on -- ``application`` for a language
+    model, ``vlm_application`` for a vision one -- and that is the axis the
+    ranking and the published reasoning then use.
+
+    It was not always. ``choose`` took a ``task`` argument, documented it as
+    defaulting to :data:`TASK`, and never read it: the axis came from
+    :data:`AXES`, a table indexed by role. The two happen to agree for the
+    strings this project ships -- ``parse_task(TASK)`` answers ``code`` and
+    ``parse_task(VISION_TASK)`` answers ``vision``, which is what
+    ``tests/test_engine.py`` asserts -- so nothing was wrong with the choice.
+    What was wrong was the sentence: the README says ai-bunker describes what
+    it is for in words and lets the helper decide, and the words reached
+    nobody.
+
+    :data:`AXES` stays, as the answer when the words cannot give one. Two
+    cases, and both are reported rather than absorbed:
+
+    * The helper is too old to parse, or the parse fails. Advice that cannot
+      be obtained is not fatal here any more than anywhere else in this
+      module.
+    * The parse lands on an axis this catalogue scores nothing on. ``ocr`` is
+      the live example -- a near-miss phrasing of :data:`VISION_TASK` returned
+      it once, and this catalogue's vision models record no ``ocr`` column, so
+      ranking on it would have scored every candidate zero and returned them
+      in catalogue order while reporting a confident reason.
+
+    Returns
+    -------
+    (str, list of str)
+        The axis, and any warning the caller should carry into its
+        :class:`Choice`.
+    """
+    fallback = AXES[role]
+    if not hasattr(be, "parse_task"):
+        return fallback, [
+            f"{role}: the installed best-engine-ai-helper offers no parse_task, so the "
+            f"ranking axis is this project's default ({fallback}) rather than one read "
+            "from the task description."
+        ]
+    try:
+        parsed = dict(be.parse_task(task) or {})
+    except Exception as exc:  # a parse is advice too
+        return fallback, [
+            f"{role}: best-engine-ai-helper could not parse the task description ({exc}), "
+            f"so the ranking axis is this project's default ({fallback})."
+        ]
+
+    field = "vlm_application" if ROLE_KINDS[role] == "vlm" else "application"
+    axis = str(parsed.get(field) or "")
+    if not axis or axis == fallback:
+        return fallback, []
+    if axis not in BENCHMARK_AXES or not any(
+        e["benchmarks"].get(axis) is not None for e in affordable
+    ):
+        return fallback, [
+            f"{role}: the task description parses as {axis!r}, which this catalogue records "
+            f"no benchmark for. Ranking on {fallback!r} instead -- an axis every candidate "
+            "scores zero on orders nothing."
+        ]
+    return axis, []
+
+
 def choose(
     role: str = "code",
     *,
@@ -631,8 +721,12 @@ def choose(
         bound by it. The language slots are ranked on benchmarks and memory
         fit, and sizing does their throughput arithmetic itself.
     task : str, optional
-        What the model is for, in words the helper parses. Defaults to
-        :data:`TASK`, or :data:`VISION_TASK` for the vision role.
+        What the model is for, in words the helper parses. ``parse_task``
+        turns it into the benchmark axis the ranking is ordered on, so this
+        is the input that decides *what better means* for this slot. Defaults
+        to :data:`TASK`, or :data:`VISION_TASK` for the vision role. Ignored
+        by the image slot, which is ranked on a footprint and a clock rather
+        than a benchmark column.
     lean : bool, optional
         Apply the anti-greed rule: take the leanest candidate within
         :data:`LEAN_TOLERANCE` points of the best rather than the best.
@@ -761,6 +855,15 @@ def choose(
             affordable,
         )
 
+    # The axis, read from the words this project uses to describe itself. One
+    # call, and the result is carried through the ranking, the anti-greed
+    # tie-break and the published reasoning, so the three cannot disagree --
+    # which they did once, when the vision slot was ranked on `vision` and
+    # reported on `code`.
+    axis, axis_warnings = _axis_from_task(
+        be, role, task or (VISION_TASK if role == "vision" else TASK), affordable
+    )
+
     try:
         hardware: dict[str, Any] = (
             {"vram_gb": round(vram_gib * 1.073741824, 1)}
@@ -771,11 +874,11 @@ def choose(
             hardware,
             affordable,
             kind,
-            # The same column the choice is reported on, from the same table.
+            # The same column the choice is reported on, derived once above.
             # The helper ranks by it and `points` below re-reads it for the
             # anti-greed tie-break, so a divergence here would order the
             # candidates on one axis and justify the winner on another.
-            application=AXES[role],
+            application=axis,
             backend="vllm",
             # A coding agent's tool call is constrained decoding, so a model
             # that cannot honour a schema is not a candidate at all. Enforced
@@ -802,7 +905,6 @@ def choose(
         )
 
     by_id = {e["id"]: e for e in affordable}
-    axis = AXES[role]
 
     def points(entry: dict[str, Any]) -> float:
         return float(entry["benchmarks"].get(axis) or 0.0)
@@ -850,6 +952,11 @@ def choose(
             for e in sorted(entries, key=lambda e: (e not in affordable, -points(e)))
             if e["id"] != model_id
         ],
+        # Only ever non-empty when the axis could not be read from the words
+        # and the role's default was used instead. Reported rather than
+        # absorbed: a ranking on a column nobody asked for is still a ranking,
+        # and the reader is the one who gets to decide whether it matters.
+        warnings=axis_warnings,
     )
 
 
