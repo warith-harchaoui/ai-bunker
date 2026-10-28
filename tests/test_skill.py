@@ -245,7 +245,9 @@ def test_a_folded_description_is_recovered_not_returned_as_its_marker(tmp_path):
 
     Reading only the text after the colon returned the fold marker, so the
     description became ">". That passes every length check and tells an agent
-    nothing about when to load the skill.
+    nothing about when to load the skill. The same reader also has to keep
+    nested metadata, which is where another project puts the facts that are
+    not prose.
     """
     _tree(tmp_path, {"build-ml-pipeline": (FOLDED_SKILL, {})})
     skill = read_skill(tmp_path / "build-ml-pipeline")
@@ -253,16 +255,9 @@ def test_a_folded_description_is_recovered_not_returned_as_its_marker(tmp_path):
     assert "`.skb.apply_func`" in skill.description, "the fold must join its lines"
     assert ">" not in skill.description.split()[0]
 
-
-def test_nested_metadata_survives_the_read(tmp_path):
-    """Where another project puts the facts that are not prose.
-
-    The parser skipped every indented line, so `role` and `modelTier` were
-    dropped and an imported skill arrived stripped of everything
-    machine-readable.
-    """
-    _tree(tmp_path, {"build-ml-pipeline": (FOLDED_SKILL, {})})
-    skill = read_skill(tmp_path / "build-ml-pipeline")
+    # The other half of the same parser bug: it skipped every indented line,
+    # so nested metadata was dropped and an imported skill arrived stripped of
+    # everything machine-readable.
     assert skill.metadata == {"role": "helper", "modelTier": "big"}
 
 
@@ -277,11 +272,9 @@ def test_a_split_body_is_distributed_never_rewritten():
     assert "".join(text for _, text in slices) == body, "the rejoin must be exact"
     assert [heading for heading, _ in slices] == ["", "One", "Two"]
 
-
-def test_a_body_inside_the_budget_is_left_whole():
-    """No heading is invented for a page that did not need splitting."""
-    body = "# Title\n\nshort enough\n"
-    assert split_body(body, limit=10_000) == [("", body)]
+    # And no heading is invented for a page that did not need splitting.
+    whole = "# Title\n\nshort enough\n"
+    assert split_body(whole, limit=10_000) == [("", whole)]
 
 
 def test_import_reads_every_skill_and_ignores_everything_else(tmp_path):

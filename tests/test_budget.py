@@ -172,7 +172,20 @@ def test_an_estimated_count_is_labelled_as_one_everywhere_it_surfaces(counter):
 # ---------------------------------------------------------------------------
 
 
-def test_slices_are_disjoint_and_cover_the_whole_prompt():
+def test_the_system_prompt_splits_into_disjoint_slices_with_an_owner_each():
+    """A floor nobody can decompose is a floor nobody can reduce, so the split
+    has to be both complete and honest about who pays for each part.
+
+    **Disjoint and total**: the slices sum to exactly the input, because a
+    split that drops or double-counts bytes produces a breakdown that does not
+    add up to the number above it. **Named**: each slice says what it is, and
+    the skill block says how many skills it found rather than merely that it
+    found some -- 59 skills is a different conversation from one.
+    **Attributed**: the charter and the knowledge index are ours, the rest is
+    the client's, and without being *told* what the charter is we take credit
+    for none of it. Claiming a client's own text would be the most flattering
+    possible way to be wrong about this.
+    """
     charter = "# Charter\n" + "rule. " * 50
     index = "## Index\n- default: a.md\n"
     skills = "<skill><name>a</name>blah</skill>"
@@ -187,56 +200,51 @@ def test_slices_are_disjoint_and_cover_the_whole_prompt():
         "client system prompt",
     }
 
-
-def test_our_own_contributions_are_attributed_to_us():
-    charter = "# Charter\n" + "rule. " * 50
-    index = "## Index\n- default: a.md\n"
-    slices = split_system("Client. " * 10 + charter + index, charter, index)
     owners = {name: owner for name, owner, _ in slices}
     assert owners["charter"] == "ai-bunker"
     assert owners["knowledge index"] == "ai-bunker"
     assert owners["client system prompt"] == "client"
 
+    many = "<skill>" + "".join(f"<name>s{i}</name>body" for i in range(59)) + "</skill>"
+    assert "agent skills (59)" in [name for name, _, _ in split_system("prompt" + many)]
 
-def test_skill_blocks_are_counted_not_just_detected():
-    skills = "<skill>" + "".join(f"<name>s{i}</name>body" for i in range(59)) + "</skill>"
-    slices = split_system("prompt" + skills)
-    names = [name for name, _, _ in slices]
-    assert "agent skills (59)" in names
-
-
-def test_unpassed_charter_is_not_silently_claimed():
-    """Without being told what the charter is, we must not take credit for it."""
-    system = "# Charter\nrule.\nClient prompt."
-    slices = split_system(system)
-    assert all(owner == "client" for _, owner, _ in slices)
+    untold = split_system("# Charter\nrule.\nClient prompt.")
+    assert all(owner == "client" for _, owner, _ in untold)
 
 
-def test_itemised_tokens_sum_to_the_floor(counter):
+def test_the_itemised_floor_adds_up_is_ordered_by_cost_and_excludes_the_conversation(counter):
+    """Three properties of the itemisation, and each exists to stop the
+    breakdown lying in a different way.
+
+    It **sums to the floor**, or the reader is looking at a list that does not
+    explain the number it sits under. It is **ordered by cost**, with
+    `biggest` as the head, because the first line is the one an operator will
+    act on. And it **excludes conversation turns**: compaction can reduce a
+    conversation, so counting it would let a bloated prompt hide behind a
+    chatty session -- exactly the measurement this module exists to prevent.
+    """
     charter = "# Charter\n" + "rule. " * 80
-    system = "Client prompt. " * 40 + charter
-    b = measure_request(
-        _request(system, tools=[{"name": "read", "description": "d" * 400}]),
+    itemised = measure_request(
+        _request(
+            "Client prompt. " * 40 + charter, tools=[{"name": "read", "description": "d" * 400}]
+        ),
         counter=counter,
         served_context=32768,
         charter=charter,
     )
-    assert sum(i.tokens for i in b.items) == b.floor_tokens
+    assert sum(i.tokens for i in itemised.items) == itemised.floor_tokens
 
-
-def test_items_are_ordered_by_cost(counter):
     skills = "<skill>" + "<name>a</name>" + "x" * 5000 + "</skill>"
-    b = measure_request(
+    ordered = measure_request(
         _request("short prompt" + skills, tools=[{"name": "t", "description": "y" * 100}]),
         counter=counter,
         served_context=32768,
     )
-    assert [i.tokens for i in b.items] == sorted((i.tokens for i in b.items), reverse=True)
-    assert b.biggest is b.items[0]
+    assert [i.tokens for i in ordered.items] == sorted(
+        (i.tokens for i in ordered.items), reverse=True
+    )
+    assert ordered.biggest is ordered.items[0]
 
-
-def test_conversation_turns_are_not_part_of_the_floor(counter):
-    """Compaction can reduce a conversation; counting it would hide the problem."""
     bare = measure_request(_request("prompt"), counter=counter, served_context=32768)
     chatty = measure_request(
         _request("prompt", user="a very long user message " * 500),
@@ -530,48 +538,49 @@ def test_an_engine_that_tokenizes_into_nothing_is_not_trusted(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_the_ratio_never_under_counts_the_densest_content():
+def test_the_ratio_over_counts_rather_than_under_counts():
     """`CHARS_PER_TOKEN` must sit at or below the lowest ratio real content
     produces, because the estimate CAN refuse a request.
 
     `Budget.verdict` is computed whatever the backend and the gateway returns
     413 on `unusable`, so an optimistic estimate fails to refuse a session
-    that has no room -- which is the 40,433-into-32,768 failure exactly.
-    Measured floor is 2.51 chars/token on markup; see
+    that has no room -- which is the 40,433-into-32,768 failure exactly. The
+    measured floor is 2.51 chars/token on markup; see
     `scripts/measure_ratio.py`, which re-measures and refuses a constant above
     it.
+
+    Asserted twice on purpose: once on the constant, so a careless edit fails
+    here rather than in production, and once on the behaviour over dense
+    markup, which is the adversarial case -- at 4.0 the estimate reported
+    about 60% of the real cost.
     """
-    from ai_bunker.budget import CHARS_PER_TOKEN
+    from ai_bunker.budget import CHARS_PER_TOKEN, Counter
 
     assert CHARS_PER_TOKEN <= 2.51, (
         "the estimate would under-count dense content, and it can refuse a "
         "request; run scripts/measure_ratio.py --check"
     )
 
-
-def test_the_estimate_over_counts_rather_than_under_counts():
-    """The property, asserted on text rather than on the constant.
-
-    Dense markup is the adversarial case: 2.51 chars/token measured, so an
-    estimate at 4.0 reported about 60% of the real cost.
-    """
-    from ai_bunker.budget import Counter
-
     counter = Counter(allow_ratio=True)
     assert counter.backend == "ratio"
-
     dense = "<url><loc>https://example.test/a</loc><lastmod>2026-01-01</lastmod></url>" * 40
     # The true count for this shape is len/2.51; the estimate must not be below.
     assert counter.count(dense) >= len(dense) / 2.51
 
 
-def test_a_tokenizer_file_is_used_when_one_is_configured(tmp_path):
+def test_a_tokenizer_is_resolved_from_a_local_file_and_never_over_the_network(tmp_path):
     """The sovereign way to be exact: a file on this machine.
 
-    An earlier version of this resolved a Hugging Face repository id, which
-    worked and was wrong for this project -- resolving a repository is an
-    outbound call, and a gateway whose claim is that nothing leaves the local
-    network cannot phone a third party to learn how to count.
+    An earlier version resolved a Hugging Face repository id, which worked and
+    was wrong for this project -- resolving a repository is an outbound call,
+    and a gateway whose claim is that nothing leaves the local network cannot
+    phone a third party to learn how to count. That is held to
+    **structurally** below, by reading this module's own source, rather than
+    by intent.
+
+    A configured file that is **missing** falls back and says so. Silence
+    there would be the worst outcome of the three: an operator who configured
+    a tokenizer believes the counts are exact, and they are estimates.
     """
     tokenizers = pytest.importorskip("tokenizers")
     source = tokenizers.Tokenizer(tokenizers.models.WordLevel({"a": 0, "b": 1}, unk_token="a"))
@@ -584,26 +593,13 @@ def test_a_tokenizer_file_is_used_when_one_is_configured(tmp_path):
     assert counter.exact
     assert counter.count("a b a") == 3
 
+    absent = Counter(tokenizer=str(tmp_path / "absent.json"), allow_ratio=True)
+    assert absent.backend == "ratio"
+    assert not absent.exact
 
-def test_a_missing_tokenizer_file_warns_and_falls_back(tmp_path):
-    """Silence here would be the worst outcome: an operator who configured a
-    tokenizer believes the counts are exact, and they are estimates."""
-    counter = Counter(tokenizer=str(tmp_path / "absent.json"), allow_ratio=True)
-    assert counter.backend == "ratio"
-    assert not counter.exact
-
-
-def test_nothing_resolves_a_tokenizer_over_the_network():
-    """Held to structurally rather than by intent.
-
-    `from_pretrained` resolves a model-hub repository over the network. This
-    module must not call it: the gateway's whole claim is that nothing leaves
-    the local network, and a count that depends on a third-party service is
-    not a count this project can make.
-    """
-    source = Path("ai_bunker/budget.py").read_text(encoding="utf-8")
-    assert "from_pretrained" not in source
-    assert "huggingface" not in source.lower()
+    module = Path("ai_bunker/budget.py").read_text(encoding="utf-8")
+    assert "from_pretrained" not in module
+    assert "huggingface" not in module.lower()
 
 
 def test_an_estimate_says_it_gates_because_it_does():

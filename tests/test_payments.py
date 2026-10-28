@@ -95,40 +95,37 @@ def _authorised(**over):
 
 
 @pytest.mark.parametrize(
-    "tool",
+    "tool, args, moves_money",
     [
-        "create_payment",
-        "createPayment",
-        "submit_order",
-        "charge",
-        "transfer",
-        "initiate_payout",
-        "process_refund",
-        "checkout",
+        # By name, in the spellings an agent framework actually emits.
+        ("create_payment", {"amount": 100}, True),
+        ("createPayment", {"amount": 100}, True),
+        ("submit_order", {"amount": 100}, True),
+        ("charge", {"amount": 100}, True),
+        ("transfer", {"amount": 100}, True),
+        ("initiate_payout", {"amount": 100}, True),
+        ("process_refund", {"amount": 100}, True),
+        ("checkout", {"amount": 100}, True),
+        # And by destination. A tool called `http_post` is not a payment tool
+        # by name; it is still how most agents would actually charge a card.
+        ("http_post", {"url": "https://api.stripe.com/v1/charges"}, True),
+        # Beside them, the ordinary work that must stay ordinary -- including
+        # the same generic tool pointed somewhere that takes no money, and a
+        # search whose words would fool a keyword match.
+        ("read_file", {"path": "README.md"}, False),
+        ("bash", {"command": "ls -la"}, False),
+        ("search", {"query": "how to charge a battery"}, False),
+        ("http_post", {"url": "https://api.github.com/repos/x/y/issues"}, False),
     ],
 )
-def test_a_payment_tool_is_recognised_by_name(tool):
-    assert inspect(tool, {"amount": 100}).moves_money
-
-
-def test_a_generic_http_tool_pointed_at_a_processor_is_recognised():
-    """A tool called `http_post` is not a payment tool by name. It is still
-    how most agents would actually charge a card."""
-    assert inspect("http_post", {"url": "https://api.stripe.com/v1/charges"}).moves_money
-
-
-@pytest.mark.parametrize(
-    "tool, args",
-    [
-        ("read_file", {"path": "README.md"}),
-        ("bash", {"command": "ls -la"}),
-        ("search", {"query": "how to charge a battery"}),
-        ("http_post", {"url": "https://api.github.com/repos/x/y/issues"}),
-    ],
-)
-def test_ordinary_calls_are_left_alone(tool, args):
+def test_what_counts_as_moving_money_and_what_does_not(tool, args, moves_money):
+    """The two halves in one table, because the second is what keeps the first
+    deployable: a check that fires on `search` for the word "charge" is a
+    check an operator turns off within the hour."""
     finding = inspect(tool, args)
-    assert not finding.moves_money and finding.ok
+    assert finding.moves_money is moves_money
+    if not moves_money:
+        assert finding.ok
 
 
 # ---------------------------------------------------------------------------
@@ -136,22 +133,23 @@ def test_ordinary_calls_are_left_alone(tool, args):
 # ---------------------------------------------------------------------------
 
 
-def test_a_payment_with_no_mandate_is_refused(signer):
+def test_a_payment_without_a_real_mandate_is_refused(signer):
+    """Three ways to arrive with nothing, and each gets the same answer.
+
+    **No mandate at all** is the common case and the reason the check exists.
+    An **unsigned assertion** is worse than nothing: without a proof it is a
+    JSON object the agent could have written itself, which is precisely the
+    authorisation AP2 does not accept. And a **bare string** that is not a JWS
+    is a claim shaped like a credential, which is how an agent would bluff.
+    """
     _sign, trust = signer
-    finding = inspect("create_payment", {"amount": 4200, "currency": "EUR"}, trust)
-    assert not finding.ok and "no mandate" in finding.problems[0]
 
+    absent = inspect("create_payment", {"amount": 4200, "currency": "EUR"}, trust)
+    assert not absent.ok and "no mandate" in absent.problems[0]
 
-def test_an_unsigned_assertion_is_not_a_mandate(signer):
-    """Without a proof it is a JSON object the agent could have written
-    itself, which is the authorisation AP2 does not accept."""
-    _sign, trust = signer
-    finding = inspect("create_payment", {"amount": 10, "mandate": {"intent": "buy"}}, trust)
-    assert not finding.ok and "no proof" in finding.problems[0]
+    unsigned = inspect("create_payment", {"amount": 10, "mandate": {"intent": "buy"}}, trust)
+    assert not unsigned.ok and "no proof" in unsigned.problems[0]
 
-
-def test_a_bare_string_that_is_not_a_jws_is_refused(signer):
-    _sign, trust = signer
     assert not inspect("create_payment", {"mandate": "approved-by-the-user"}, trust).ok
 
 
@@ -343,19 +341,25 @@ def test_money_is_compared_as_integers_not_floats(signer):
 # ---------------------------------------------------------------------------
 
 
-def test_the_message_states_that_chains_are_not_verified(signer):
-    """AP2 links a Payment Mandate to a Checkout Mandate to what the user saw.
-    Verifying one link says nothing about the others, and the refusal says so
-    rather than letting a reader assume otherwise."""
+def test_the_caveat_reaches_both_the_agent_and_the_audit_log(signer):
+    """AP2 links a Payment Mandate to a Checkout Mandate to what the user
+    actually saw. Verifying one link says nothing about the others, so the
+    refusal says so rather than letting a reader assume otherwise -- and says
+    it in both places it is read: the message the agent gets back, and the
+    rule description the audit log keeps.
+
+    The rule's pattern never matches on its own, because the decision is made
+    in code and a pattern that could fire alone would be a second, weaker copy
+    of it.
+    """
     _sign, trust = signer
-    message = refusal_message(inspect("create_payment", {"amount": 1}, trust))
+    finding = inspect("create_payment", {"amount": 1}, trust)
+
+    message = refusal_message(finding)
     assert "CHAINS are not" in message
     assert "Trusted Surface" in message
 
-
-def test_the_rule_carries_the_caveat_into_the_audit_log(signer):
-    _sign, trust = signer
-    rule = as_rule(inspect("create_payment", {"amount": 1}, trust))
+    rule = as_rule(finding)
     assert rule.id == "payments.unauthorised" and rule.severity == "BLOCKER"
     assert "CHAINS are not" in rule.description
     assert not rule.pattern.search("create_payment")
@@ -366,10 +370,23 @@ def test_the_rule_carries_the_caveat_into_the_audit_log(signer):
 # ---------------------------------------------------------------------------
 
 
-def test_arguments_arrive_as_a_json_string_too(signer):
-    """OpenAI tool calls carry `arguments` as a string, not an object."""
+def test_a_mandate_is_found_in_every_shape_a_tool_call_carries_one(signer):
+    """Where the mandate can be, and where the search has to stop.
+
+    OpenAI tool calls carry `arguments` as a **JSON string**, not an object,
+    so a check that only reads dictionaries would wave through every real
+    request. A mandate **nested** inside a request body is found, because
+    agents wrap payloads. But the walk is **depth bounded**: a guardrail that
+    walks an arbitrary structure on the enforcement path is a guardrail that
+    becomes a stall, so a mandate buried too deep is not found -- and not
+    finding it is a refusal, which is the safe direction to be wrong in.
+
+    A finding on something that never moved money is vacuously ok, which is
+    what lets the pipeline call this on every tool call without branching.
+    """
     sign, trust = signer
-    args = json.dumps(
+
+    as_string = json.dumps(
         {
             "amount": "42.00",
             "currency": "EUR",
@@ -377,12 +394,9 @@ def test_arguments_arrive_as_a_json_string_too(signer):
             "payment_mandate": sign(**_authorised()),
         }
     )
-    assert inspect("create_payment", args, trust).ok
+    assert inspect("create_payment", as_string, trust).ok
 
-
-def test_a_nested_mandate_is_found(signer):
-    sign, trust = signer
-    finding = inspect(
+    nested = inspect(
         "create_payment",
         {
             "amount": "42.00",
@@ -392,20 +406,13 @@ def test_a_nested_mandate_is_found(signer):
         },
         trust,
     )
-    assert finding.ok
+    assert nested.ok
 
-
-def test_walking_arguments_is_depth_bounded(signer):
-    """A guardrail that walks an arbitrary structure on the enforcement path
-    is a guardrail that becomes a stall."""
-    sign, trust = signer
     deep: dict = {"payment_mandate": sign(**_authorised())}
     for _ in range(12):
         deep = {"nested": deep}
     assert not inspect("create_payment", deep, trust).ok
 
-
-def test_a_finding_on_a_non_payment_is_vacuously_ok():
     assert Finding(tool="read_file", moves_money=False).ok
 
 
@@ -424,25 +431,30 @@ def _call(name: str, arguments: dict) -> list[dict]:
     ]
 
 
-def test_stage_four_refuses_an_unauthorised_payment(signer):
+def test_stage_four_refuses_an_unauthorised_payment_and_forwards_an_authorised_one(signer):
+    """The check only matters where it runs, and four things have to hold
+    there.
+
+    An **unauthorised** charge is refused by `payments.unauthorised`, and an
+    **authorised** one goes through -- a gate that refuses everything is
+    indistinguishable from a broken endpoint. It runs **outside
+    `SHELL_TOOLS`**, because a payment never arrives as a shell command and
+    restricting it to those would check the one place this does not happen.
+    And it can be **turned off**, like every other protection here: an
+    operator who has their own authorisation layer should not have to route
+    around this one.
+    """
     from ai_bunker.adopt import ROOT
-    from ai_bunker.pipeline import screen_outbound
-    from ai_bunker.rules import load_rules
-
-    _sign, trust = signer
-    rules = load_rules(ROOT / "charter" / "rules")
-    refusal, _c, _n = screen_outbound(_call("create_payment", {"amount": 4200}), rules, trust=trust)
-    assert refusal is not None and refusal.id == "payments.unauthorised"
-
-
-def test_stage_four_forwards_an_authorised_one(signer):
-    from ai_bunker.adopt import ROOT
-    from ai_bunker.pipeline import screen_outbound
+    from ai_bunker.pipeline import SHELL_TOOLS, screen_outbound
     from ai_bunker.rules import load_rules
 
     sign, trust = signer
     rules = load_rules(ROOT / "charter" / "rules")
-    refusal, _c, _n = screen_outbound(
+
+    refused, _c, _n = screen_outbound(_call("create_payment", {"amount": 4200}), rules, trust=trust)
+    assert refused is not None and refused.id == "payments.unauthorised"
+
+    allowed, _c, _n = screen_outbound(
         _call(
             "create_payment",
             {
@@ -455,29 +467,13 @@ def test_stage_four_forwards_an_authorised_one(signer):
         rules,
         trust=trust,
     )
-    assert refusal is None
-
-
-def test_payments_are_screened_outside_the_shell_tools():
-    """A payment never arrives as a shell command, so restricting this to
-    SHELL_TOOLS would check the one place it does not happen."""
-    from ai_bunker.adopt import ROOT
-    from ai_bunker.pipeline import SHELL_TOOLS, screen_outbound
-    from ai_bunker.rules import load_rules
+    assert allowed is None
 
     assert "create_payment" not in SHELL_TOOLS
-    rules = load_rules(ROOT / "charter" / "rules")
-    refusal, _c, _n = screen_outbound(_call("create_payment", {"amount": 1}), rules)
-    assert refusal is not None
+    outside, _c, _n = screen_outbound(_call("create_payment", {"amount": 1}), rules)
+    assert outside is not None
 
-
-def test_the_check_can_be_turned_off():
-    from ai_bunker.adopt import ROOT
-    from ai_bunker.pipeline import screen_outbound
-    from ai_bunker.rules import load_rules
-
-    rules = load_rules(ROOT / "charter" / "rules")
-    refusal, _c, _n = screen_outbound(
+    off, _c, _n = screen_outbound(
         _call("create_payment", {"amount": 1}), rules, check_payments=False
     )
-    assert refusal is None
+    assert off is None

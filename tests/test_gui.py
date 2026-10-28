@@ -122,20 +122,20 @@ def test_the_api_key_is_never_persisted():
     assert "URLSearchParams" in source, "the key comes from the URL, per request"
 
 
-def test_every_tile_asks_a_question():
-    """Dashboard ergonomics: a tile title states the question it answers."""
+def test_every_tile_asks_a_question_and_says_which_way_is_up():
+    """Dashboard ergonomics, and the two halves are one thought: a tile title
+    states the question it answers, and a tile carrying a number says which
+    direction is the good one. "Is 607 good or bad?" is not answerable
+    without that, and a dashboard whose figures cannot be read as good or bad
+    is a dashboard nobody opens twice.
+    """
     source = GUI.read_text(encoding="utf-8")
-    import re
 
     headings = re.findall(r"<h2[^>]*>(.*?)</h2>", source, re.S)
     assert len(headings) >= 4
     for h in headings:
         assert h.strip().endswith("?"), f"tile title is not a question: {h.strip()!r}"
 
-
-def test_measurable_tiles_declare_their_polarity():
-    """ "Is 607 good or bad?" is not answerable without saying which way is up."""
-    source = GUI.read_text(encoding="utf-8")
     assert source.count('class="polarity"') >= 2
     assert "↑ more conversation space is better" in source
     assert "↓ a smaller index is better" in source
@@ -196,48 +196,50 @@ def test_the_theme_toggle_follows_the_system_until_the_reader_says_otherwise():
 # ---------------------------------------------------------------------------
 
 
-def test_the_language_toggle_exists_with_both_flags():
+def test_the_language_toggle_is_labelled_in_the_language_it_offers():
+    """The control, and the one entry in the catalogue that is deliberately
+    not a translation of its twin.
+
+    Both flags are on the page, because a toggle that shows only the current
+    language gives the reader nothing to aim at. The label is the **other**
+    language's invitation: a button reading "Switch to French" is useless to
+    the only person who needs it, someone who does not read English. And
+    since the label is in the other language, `lang` on the button has to be
+    the other language too, or a screen reader pronounces French with an
+    English voice.
+    """
     page = _page()
     assert 'id="lang-toggle"' in page
     assert "\\u{1F1EC}\\u{1F1E7}" in page and "\\u{1F1EB}\\u{1F1F7}" in page
 
-
-def test_the_switcher_is_labelled_in_the_language_it_offers():
-    """The one entry that is deliberately not a translation of its twin. A
-    button reading "Switch to French" is useless to the only person who needs
-    it: someone who does not read English. So each catalogue carries the
-    *other* language's invitation."""
     assert _catalogue("en")["lang.switch"] == "Passer au français"
     assert _catalogue("fr")["lang.switch"] == "Switch to English"
 
-
-def test_the_switcher_declares_the_language_of_its_own_label():
-    """Since the label is in the other language, `lang` on the button has to be
-    the other language too, or a screen reader pronounces French with an
-    English voice."""
-    page = _page()
     assert 'const other = LOCALE === "fr" ? "en" : "fr"' in page
     assert 'button.setAttribute("lang", other)' in page
 
 
-def test_the_reader_outranks_the_deployment_on_this_page():
+def test_the_reader_outranks_the_deployment_and_the_page_keeps_up():
     """D132, inverted here and on purpose. For an agent the deployment decides
     the language, because instruction-following is not uniformly strong across
-    languages and that is not a per-request choice. For this page the reader is
-    the operator looking at their own screen, so the order runs the other way:
-    an explicit `?lang=`, then a stored click, then the browser."""
+    languages and that is not a per-request choice. For this page the reader
+    is the operator looking at their own screen, so the order runs the other
+    way: an explicit `?lang=`, then a stored click, then the browser.
+
+    Two consequences, and both have bitten. A toggle that refreshed a
+    different set of tiles than boot would leave **two languages on screen at
+    once**, so both go through one `redraw()`. And since `?lang=` outranks a
+    stored choice, a page opened with one would **appear to ignore the click**
+    unless the address bar is rewritten too.
+    """
     page = _page()
+
     line = next(ln for ln in page.splitlines() if "const wanted = asked ||" in ln)
     assert "storedLang()" in line
     assert line.index("storedLang()") < line.index("navigator.language")
     explicit = next(ln for ln in page.splitlines() if "const asked = explicit" in ln)
     assert "explicit ||" in explicit
 
-
-def test_switching_language_redraws_the_same_tiles_as_the_first_paint():
-    """A toggle that refreshed a different set of tiles than boot would leave
-    two languages on screen at once, so both go through one `redraw()`."""
-    page = _page()
     assert "async function redraw()" in page
     assert page.count("await redraw()") >= 1
     start = page.index("async function redraw()")
@@ -247,11 +249,6 @@ def test_switching_language_redraws_the_same_tiles_as_the_first_paint():
     for loader in ("loadHealth", "loadBudget", "loadCharter", "loadLog"):
         assert loader in body, f"{loader} is not redrawn"
 
-
-def test_the_click_keeps_the_address_bar_honest():
-    """`?lang=` outranks a stored choice, so a page opened with one would
-    appear to ignore the click unless it is rewritten too."""
-    page = _page()
     assert 'url.searchParams.has("lang")' in page
     assert "history.replaceState" in page
 
@@ -261,20 +258,22 @@ def test_the_click_keeps_the_address_bar_honest():
 # ---------------------------------------------------------------------------
 
 
-def test_the_contrast_auditor_passes_on_the_shipped_page_and_audits_both_schemes():
+def test_the_contrast_auditor_passes_audits_both_schemes_and_can_still_fail(tmp_path):
     """The pass is only worth something if the audit is real, so the same run
     has to show it covered both colour schemes and enough pairs to mean
     anything -- a gate that checks three pairs in one scheme would go green on
-    a page nobody can read in the other."""
+    a page nobody can read in the other.
+
+    And it has to be able to fail. It found four real failures on its first
+    run against this page; a gate that can no longer do that is a green tick
+    and a false sense.
+    """
     assert _run(CONTRAST, str(GUI)).returncode == 0
 
     report = _run(CONTRAST, str(GUI), "--report").stdout
     assert "light" in report and "dark" in report
     assert report.count(":1") >= 20, "too few pairs to be a real audit"
 
-
-def test_the_contrast_auditor_can_fail(tmp_path):
-    """It found four real failures on first run; it must still be able to."""
     page = tmp_path / "bad.html"
     page.write_text(
         ":root { --blue: #AAD4FF; --green: #CFF5D6; --orange: #FFE0B2;\n"
@@ -302,13 +301,19 @@ def test_the_contrast_maths_is_right(ratio_case):
     assert ratio(fg, bg) == pytest.approx(expected, abs=0.02)
 
 
-def test_the_a11y_linter_passes_on_the_shipped_page():
-    result = _run(A11Y, str(GUI))
-    assert result.returncode == 0, result.stdout
+def test_the_a11y_linter_passes_can_fail_and_says_what_it_cannot_see(tmp_path):
+    """The shipped page is clean, and the three ways that claim could be
+    worthless are closed here.
 
+    The linter **can fail**: a page written to violate eight of its rules
+    trips all eight by name, because a linter that cannot fail produces a
+    green tick and a false sense. And it **states its own limits** -- static
+    analysis cannot judge focus order in a running browser or colour against
+    a rendered background, and a static gate presented as complete is a gate
+    that stops somebody commissioning a real audit.
+    """
+    assert _run(A11Y, str(GUI)).returncode == 0, _run(A11Y, str(GUI)).stdout
 
-def test_the_a11y_linter_can_fail(tmp_path):
-    """A linter that cannot fail produces a green tick and a false sense."""
     page = tmp_path / "bad.html"
     page.write_text(
         "<!doctype html><html><head><title></title>"
@@ -333,9 +338,6 @@ def test_the_a11y_linter_can_fail(tmp_path):
     ):
         assert rule in result.stdout, f"{rule} did not fire on a page that violates it"
 
-
-def test_the_a11y_linter_states_its_own_limits():
-    """A static gate presented as complete is a gate that stops a real audit."""
     source = A11Y.read_text(encoding="utf-8")
     assert "Static only" in source
     assert "axe-core" in source and "Lighthouse" in source
@@ -391,19 +393,24 @@ def _catalogue(locale: str) -> dict[str, str]:
 
 
 @pytest.mark.parametrize("locale", ["en", "fr"])
-def test_every_key_the_page_uses_exists(locale):
-    """A missing key renders as `stat.floor` on somebody's screen."""
-    known = set(_catalogue(locale))
-    unknown = (_marked_keys() | _called_keys()) - known
+def test_the_page_and_the_catalogue_describe_the_same_dashboard(locale):
+    """Both directions, because a string nobody shows and a label nobody
+    translated are the same bug seen from two sides.
+
+    A key the page uses and the catalogue lacks renders as `stat.floor` on
+    somebody's screen. A key the catalogue carries and the page never uses is
+    how a catalogue starts describing a dashboard that no longer exists --
+    checked against English, which is the edition every key is written in
+    first.
+    """
+    used = _marked_keys() | _called_keys()
+
+    unknown = used - set(_catalogue(locale))
     assert unknown == set(), f"{locale} catalogue has no: {sorted(unknown)}"
 
-
-def test_every_key_in_the_catalogue_is_used():
-    """The other direction, which is how a catalogue starts describing a page
-    that no longer exists: a string nobody shows and a label nobody translated
-    are the same bug seen from two sides."""
-    unused = set(_catalogue("en")) - _marked_keys() - _called_keys()
-    assert unused == set(), f"nothing on the page uses: {sorted(unused)}"
+    if locale == "en":
+        unused = set(_catalogue("en")) - used
+        assert unused == set(), f"nothing on the page uses: {sorted(unused)}"
 
 
 def test_the_english_is_still_written_into_the_markup():
@@ -436,24 +443,17 @@ def test_the_page_fetches_its_words_from_the_gateway():
     assert "loadMessages" in page
 
 
-def test_the_catalogue_endpoint_serves_only_the_dashboard_keys():
-    """The rest of the catalogue is what the gateway says to agents, and a
-    browser has no business being shipped it."""
-    from fastapi.testclient import TestClient
+def test_the_catalogue_endpoint_serves_the_dashboard_keys_to_any_reader():
+    """What `/gui/i18n` is allowed to hand a browser, and to whom.
 
-    from ai_bunker.config import Settings
-    from ai_bunker.gateway import create_app
-
-    client = TestClient(create_app(Settings(charter_dir="charter", rules_dir="charter/rules")))
-    body = client.get("/gui/i18n").json()
-    assert body["locale"] == "en"
-    assert body["messages"], "no messages served"
-    assert not any(k.startswith(("rules.", "deps.", "breaker.")) for k in body["messages"])
-
-
-def test_the_dashboard_locale_can_be_overridden_per_reader():
-    """The opposite of the agent-facing rule, deliberately: the reader here is
-    the operator in their own browser, so their choice wins."""
+    **Only the dashboard keys**: the rest of the catalogue is what the gateway
+    says to agents, and a browser has no business being shipped it.
+    **Overridable per reader** -- the opposite of the agent-facing rule, and
+    deliberately: the reader here is the operator in their own browser, so
+    their choice wins over the deployment's. And **no key required**, like the
+    page that fetches it: gating a list of column headings would leave an
+    operator staring at `gui.stat.floor` until they pasted a credential.
+    """
     from fastapi.testclient import TestClient
 
     from ai_bunker.config import Settings
@@ -462,19 +462,15 @@ def test_the_dashboard_locale_can_be_overridden_per_reader():
     client = TestClient(
         create_app(Settings(charter_dir="charter", rules_dir="charter/rules", language="en"))
     )
+    body = client.get("/gui/i18n").json()
+    assert body["locale"] == "en"
+    assert body["messages"], "no messages served"
+    assert not any(k.startswith(("rules.", "deps.", "breaker.")) for k in body["messages"])
+
     assert client.get("/gui/i18n?locale=fr").json()["locale"] == "fr"
     assert "lang" in _page(), "the page never reads a ?lang= override"
 
-
-def test_the_catalogue_endpoint_needs_no_key():
-    """Like the page that fetches it: gating a list of column headings would
-    leave an operator staring at `gui.stat.floor` until they pasted a key."""
-    from fastapi.testclient import TestClient
-
-    from ai_bunker.config import Settings
-    from ai_bunker.gateway import create_app
-
-    client = TestClient(
+    gated = TestClient(
         create_app(Settings(api_key="secret", charter_dir="charter", rules_dir="charter/rules"))
     )
-    assert client.get("/gui/i18n").status_code == 200
+    assert gated.get("/gui/i18n").status_code == 200

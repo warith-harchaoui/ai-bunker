@@ -268,8 +268,14 @@ def test_the_quoted_version_is_real(all_text):
 # ---------------------------------------------------------------------------
 
 
-def test_no_page_fetches_from_a_third_party(all_text):
-    """The site makes the sovereignty claim; it cannot contradict it on load."""
+def test_no_page_fetches_from_a_third_party_or_carries_a_tracker(all_text):
+    """The site makes the sovereignty claim; it cannot contradict it on load.
+
+    Two halves of one promise, and the second is the one that creeps back in:
+    a content delivery network arrives in a stylesheet and is visible in a
+    diff, where an analytics snippet arrives in a footer somebody pasted and
+    is not.
+    """
     for host in (
         "cdn.tailwindcss.com",
         "googleapis.com",
@@ -282,8 +288,6 @@ def test_no_page_fetches_from_a_third_party(all_text):
     ):
         assert host not in all_text, f"a page reaches out to {host}"
 
-
-def test_no_tracker(all_text):
     for tracker in ("gtag(", "_paq", "fbq(", "plausible", "analytics"):
         assert tracker not in all_text.lower(), f"found {tracker}"
 
@@ -345,9 +349,22 @@ def test_the_stylesheet_is_built_and_committed():
 
 
 @needs_site
-def test_the_figures_meet_their_contrast_floor():
+def test_the_figures_meet_their_contrast_floor_on_both_schemes():
     """The figures' text sits on tints of the brand colours themselves, so a
-    token that passes against white can still fail against its own card."""
+    token that passes against white can still fail against its own card --
+    which is why they get their own auditor rather than riding on the page's.
+
+    Three things, and the first alone would not be worth much. The shipped
+    figures **pass**. The auditor **can fail**: an auditor nobody has seen
+    fail is an auditor nobody should trust, and the figures once shipped a
+    fixed `#8A8A92` that scored 5.74:1 on the dark page and 3.43:1 on white,
+    so restoring it must put the audit back in the red. And the figures carry
+    **no hard-coded colour** at all, because a literal hex cannot know which
+    scheme it is on -- the greys were fixed values tuned for dark, and the
+    light scheme inherited them silently.
+    """
+    import importlib.util
+
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "audit_figures.py")],
         capture_output=True,
@@ -358,30 +375,16 @@ def test_the_figures_meet_their_contrast_floor():
     assert result.returncode == 0, result.stdout + result.stderr
     assert "all pairs meet" in result.stdout
 
-
-def test_the_figure_audit_can_fail():
-    """An auditor nobody has seen fail is an auditor nobody should trust. The
-    figures shipped a fixed ``#8A8A92`` that scored 5.74:1 on the dark page and
-    3.43:1 on white; restoring it must put the audit back in the red."""
-    import importlib.util
-
     spec = importlib.util.spec_from_file_location(
         "audit_figures", ROOT / "scripts" / "audit_figures.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-
     # The grey as it was, against the page it was never checked on.
     assert module.contrast((0x8A, 0x8A, 0x92), (255, 255, 255)) < module.FLOOR
     # And the replacement, against the darkest surface it actually lands on.
     assert module.contrast((0x65, 0x65, 0x69), (255, 255, 255)) >= module.FLOOR
 
-
-@needs_site
-def test_the_figures_carry_no_hard_coded_colour():
-    """A literal hex in a figure cannot know which scheme it is on. That is the
-    bug this guards: the greys were fixed values tuned for dark, and the light
-    scheme inherited them silently."""
     source = (WEB / "pages" / "_figures.py").read_text(encoding="utf-8")
     literals = re.findall(r'(?:fill|stroke)="(#[0-9A-Fa-f]{3,8})"', source)
     assert not literals, f"figures carry hard-coded colours: {sorted(set(literals))}"

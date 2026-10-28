@@ -245,15 +245,19 @@ def test_halving_the_live_context_roughly_doubles_the_sessions(catalog):
     assert lean.concurrent_sessions >= 2 * fat.concurrent_sessions - 1
 
 
-def test_an_unknown_accelerator_lists_the_known_ones(catalog):
+def test_a_machine_outside_the_catalogue_is_sized_and_a_misspelled_one_is_named(catalog):
+    """Two answers to "this card is not in your catalogue", and which one you
+    get depends on how you asked. Given **figures**, it sizes the machine --
+    the catalogue is a convenience, not the set of machines that exist. Given
+    a **name** it does not know, it refuses and lists the ones it does, since
+    a user who typed a card name wrong is one list away from typing it right.
+    """
+    measured = size_machine(vram_gib=96, bandwidth_gbs=1792, catalog=catalog)
+    assert measured.concurrent_sessions > 0
+    assert measured.vram_gib == 96
+
     with pytest.raises(AssertionError, match="dgx-spark"):
         find_accelerator(catalog, "no-such-card")
-
-
-def test_sizing_a_machine_not_in_the_catalogue(catalog):
-    s = size_machine(vram_gib=96, bandwidth_gbs=1792, catalog=catalog)
-    assert s.concurrent_sessions > 0
-    assert s.vram_gib == 96
 
 
 # ---------------------------------------------------------------------------
@@ -280,14 +284,18 @@ def test_a_runtime_without_paged_attention_is_disqualified_by_team_size(catalog)
     assert not any(r.disqualified for r in solo)
 
 
-def test_fitting_candidates_come_first(catalog):
-    recs = recommend_for_team(2, primary="qwen3-coder-next", catalog=catalog)
-    fits = [r.fits for r in recs]
+def test_the_recommendation_is_ordered_by_fit_and_then_by_what_the_money_buys(catalog):
+    """Two rules, and the second only applies inside the first.
+
+    A card that **fits** outranks one that does not, whatever it costs:
+    cheaper and unusable is not a trade. Among those that fit, two machines
+    within a few percent are the **same budget decision**, so the one that
+    carries more people wins rather than the one that saves a rounding error.
+    """
+    ordered = recommend_for_team(2, primary="qwen3-coder-next", catalog=catalog)
+    fits = [r.fits for r in ordered]
     assert fits == sorted(fits, reverse=True), "a non-fitting card outranked a fitting one"
 
-
-def test_a_marginally_cheaper_card_does_not_beat_real_headroom(catalog):
-    """Two machines within a few percent are the same budget decision."""
     recs = recommend_for_team(2, with_vision="qwen3-vl-8b", catalog=catalog)
     winners = [r for r in recs if r.fits]
     assert winners

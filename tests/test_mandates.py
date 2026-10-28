@@ -131,24 +131,27 @@ def test_a_mandate_is_refused_once_it_is_revoked_or_out_of_its_window(keys):
 # ---------------------------------------------------------------------------
 
 
-def test_no_trust_is_reported_as_unavailable_not_as_failure(keys):
-    """Collapsing the two would let an operator read `not verified` as `the
-    mandate is bad` when it means `we never looked`."""
+def test_a_trust_that_cannot_answer_says_so_rather_than_answering_no(keys, tmp_path):
+    """Could-not-check and failed are different answers, and collapsing them
+    would let an operator read `not verified` as *the mandate is bad* when it
+    means *we never looked*.
+
+    Three ways to have no trust, all of which are "unavailable" rather than a
+    verdict on the mandate: **none configured**, a key set that **could not be
+    read**, and one that parses and is **empty** -- the last being the one
+    that looks configured, which is why it is listed.
+    """
     sign, _jwks, _d = keys
     verdict = verify(sign({}), load_trust(""))
     assert verdict.unavailable and not verdict.verified
     assert "NOT verified" in verdict.problems[0]
 
+    missing = load_trust(str(tmp_path / "missing.json"))
+    assert not missing.available and "could not be read" in missing.reason
 
-def test_an_unreadable_key_set_is_reported(tmp_path):
-    trust = load_trust(str(tmp_path / "missing.json"))
-    assert not trust.available and "could not be read" in trust.reason
-
-
-def test_an_empty_key_set_is_not_a_trust(tmp_path):
-    jwks = tmp_path / "jwks.json"
-    jwks.write_text('{"keys": []}', encoding="utf-8")
-    assert not load_trust(str(jwks)).available
+    empty = tmp_path / "jwks.json"
+    empty.write_text('{"keys": []}', encoding="utf-8")
+    assert not load_trust(str(empty)).available
 
 
 # ---------------------------------------------------------------------------
@@ -156,17 +159,17 @@ def test_an_empty_key_set_is_not_a_trust(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_a_file_key_set_needs_no_network(keys):
+def test_a_file_key_set_needs_no_network_and_rotates_by_being_overwritten(keys, tmp_path):
     """The intended deployment. A gateway whose claim is that nothing leaves
-    the network must not fetch a JWKS before it can refuse a payment."""
+    the network must not fetch a JWKS before it can refuse a payment -- so the
+    trust is a file, and the file is re-read every time. Which means rotating
+    a key is copying a file over another one: there is no cache to invalidate
+    and no endpoint to restart.
+    """
     _sign, jwks, _d = keys
     assert load_trust(jwks).available
     assert not jwks.startswith("http")
 
-
-def test_rotating_a_key_is_copying_a_file(keys, tmp_path):
-    """A path is re-read every time, so there is no cache to invalidate."""
-    _sign, jwks, _d = keys
     rotated = tmp_path / "jwks.json"
     rotated.write_text('{"keys": []}', encoding="utf-8")
     assert not load_trust(str(rotated)).available

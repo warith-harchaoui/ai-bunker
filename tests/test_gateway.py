@@ -176,16 +176,29 @@ def test_health_reports_the_posture_a_deployment_should_not_have_to_infer(client
 
 
 @pytest.mark.parametrize(
-    "headers", [{}, {"Authorization": "Bearer wrong"}, {"Authorization": "test-key"}]
+    "headers",
+    [
+        # No header at all, a wrong bearer token, and a right key sent without
+        # the `Bearer` prefix -- the third is the one that looks like it should
+        # work, which is why it is listed.
+        {},
+        {"Authorization": "Bearer wrong"},
+        {"Authorization": "test-key"},
+    ],
 )
-def test_a_bad_key_is_refused_in_the_openai_shape(client, headers):
+def test_a_key_is_required_when_one_is_configured_and_not_when_none_is(client, upstream, headers):
+    """Both halves of the same decision.
+
+    A request that does not carry the configured key is refused in OpenAI's
+    own error shape, because the client on the other end is an OpenAI client
+    and a refusal it cannot parse is a crash rather than a 401. And a gateway
+    configured with no key at all is open -- a legitimate choice on a trusted
+    network, so it has to actually work rather than fail closed by accident.
+    """
     response = client().post("/v1/chat/completions", json=_chat(), headers=headers)
     assert response.status_code == 401
     assert response.json()["detail"]["error"]["code"] == "invalid_api_key"
 
-
-def test_no_configured_key_means_an_open_gateway(client, upstream):
-    """A legitimate choice on a trusted network, so it must actually work."""
     assert client(api_key="").post("/v1/chat/completions", json=_chat()).status_code == 200
 
 
@@ -284,6 +297,7 @@ def _with_tool(content: str) -> dict:
 def test_a_tool_result_is_screened_and_marked_before_the_model_sees_it(client, upstream):
     """Stage 1, and the two halves are deliberately belt and braces.
 
+
     The patterns catch what they recognise -- a credential, an instruction
     addressed to the model -- and replace it, so neither reaches the weights.
     The provenance marker is what holds when they miss: the content is wrapped
@@ -313,9 +327,8 @@ def test_a_tool_result_is_screened_and_marked_before_the_model_sees_it(client, u
     assert "<<<ai-bunker:untrusted source=tool:read_file>>>" in tool["content"]
     assert tool["content"].rstrip().endswith("<<<ai-bunker:end untrusted>>>")
 
-
-def test_user_and_assistant_turns_are_left_alone(client, upstream):
-    """Redacting a user's own words is both surprising and useless."""
+    # And it applies to tool results only. Redacting a user's own words is
+    # both surprising and useless: they typed them, they already have them.
     secret = "my key is api_key = sk_live_8Kq2mZx9PvN3wR7t"
     client().post(
         "/v1/chat/completions",
@@ -331,7 +344,9 @@ def test_user_and_assistant_turns_are_left_alone(client, upstream):
 
 
 def test_an_exhausted_budget_is_refused_with_the_culprit_named(client, upstream):
-    """Refused here, where the reason can be named, not downstream as an opaque error."""
+    """Refused here, where the reason can be named, not downstream as an
+    opaque error -- and forwarded here when there is room, because a gate that
+    only ever says no is indistinguishable from an outage."""
     skills = "<skill>" + "".join(f"<name>s{i}</name>" + "d" * 4000 for i in range(59)) + "</skill>"
     response = client(
         upstreams={
@@ -349,11 +364,11 @@ def test_an_exhausted_budget_is_refused_with_the_culprit_named(client, upstream)
     assert body["budget"]["verdict"] == "unusable"
     assert not upstream.requests, "an unusable request must not reach the model"
 
-
-def test_a_healthy_request_is_forwarded(client, upstream):
-    response = client().post("/v1/chat/completions", json=_chat(), headers=AUTH)
-    assert response.status_code == 200
-    assert response.json()["choices"][0]["message"]["content"] == "ok"
+    # The other half of the same gate, and the half a refusal is worthless
+    # without: a session with room to work is forwarded and answered.
+    healthy = client().post("/v1/chat/completions", json=_chat(), headers=AUTH)
+    assert healthy.status_code == 200
+    assert healthy.json()["choices"][0]["message"]["content"] == "ok"
 
 
 def test_the_budget_endpoint_measures_without_sending(client, upstream):
@@ -402,22 +417,18 @@ def test_the_budget_names_the_backend_that_counted_and_never_overclaims(client, 
             assert catalogued["exact"] is True
 
     upstream.tokenize = True
-    served = client().post("/v1/budget", json=_chat(), headers=AUTH).json()
+    c = client()
+    served = c.post("/v1/budget", json=_chat(), headers=AUTH).json()
     assert served["backend"] == "server", "the gateway must use the engine's tokenizer"
     assert served["exact"] is True
     assert not any("ratio" in w for w in served["warnings"])
 
-
-def test_counters_are_reused_per_model(client, upstream):
-    """Resolving a backend is a round trip; it must not happen per request."""
-    upstream.tokenize = True
-    c = client()
+    # And resolving a backend is a round trip, so it happens once per model
+    # rather than once per request. The probe hits `/tokenize`, which the stub
+    # answers without recording; what matters is the number of counters built.
     for _ in range(3):
         c.post("/v1/budget", json=_chat(), headers=AUTH)
-    # The backend probe hits /tokenize, which the stub answers without
-    # recording; what matters is that three requests produced one counter.
-    state = c.app.state.bunker
-    assert len(state.counters) == 1, "a counter was rebuilt per request"
+    assert len(c.app.state.bunker.counters) == 1, "a counter was rebuilt per request"
 
 
 # ---------------------------------------------------------------------------
@@ -483,9 +494,8 @@ def test_a_dangerous_tool_call_is_refused_and_the_conversation_survives_it(clien
     body = client().post("/v1/chat/completions", json=_chat(), headers=AUTH).json()
     assert body.get("ai_bunker", {}).get("refused_by") == "shell.force_push"
 
-
-def test_a_legitimate_tool_call_passes_through(client, upstream):
-    """The other half of any guard: it has to not fire."""
+    # The other half of any guard: it has to not fire. A legitimate call
+    # reaches the client with nothing added and nothing taken away.
     upstream.reply = _tool_call_reply("pytest -q")
     body = client().post("/v1/chat/completions", json=_chat(), headers=AUTH).json()
     assert "ai_bunker" not in body
@@ -575,7 +585,9 @@ def test_an_unreachable_upstream_is_a_502_not_a_crash(client, upstream):
 
 
 def test_decisions_are_logged_without_the_matched_text(client, upstream, tmp_path):
-    """A log holding what it redacted has copied every secret somewhere else."""
+    """A log holding what it redacted has copied every secret somewhere else
+    -- and a log that can refuse to be written has turned an audit trail into
+    an outage. Both halves, because either one alone is a bad trade."""
     log = tmp_path / "decisions.jsonl"
     client(audit_log=str(log)).post(
         "/v1/chat/completions",
@@ -589,15 +601,14 @@ def test_decisions_are_logged_without_the_matched_text(client, upstream, tmp_pat
     assert record["outcome"] == "redacted"
     assert record["charter"] and record["at"]
 
-
-def test_an_unwritable_audit_log_warns_but_serves(client, upstream):
-    """Losing a line is bad; refusing to serve because a disk is full is worse."""
-    response = client(audit_log="/proc/nope/decisions.jsonl").post(
+    # And the log is never load-bearing. Losing a line is bad; refusing to
+    # serve because a disk filled up is worse.
+    unwritable = client(audit_log="/proc/nope/decisions.jsonl").post(
         "/v1/chat/completions",
         json=_with_tool("api_key = sk_live_8Kq2mZx9PvN3wR7t"),
         headers=AUTH,
     )
-    assert response.status_code == 200
+    assert unwritable.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -605,16 +616,22 @@ def test_an_unwritable_audit_log_warns_but_serves(client, upstream):
 # ---------------------------------------------------------------------------
 
 
-def test_a_stream_is_relayed(client, upstream):
+def test_a_stream_is_relayed_and_still_screened_and_budgeted(client, upstream):
+    """Streaming is where a guard is easiest to lose, so both halves are here.
+
+    The relay itself has to work -- the right status and the right media type,
+    or no client will read a byte of it. And stage 4 does not apply to a
+    stream (there is no completed tool call to judge yet; `test_streaming.py`
+    owns that path), but stages 1 to 3 still must: the inbound screening, the
+    provenance marking and the charter are not optional because the response
+    happens to arrive in pieces.
+    """
     with client().stream(
         "POST", "/v1/chat/completions", json=_chat(stream=True), headers=AUTH
     ) as response:
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
 
-
-def test_a_streamed_request_is_still_screened_and_budgeted(client, upstream):
-    """Stage 4 does not apply to a stream; stages 1 to 3 still must."""
     with client().stream(
         "POST",
         "/v1/chat/completions",
@@ -785,13 +802,20 @@ def test_a_need_that_pins_nothing_leaves_the_request_alone(needs_client, upstrea
         assert upstream.last["model"] == "devstral", need
 
 
-def test_an_upstream_can_name_the_model_it_serves():
-    """Without this the dashboard's first view -- the floor of an empty
-    session -- has no tokenizer to count against, so the operator's main
-    instrument reports an estimate on a deployment that could be exact."""
+def test_an_upstream_may_name_the_model_it_serves_and_a_client_still_wins():
+    """An optional field, and the three things that have to be true of it.
+
+    Naming it matters because without it the dashboard's first view -- the
+    floor of an empty session -- has no tokenizer to count against, so the
+    operator's main instrument reports an estimate on a deployment that could
+    be exact. It is a **fallback, not an override**: a client that names a
+    model still gets it. And **absent means what it meant before** the field
+    existed, or adding it would have changed every deployment that did not
+    ask for it.
+    """
     from ai_bunker.config import Settings, Upstream
 
-    settings = Settings(
+    named = Settings(
         api_key="k",
         upstreams={
             "local": Upstream(
@@ -803,31 +827,23 @@ def test_an_upstream_can_name_the_model_it_serves():
         },
         default_upstream="local",
     )
-
-    _upstream, resolved, why = settings.route("", "")
+    _upstream, resolved, why = named.route("", "")
     assert resolved == "the-served-model"
     assert "the-served-model" in why, "the reason has to name what it substituted"
 
-    # A client that does name a model still wins: the upstream's entry is a
-    # fallback, not an override.
-    _, resolved, _ = settings.route("something-else", "")
+    _, resolved, _ = named.route("something-else", "")
     assert resolved == "something-else"
 
-
-def test_an_upstream_without_a_model_is_unchanged():
-    """The field is optional, and absent means exactly what it did before."""
-    from ai_bunker.config import Settings, Upstream
-
-    settings = Settings(
+    bare = Settings(
         api_key="k",
         upstreams={"local": Upstream(name="local", base_url="http://up.test/v1")},
         default_upstream="local",
     )
-    _, resolved, _ = settings.route("", "")
+    _, resolved, _ = bare.route("", "")
     assert resolved == ""
 
 
-def test_a_duplicated_configuration_block_is_reported(tmp_path, caplog):
+def test_a_duplicated_configuration_block_is_reported_and_an_ordinary_one_is_not(tmp_path, caplog):
     """YAML keeps the last duplicate and discards the first without a word, so
     a second `enforcement:` silently turns off everything the first one set.
 
@@ -836,31 +852,29 @@ def test_a_duplicated_configuration_block_is_reported(tmp_path, caplog):
     parsed. Same family as the misplaced `api_key` that `_warn_about_strays`
     exists for -- a configuration that reads as though it says something and
     does not.
+
+    The second half is what keeps the first useful: a warning that also fires
+    on correct input is a warning people learn to ignore.
     """
     from ai_bunker.config import load_settings
 
-    path = tmp_path / "gateway.yaml"
-    path.write_text(
+    duplicated = tmp_path / "duplicated.yaml"
+    duplicated.write_text(
         "enforcement:\n  budget: true\n  commands: true\nenforcement:\n  payments: false\n",
         encoding="utf-8",
     )
     with caplog.at_level("WARNING"):
-        load_settings(str(path))
+        load_settings(str(duplicated))
     assert "declared 2 times" in caplog.text
     assert "enforcement" in caplog.text
 
-
-def test_an_ordinary_configuration_says_nothing_about_duplicates(tmp_path, caplog):
-    """A warning that fires on correct input is a warning people learn to
-    ignore."""
-    from ai_bunker.config import load_settings
-
-    path = tmp_path / "gateway.yaml"
-    path.write_text(
+    caplog.clear()
+    ordinary = tmp_path / "ordinary.yaml"
+    ordinary.write_text(
         "enforcement:\n  budget: true\nbudget:\n  compaction_reserve: 0\n", encoding="utf-8"
     )
     with caplog.at_level("WARNING"):
-        load_settings(str(path))
+        load_settings(str(ordinary))
     assert "declared" not in caplog.text
 
 
@@ -1145,7 +1159,9 @@ def test_the_agent_card_is_readable_without_a_key(client):
 def test_an_embedding_request_is_proxied_unchanged(client, upstream):
     """No charter, no rules, no budget: an embedding request has no system
     prompt to carry a charter and no conversation to run out of. Pretending
-    otherwise would be theatre, so the test is that nothing was added."""
+    otherwise would be theatre, so the test is that nothing was added -- and
+    that an unroutable model is still an answer rather than a stack trace.
+    """
     upstream.reply = {"data": [{"embedding": [0.1, 0.2]}], "model": "bge-m3"}
     response = client().post(
         "/v1/embeddings", json={"model": "devstral", "input": "hello"}, headers=AUTH
@@ -1155,13 +1171,10 @@ def test_an_embedding_request_is_proxied_unchanged(client, upstream):
     assert sent["input"] == "hello"
     assert "messages" not in sent
 
-
-def test_an_unknown_model_on_embeddings_is_a_named_error(client, upstream):
-    """A 400 that says which model, rather than a stack trace."""
-    response = client().post(
+    unknown = client().post(
         "/v1/embeddings", json={"model": "nothing-routes-here", "input": "x"}, headers=AUTH
     )
-    assert response.status_code in (200, 400)
+    assert unknown.status_code in (200, 400)
 
 
 # ---------------------------------------------------------------------------

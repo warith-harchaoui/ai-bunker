@@ -26,44 +26,50 @@ from ai_bunker.dependencies import check, declared, packages_in
 # ---------------------------------------------------------------------------
 
 
-def test_this_repository_declares_its_own_dependencies():
+def test_what_a_project_declares_is_read_from_its_manifests(tmp_path):
+    """Everything a name has to survive before it can be compared to one.
+
+    This repository's own `pyproject.toml` is the live specimen: the real
+    dependencies are harvested, and the **configuration keys are not**. A
+    false positive here does not merely add noise, it *weakens* the check --
+    a name counts as approved that nobody approved, and `addopts` and `all`
+    were both harvested before the reader became section-aware.
+
+    Names are **normalised the way the index does**: PyPI treats `-`, `_` and
+    `.` as the same character and ignores case, so a manifest saying
+    `typing_extensions` answers for `typing-extensions`, and an extra in
+    square brackets is not part of the name. A **lock file** counts, because a
+    transitive dependency is still one the project resolved and committed.
+    And a project with **no manifest** declares nothing, which is a different
+    answer from "declares none of these" and is handled as such below.
+    """
     names = declared(ROOT)
     for required in ("fastapi", "httpx", "pytest", "os-helper", "ruff"):
         assert required in names, f"{required} is in pyproject.toml but was not harvested"
-
-
-def test_configuration_is_not_mistaken_for_a_dependency():
-    """A false positive here does not merely add noise, it *weakens* the
-    check: a name counts as approved that nobody approved. `addopts` and
-    `all` were both harvested before the reader became section-aware."""
-    names = declared(ROOT)
     for junk in ("addopts", "all", "testpaths", "line-length", "version"):
         assert junk not in names
 
-
-def test_names_are_normalised_the_way_the_index_does(tmp_path):
-    """PyPI treats `-`, `_` and `.` as the same character and ignores case, so
-    a manifest saying `typing_extensions` must answer for `typing-extensions`."""
-    (tmp_path / "pyproject.toml").write_text(
+    python = tmp_path / "python"
+    python.mkdir()
+    (python / "pyproject.toml").write_text(
         '[project]\ndependencies = ["Typing_Extensions>=4", "Flask[async]>=2.0"]\n',
         encoding="utf-8",
     )
-    names = declared(tmp_path)
-    assert "typing-extensions" in names
-    assert "flask" in names
+    normalised = declared(python)
+    assert "typing-extensions" in normalised
+    assert "flask" in normalised
 
-
-def test_a_lock_file_counts_as_declared(tmp_path):
-    """A transitive dependency is still one the project resolved and committed."""
-    (tmp_path / "package-lock.json").write_text(
+    node = tmp_path / "node"
+    node.mkdir()
+    (node / "package-lock.json").write_text(
         json.dumps({"packages": {"node_modules/left-pad": {"version": "1.3.0"}}}),
         encoding="utf-8",
     )
-    assert "left-pad" in declared(tmp_path)
+    assert "left-pad" in declared(node)
 
-
-def test_a_project_with_no_manifest_declares_nothing(tmp_path):
-    assert declared(tmp_path) == set()
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    assert declared(bare) == set()
 
 
 # ---------------------------------------------------------------------------
@@ -99,14 +105,15 @@ def test_the_packages_a_command_names_are_read(command, tool, packages):
         "pip install https://example.com/pkg.tar.gz",
     ],
 )
-def test_installing_what_the_project_already_declares_names_nothing(command):
+def test_a_command_that_names_no_package_to_second_guess_names_none(command):
     """`-r requirements.txt` installs the declared set by definition, and `.`
-    installs the project itself. Neither is a package to second-guess."""
+    installs the project itself -- neither is a package to second-guess. Nor
+    is a command that is not an install at all, including one whose message
+    happens to contain the word.
+    """
     _tool, packages = packages_in(command)
     assert packages == []
 
-
-def test_a_command_that_is_not_an_install_is_ignored():
     assert packages_in("ls -la src/") == ("", [])
     assert packages_in("git commit -m 'install the thing'") == ("", [])
 
@@ -116,34 +123,33 @@ def test_a_command_that_is_not_an_install_is_ignored():
 # ---------------------------------------------------------------------------
 
 
-def test_a_hallucinated_package_is_refused():
+def test_an_undeclared_package_is_refused_and_a_declared_one_is_not(tmp_path):
     """`reqeusts` is the shape of the attack: one transposition away from a
-    real package, and registrable by anyone."""
+    real package, and registrable by anyone. A package the manifest already
+    carries is allowed, through whichever installer asks for it.
+
+    A **genuine** new dependency is refused too, and that is intended rather
+    than a side effect: choosing a dependency has a licence, a maintainer and
+    a supply chain attached, and is not an agent's decision to take mid-task.
+    The refusal **names** every package it refused, in the plural when there
+    is more than one, because an agent told only that something was refused
+    retries.
+    """
+    from ai_bunker.dependencies import refusal_message
+
     result = check("pip install reqeusts", ROOT)
     assert not result.ok
     assert result.undeclared == ["reqeusts"]
 
-
-def test_a_declared_package_is_allowed():
     assert check("pip install httpx", ROOT).ok
     assert check("uv add pytest", ROOT).ok
 
-
-def test_a_genuine_new_dependency_is_refused_too(tmp_path):
-    """Intended, not a side effect. Choosing a dependency has a licence, a
-    maintainer and a supply chain attached, and is not an agent's decision to
-    take mid-task."""
     (tmp_path / "pyproject.toml").write_text(
         '[project]\ndependencies = ["httpx"]\n', encoding="utf-8"
     )
     assert not check("pip install numpy", tmp_path).ok
 
-
-def test_the_refusal_names_the_packages():
-    from ai_bunker.dependencies import refusal_message
-
-    result = check("pip install reqeusts notarealpkg", ROOT)
-    message = refusal_message(result)
+    message = refusal_message(check("pip install reqeusts notarealpkg", ROOT))
     assert "reqeusts" in message and "notarealpkg" in message
     assert "packages are" in message  # plural, because there are two
 
@@ -173,9 +179,24 @@ def _call(command: str) -> list[dict]:
     ]
 
 
-def test_stage_four_refuses_an_undeclared_install():
+def test_stage_four_refuses_an_install_the_way_every_other_rule_refuses():
+    """The check only matters where it runs, and it has to look like the rest
+    of the system when it does.
+
+    It **fires** in `screen_outbound`, naming `deps.undeclared_package` and
+    the command it judged. It is **off unless a project root is configured**,
+    because a gateway serving several repositories cannot know which manifest
+    applies and guessing would refuse half of them. And the finding is a
+    **rule** like any other: downstream speaks in rules -- the audit log, the
+    refusal tool result, the dashboard -- and a parallel path is how two
+    mechanisms end up disagreeing about what was refused. Its pattern never
+    matches on its own, because the decision is made in code and a pattern
+    that could fire alone would be a second, weaker copy of it.
+    """
+    from ai_bunker.dependencies import as_rule
     from ai_bunker.pipeline import screen_outbound
     from ai_bunker.rules import load_rules
+    from ai_bunker.rules import refusal_message as rule_message
 
     rules = load_rules(ROOT / "charter" / "rules")
     refusal, command, _notes = screen_outbound(
@@ -184,29 +205,12 @@ def test_stage_four_refuses_an_undeclared_install():
     assert refusal is not None and refusal.id == "deps.undeclared_package"
     assert command == "pip install reqeusts"
 
-
-def test_the_check_is_off_unless_a_project_root_is_configured():
-    """A gateway serving several repositories cannot know which manifest
-    applies, so this stays opt-in rather than guessing."""
-    from ai_bunker.pipeline import screen_outbound
-    from ai_bunker.rules import load_rules
-
-    rules = load_rules(ROOT / "charter" / "rules")
-    refusal, _c, _n = screen_outbound(_call("pip install reqeusts"), rules)
-    assert refusal is None
-
-
-def test_the_synthesised_rule_behaves_like_any_other():
-    """Downstream speaks in rules -- the audit log, the refusal tool result,
-    the dashboard. A parallel path is how two mechanisms end up disagreeing
-    about what was refused."""
-    from ai_bunker.dependencies import as_rule
-    from ai_bunker.rules import refusal_message as rule_message
+    unconfigured, _c, _n = screen_outbound(_call("pip install reqeusts"), rules)
+    assert unconfigured is None
 
     rule = as_rule(check("pip install reqeusts", ROOT))
     assert rule.scope == "command" and rule.severity == "BLOCKER"
     assert "reqeusts" in rule_message(rule)
-    # The pattern must never match on its own: the decision is made in code.
     assert not rule.pattern.search("pip install reqeusts")
 
 
@@ -247,67 +251,69 @@ def test_only_an_exact_pin_counts_as_a_pin(spec, version):
     assert deps._pinned(spec) == version
 
 
-def test_the_declared_pins_are_read_from_every_manifest(pinned):
+def test_a_version_that_departs_from_the_pin_is_refused_in_either_direction(pinned):
+    """The attack that needs no new package: an older release of an approved
+    one, with a known hole in it. Every name-based check passes it.
+
+    The pins are read from **every manifest** -- `requirements.txt` and
+    `package.json` here -- and a **downgrade** is refused with both versions
+    named, because "wrong version" without the two numbers is not something
+    anyone can act on. An **upgrade** is refused on the same grounds and not
+    as an afterthought: the manifest says what is installed, and a command
+    that installs something else makes the repository wrong either way. The
+    npm `name@version` form is read as well as pip's `==`, or half the
+    ecosystem would walk past this.
+    """
     assert deps.declared_pins(pinned) == {"requests": "2.31.0", "react": "18.2.0"}
 
-
-def test_a_matching_version_is_allowed(pinned):
     assert deps.check("pip install requests==2.31.0", pinned).ok
 
-
-def test_a_downgrade_is_refused(pinned):
-    """The attack that needs no new package: an older release of an approved
-    one, with a known hole in it. Every name-based check passes it."""
-    result = deps.check("pip install requests==2.6.0", pinned)
-    assert not result.ok
-    assert [(p.package, p.asked, p.declared) for p in result.mismatched] == [
+    downgrade = deps.check("pip install requests==2.6.0", pinned)
+    assert not downgrade.ok
+    assert [(p.package, p.asked, p.declared) for p in downgrade.mismatched] == [
         ("requests", "2.6.0", "2.31.0")
     ]
-    assert "2.6.0" in deps.refusal_message(result)
-    assert "2.31.0" in deps.refusal_message(result)
-    assert deps.as_rule(result).id == "deps.version_mismatch"
+    message = deps.refusal_message(downgrade)
+    assert "2.6.0" in message and "2.31.0" in message
+    assert deps.as_rule(downgrade).id == "deps.version_mismatch"
 
-
-def test_an_upgrade_is_refused_too(pinned):
-    """Not only downgrades. The manifest says what is installed; a command
-    that installs something else makes the repository wrong either way."""
     assert not deps.check("pip install requests==9.9.9", pinned).ok
 
-
-def test_a_trailing_zero_is_the_same_release(pinned):
-    """`2.31` and `2.31.0` are one version, and refusing that would be a false
-    refusal on a manifest somebody wrote slightly differently."""
-    assert deps._same_version("2.31", "2.31.0")
-    assert not deps._same_version("2.31.1", "2.31.0")
-
-
-def test_a_range_is_not_a_pin_and_does_not_refuse(pinned):
-    """`flask>=2.0` accepts 3.0, so installing 3.0 is not a departure."""
-    assert deps.check("pip install flask==3.0", pinned).ok
-    assert deps.check("npm i lodash@4.18.0", pinned).ok
-
-
-def test_an_unpinned_install_of_a_pinned_package_is_noted_not_refused(pinned):
-    result = deps.check("pip install requests", pinned)
-    assert result.ok, "it must not stop the command"
-    assert result.unpinned == ["requests"]
-    assert deps.as_note(result).severity == "WARNING"
-    assert "no version" in deps.unpinned_message(result)
-
-
-def test_an_undeclared_package_is_still_the_first_finding(pinned):
-    """A package nobody declared has no declared version to differ from, so
-    the message must be about the package, not about a pin."""
-    result = deps.check("pip install nonexistent-helper", pinned)
-    assert result.undeclared == ["nonexistent-helper"]
-    assert result.mismatched == []
-    assert deps.as_rule(result).id == "deps.undeclared_package"
-
-
-def test_the_npm_at_form_is_read(pinned):
     assert [(p.package, p.asked) for p in deps.check("npm i react@17.0.0", pinned).mismatched] == [
         ("react", "17.0.0")
     ]
+
+
+def test_what_is_not_a_departure_from_a_pin_is_not_refused(pinned):
+    """The half that keeps the half above usable, since a version check that
+    fires on correct input gets switched off.
+
+    A **trailing zero** is the same release: `2.31` and `2.31.0` are one
+    version, and refusing that would be a false refusal on a manifest somebody
+    wrote slightly differently. A **range** is a decision to accept whatever
+    satisfies it, so `flask>=2.0` is not departed from by installing 3.0. An
+    **unpinned install** of a pinned package is noted rather than refused --
+    it may well resolve to the pin, and stopping the command over a maybe is
+    the wrong trade. And a package **nobody declared** has no declared version
+    to differ from, so the finding is about the package rather than about a
+    pin, or the message sends the reader to the wrong manifest line.
+    """
+    assert deps._same_version("2.31", "2.31.0")
+    assert not deps._same_version("2.31.1", "2.31.0")
+
+    assert deps.check("pip install flask==3.0", pinned).ok
+    assert deps.check("npm i lodash@4.18.0", pinned).ok
+
+    unpinned = deps.check("pip install requests", pinned)
+    assert unpinned.ok, "it must not stop the command"
+    assert unpinned.unpinned == ["requests"]
+    assert deps.as_note(unpinned).severity == "WARNING"
+    assert "no version" in deps.unpinned_message(unpinned)
+
+    undeclared = deps.check("pip install nonexistent-helper", pinned)
+    assert undeclared.undeclared == ["nonexistent-helper"]
+    assert undeclared.mismatched == []
+    assert deps.as_rule(undeclared).id == "deps.undeclared_package"
 
 
 # ---------------------------------------------------------------------------
@@ -316,32 +322,27 @@ def test_the_npm_at_form_is_read(pinned):
 
 
 @pytest.mark.parametrize(
-    "command",
+    "command,allowed",
     [
-        "npm install nonexistent-helper",
-        "npm i nonexistent-helper",
-        "npm in nonexistent-helper",
-        "pnpm i nonexistent-helper",
-        "bun a nonexistent-helper",
-        "yarn add nonexistent-helper",
+        # `npm i lodash` -- the form people actually type -- went past the
+        # undeclared-package refusal entirely, and so did `pnpm i`. Found by
+        # probing while the version check was being written.
+        ("npm install nonexistent-helper", False),
+        ("npm i nonexistent-helper", False),
+        ("npm in nonexistent-helper", False),
+        ("pnpm i nonexistent-helper", False),
+        ("bun a nonexistent-helper", False),
+        ("yarn add nonexistent-helper", False),
+        # Beside them, the commands a one-letter verb must not drag in. A
+        # verb allowed to float near a tool name would refuse a file copy for
+        # installing undeclared packages.
+        ("npm run build && cp -i a b", True),
+        ("git commit -m 'add i'", True),
+        ("echo install", True),
     ],
 )
-def test_every_installer_shorthand_is_screened(command, pinned):
-    """`npm i lodash` -- the form people actually type -- went past the
-    undeclared-package refusal entirely, and so did `pnpm i`. Found by
-    probing while the version check was being written."""
-    assert not deps.check(command, pinned).ok, f"{command} was allowed"
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        "npm run build && cp -i a b",
-        "git commit -m 'add i'",
-        "echo install",
-    ],
-)
-def test_the_shorthand_does_not_match_an_ordinary_command(command, pinned):
-    """A one-letter verb allowed to float near a tool name would refuse a
-    file copy for installing undeclared packages."""
-    assert deps.check(command, pinned).ok, f"{command} was refused"
+def test_every_installer_shorthand_is_screened_and_nothing_else_is(command, allowed, pinned):
+    """The safe spellings are listed beside the unsafe ones on purpose: that
+    is where a reader checks that the shorthand matcher rejects the right
+    half, and a table that only lists what must be refused cannot show it."""
+    assert deps.check(command, pinned).ok is allowed, command

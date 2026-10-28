@@ -50,24 +50,22 @@ SUBCOMMANDS = (
 # ---------------------------------------------------------------------------
 
 
-def test_the_top_level_help_prints(capsys):
-    with pytest.raises(SystemExit) as caught:
-        main(["--help"])
-    assert caught.value.code == 0
-    assert "ai-bunker" in capsys.readouterr().out
-
-
-@pytest.mark.parametrize("command", SUBCOMMANDS)
-def test_every_subcommand_help_prints(command, capsys):
-    """The regression test for the bug above, one per command.
+@pytest.mark.parametrize("command", [None, *SUBCOMMANDS])
+def test_help_prints_for_every_command(command, capsys):
+    """The regression test for the bug above, once at the top level and once
+    per subcommand.
 
     argparse expands `%` in a help string, so a literal percent sign has to be
-    doubled. The failure is invisible until someone asks for help.
+    doubled. The failure is invisible until someone asks for help, which is
+    the one moment a user is least able to work around it.
     """
     with pytest.raises(SystemExit) as caught:
-        main([command, "--help"])
+        main(["--help"] if command is None else [command, "--help"])
     assert caught.value.code == 0
-    assert capsys.readouterr().out.strip()
+    printed = capsys.readouterr().out
+    assert printed.strip()
+    if command is None:
+        assert "ai-bunker" in printed
 
 
 def test_no_help_string_carries_an_unescaped_percent():
@@ -103,18 +101,32 @@ def test_no_help_string_carries_an_unescaped_percent():
 # ---------------------------------------------------------------------------
 
 
-def test_every_documented_subcommand_exists():
-    parser = build_parser()
-    sub = next(a for a in parser._actions if getattr(a, "choices", None))
-    assert set(SUBCOMMANDS) == set(sub.choices)
-
-
 @pytest.mark.parametrize("page", ["EXAMPLES.md", "EXEMPLES.md"])
 def test_the_examples_only_use_commands_that_exist(page):
-    """A worked example naming a command that was renamed is worse than none."""
+    """A worked example naming a command that was renamed is worse than none
+    -- and the list this file checks against has to be the parser's own, or
+    every assertion built on it is checking a copy nobody updates.
+
+    The two language editions are held to each other as well: they drift apart
+    silently, and a reader of one has no way to notice. Each is linked from
+    the README written in its own language, because an example page nobody can
+    find from the front door is an example page nobody reads.
+    """
+    parser = build_parser()
+    sub = next(a for a in parser._actions if getattr(a, "choices", None))
+    assert set(SUBCOMMANDS) == set(sub.choices), "SUBCOMMANDS no longer matches the parser"
+
     text = (ROOT / page).read_text(encoding="utf-8")
     for used in set(re.findall(r"^\s*(?:\$ )?ai-bunker (\w[\w-]*)", text, re.M)):
         assert used in SUBCOMMANDS, f"{page} uses `ai-bunker {used}`, which does not exist"
+
+    other = "EXEMPLES.md" if page == "EXAMPLES.md" else "EXAMPLES.md"
+    here = set(re.findall(r"ai-bunker (\w[\w-]*)", text))
+    there = set(re.findall(r"ai-bunker (\w[\w-]*)", (ROOT / other).read_text(encoding="utf-8")))
+    assert here == there, f"{page} and {other} document different commands"
+
+    readme = "README.md" if page == "EXAMPLES.md" else "LISEZMOI.md"
+    assert page in (ROOT / readme).read_text(encoding="utf-8"), f"{readme} does not link {page}"
 
 
 @pytest.mark.parametrize("page", ["EXAMPLES.md", "EXEMPLES.md"])
@@ -141,48 +153,34 @@ def test_the_examples_only_use_flags_that_exist(page):
     assert not unknown, f"{page} uses flags that do not exist: {sorted(set(unknown))}"
 
 
-@pytest.mark.parametrize("page", ["EXAMPLES.md", "EXEMPLES.md"])
-def test_both_languages_cover_the_same_commands(page):
-    """The two files drift apart silently; this is what notices."""
-    other = "EXEMPLES.md" if page == "EXAMPLES.md" else "EXAMPLES.md"
-    here = set(re.findall(r"ai-bunker (\w[\w-]*)", (ROOT / page).read_text(encoding="utf-8")))
-    there = set(re.findall(r"ai-bunker (\w[\w-]*)", (ROOT / other).read_text(encoding="utf-8")))
-    assert here == there, f"{page} and {other} document different commands"
-
-
-def test_the_examples_are_linked_from_both_readmes():
-    for readme, target in (("README.md", "EXAMPLES.md"), ("LISEZMOI.md", "EXEMPLES.md")):
-        assert target in (ROOT / readme).read_text(encoding="utf-8"), (
-            f"{readme} does not link {target}"
-        )
-
-
 # ---------------------------------------------------------------------------
 # Failure modes a user will hit.
 # ---------------------------------------------------------------------------
 
 
-def test_an_unknown_accelerator_exits_cleanly_with_the_known_ones(capsys):
+def test_the_exit_code_says_what_happened_and_the_message_says_why(capsys):
+    """Three outcomes a script can act on, and each has to be distinguishable.
+
+    **2** is a usage error -- an accelerator or a charter page that does not
+    exist -- and the message names the real ones, because a user who typed a
+    name wrong is one list away from typing it right. **1** is a verdict: a
+    command this charter refuses, named by the rule that refused it. **0** is
+    everything that worked, including the two that look like failures and are
+    not: a command no rule matched, and a rule set that passes its own
+    evidence.
+    """
     assert main(["sizing", "--accelerator", "no-such-card"]) == 2
     assert "dgx-spark" in capsys.readouterr().err
 
-
-def test_a_missing_charter_page_names_the_real_ones(capsys):
     assert main(["charter", "--page", "python/style.md"]) == 2
     assert "10_style.md" in capsys.readouterr().err
 
-
-def test_a_refused_command_exits_non_zero(capsys):
     assert main(["rules", "--command", "git push --force origin main"]) == 1
     assert "shell.force_push" in capsys.readouterr().out
 
-
-def test_an_allowed_command_exits_zero(capsys):
     assert main(["rules", "--command", "git diff --stat"]) == 0
     assert "no rule matched" in capsys.readouterr().out
 
-
-def test_rules_check_gates(capsys):
     assert main(["rules", "--check"]) == 0
     assert "rules carrying evidence" in capsys.readouterr().out
 
@@ -205,37 +203,34 @@ def test_an_unreadable_config_does_not_leak_a_library_message(capsys, tmp_path, 
 # ---------------------------------------------------------------------------
 
 
-def test_screen_accepts_a_dash_for_stdin(monkeypatch, capsys):
+def test_screen_reads_stdin_by_dash_by_default_and_a_file_by_name(monkeypatch, tmp_path, capsys):
     """The help said "default: stdin" and the conventional way of asking for
-    it crashed with a FileNotFoundError on a file literally named `-`.
+    it -- `-` -- crashed with a FileNotFoundError on a file literally named
+    `-`. A documented spelling that crashes is worse than an unsupported one,
+    because the documentation invited it. Same lesson as the `--help` bug at
+    the top of this file, found the same way: by running the command rather
+    than reading it.
 
-    A documented spelling that crashes is worse than an unsupported one,
-    because the documentation invited it -- which is the same lesson as the
-    `--help` bug at the top of this file, found the same way: by running the
-    command rather than reading it.
+    So all three spellings work: `-`, no argument at all, and a real path --
+    the last because `-` must not have been bought by breaking the ordinary
+    case. And the help says `-` out loud, since a spelling that works and is
+    not documented is a spelling nobody uses.
     """
-    monkeypatch.setattr("sys.stdin", io.StringIO('api_key = "sk_live_8Kq2mZx9PvN3wR7t"\n'))
+    secret = 'api_key = "sk_live_8Kq2mZx9PvN3wR7t"\n'
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(secret))
     assert main(["rules", "--screen", "-"]) == 0
     assert "<SECRET REDACTED>" in capsys.readouterr().out
 
-
-def test_screen_with_no_argument_still_reads_stdin(monkeypatch, capsys):
-    """The default the help has always advertised."""
-    monkeypatch.setattr("sys.stdin", io.StringIO('api_key = "sk_live_8Kq2mZx9PvN3wR7t"\n'))
+    monkeypatch.setattr("sys.stdin", io.StringIO(secret))
     assert main(["rules"]) == 0
     assert "<SECRET REDACTED>" in capsys.readouterr().out
 
-
-def test_screen_still_reads_a_real_file(tmp_path, capsys):
-    """`-` must not have been bought by breaking the ordinary case."""
     path = tmp_path / "out.txt"
-    path.write_text('api_key = "sk_live_8Kq2mZx9PvN3wR7t"\n', encoding="utf-8")
+    path.write_text(secret, encoding="utf-8")
     assert main(["rules", "--screen", str(path)]) == 0
     assert "<SECRET REDACTED>" in capsys.readouterr().out
 
-
-def test_the_screen_help_mentions_the_dash():
-    """A spelling that works and is not documented is a spelling nobody uses."""
     action = next(
         a
         for a in build_parser()._subparsers._group_actions[0].choices["rules"]._actions
@@ -361,23 +356,37 @@ def test_doctor_reports_rather_than_raises(capsys):
 # ---------------------------------------------------------------------------
 
 
-def test_skill_writes_a_skill_tree_that_validates(tmp_path, capsys):
+def test_skill_writes_a_tree_that_validates_and_will_not_silently_replace_one(tmp_path, capsys):
     """`ai-bunker skill` publishes the charter in the Agent Skills format,
     which is how a client that was never configured for this project reads it.
     Nothing ran the handler, so a broken export would have shipped.
+
+    Four things have to hold. `--out` is the **parent**: the tree lands in
+    `<out>/<name>/`, which is worth learning from a test rather than from a
+    support question. The exporter's **own validator** accepts what it just
+    wrote, because a format nobody checks is a format that drifts from its
+    specification -- and that validator can **fail**, or it is decoration (it
+    used to raise `FileNotFoundError` on a directory that is not a skill,
+    which is a validator unable to deliver its most likely verdict). And a
+    second run does not **replace** an edited tree without `--force`, because
+    that is the kind of help nobody asks for twice.
     """
     out = tmp_path / "skill"
-    assert main(["skill", "--directory", "charter", "--out", str(out), "--name", "house"]) == 0
+    argv = ["skill", "--directory", "charter", "--out", str(out), "--name", "house"]
+    assert main(argv) == 0
     assert capsys.readouterr().out.strip()
 
-    # `--out` is the parent: the tree lands in `<out>/<name>/`. Worth knowing
-    # from a test rather than from a support question.
     written = out / "house"
     assert (written / "SKILL.md").is_file()
-
-    # And the exporter's own validator must accept what it just wrote: a
-    # format nobody checks is a format that drifts from its specification.
     assert main(["skill", "--check", str(written)]) == 0
+
+    (tmp_path / "not-a-skill").mkdir()
+    assert main(["skill", "--check", str(tmp_path / "not-a-skill")]) != 0
+
+    capsys.readouterr()
+    second = main(argv)
+    assert second != 0 or (written / "SKILL.md").is_file()
+    assert main([*argv, "--force"]) == 0
 
 
 @pytest.mark.parametrize("client", ["agents", "claude", "opencode"])
@@ -404,26 +413,6 @@ def test_skill_writes_for_each_client_it_offers(client, tmp_path, capsys):
     assert list(out.rglob("*")), f"--client {client} wrote nothing"
 
 
-def test_skill_refuses_to_overwrite_without_force(tmp_path, capsys):
-    """Replacing somebody's edited skill tree silently is the kind of help
-    nobody asks for twice."""
-    out = tmp_path / "skill"
-    argv = ["skill", "--directory", "charter", "--out", str(out), "--name", "house"]
-    assert main(argv) == 0
-    capsys.readouterr()
-    second = main(argv)
-    assert second != 0 or (out / "house" / "SKILL.md").is_file()
-    assert main([*argv, "--force"]) == 0
-
-
-def test_checking_something_that_is_not_a_skill_says_so(tmp_path, capsys):
-    """The validator has to be able to fail, or it is decoration."""
-    (tmp_path / "not-a-skill").mkdir()
-    # It used to raise `FileNotFoundError` here, which is a validator that
-    # cannot deliver its most likely verdict.
-    assert main(["skill", "--check", str(tmp_path / "not-a-skill")]) != 0
-
-
 def test_breaker_reports_when_the_gateway_is_unreachable(capsys):
     """It talks to a running gateway over HTTP. With none running it must say
     so and exit non-zero -- a diagnostic that reports nothing while exiting
@@ -434,28 +423,27 @@ def test_breaker_reports_when_the_gateway_is_unreachable(capsys):
     assert out.strip() or True  # the message may go to the logger
 
 
-def test_adopt_into_a_fresh_directory_writes_and_reports(tmp_path, capsys):
+def test_adopt_writes_reports_and_never_replaces_an_edit_without_force(tmp_path, capsys):
     """`cmd_adopt` is the handler behind this project's distribution and no
-    test called it. `test_adopt.py` exercises the library function; this is the
-    command a user actually types."""
+    test called it. `test_adopt.py` exercises the library function; this is
+    the command a user actually types.
+
+    It writes the charter and **says** it did -- a tool that changes a
+    repository silently leaves the user with no idea what to review. Run
+    again over an edited charter it keeps the edit, because an adopt that
+    replaces one is a data-loss bug wearing a convenience flag. `--force` is
+    the word that means it.
+    """
     target = tmp_path / "repo"
     target.mkdir()
     assert main(["adopt", str(target)]) == 0
     printed = capsys.readouterr().out
     assert "charter/AGENTS.md" in printed
-    assert (target / "charter" / "AGENTS.md").is_file()
-
-
-def test_adopt_does_not_overwrite_without_force(tmp_path, capsys):
-    """An adopt that replaces an edited charter is a data-loss bug wearing a
-    convenience flag."""
-    target = tmp_path / "repo"
-    target.mkdir()
-    assert main(["adopt", str(target)]) == 0
-    capsys.readouterr()
 
     charter = target / "charter" / "AGENTS.md"
+    assert charter.is_file()
     charter.write_text("# edited by the operator\n", encoding="utf-8")
+
     assert main(["adopt", str(target)]) == 0
     assert "edited by the operator" in charter.read_text(encoding="utf-8")
 

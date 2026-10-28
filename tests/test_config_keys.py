@@ -72,10 +72,8 @@ def test_the_shipped_example_configuration_has_no_stray_key():
     settings = load_settings(ROOT / "config" / "gateway.example.yaml")
     assert settings.config_strays == (), "\n".join(settings.config_strays)
 
-
-def test_the_example_configures_the_render_section():
-    """The section that was read and undocumented. Asserted because the fix
-    was to write it down, and a fix to documentation is undone by silence."""
+    # `render:` named specifically: it is the section that was read and
+    # undocumented, and a fix to documentation is undone by silence.
     text = (ROOT / "config" / "gateway.example.yaml").read_text(encoding="utf-8")
     assert "\nrender:" in text
     assert "allow_hosts" in text and "neutralise" in text
@@ -93,7 +91,8 @@ def test_one_letter_wrong_in_served_context_is_caught(tmp_path):
     context is still the default. Refusing to start on an unreadable key is a
     bigger decision than this round is making. What changed is that the
     mistake is now *reported* with the correction next to it, and that
-    `ai-bunker doctor` refuses.
+    `ai-bunker doctor` refuses. The last three assertions say why one letter
+    mattered, in the number it produced.
     """
     settings = _written(tmp_path, BASE.replace("served_context", "served_kontext"))
 
@@ -106,24 +105,17 @@ def test_one_letter_wrong_in_served_context_is_caught(tmp_path):
         "suggestion this is a warning rather than a fix"
     )
 
-
-def test_the_declared_window_was_four_times_the_real_one(tmp_path):
-    """Why one letter mattered, stated as the number it produced.
-
-    This is the project's own founding sentence -- "exactly the kind of figure
-    that let a client send 40,433 tokens to a 32,768-token server" -- and the
-    typo made it worse than the original.
-    """
-    right = _written(tmp_path, BASE)
-    wrong = _written(tmp_path, BASE.replace("served_context", "served_kontext"))
-
+    # Why one letter mattered, stated as the number it produced. This is the
+    # project's own founding sentence -- "exactly the kind of figure that let
+    # a client send 40,433 tokens to a 32,768-token server" -- and the typo
+    # made it worse than the original.
     def declared(settings):
         upstream = settings.upstreams["local"]
         return int(upstream.served_context * settings.declared_fraction)
 
-    assert declared(right) == 26_214
-    assert declared(wrong) == 104_857
-    assert declared(wrong) > 3 * declared(right)
+    assert declared(_written(tmp_path, BASE)) == 26_214
+    assert declared(settings) == 104_857
+    assert declared(settings) > 3 * declared(_written(tmp_path, BASE))
 
 
 # ---------------------------------------------------------------------------
@@ -186,14 +178,12 @@ def test_a_block_written_as_a_value_is_reported_rather_than_a_crash(tmp_path):
         "the operator has read the enforcement switch and put it one level too high"
     )
 
-
-@pytest.mark.parametrize("block", ["upstreams", "needs", "routes", "enforcement", "render"])
-def test_no_block_written_as_a_value_crashes_the_loader(tmp_path, block):
-    """Every block, because the three keyed by operator-chosen names are read
-    with `.items()` rather than `.get()` and failed with a different
-    exception."""
-    settings = _written(tmp_path, BASE + f"{block}: a-scalar\n")
-    assert any(f"`{block}:` is written as a value" in s for s in settings.config_strays)
+    # Every other block too, because the three keyed by operator-chosen names
+    # are read with `.items()` rather than `.get()` and failed with a
+    # different exception.
+    for block in ("upstreams", "needs", "routes", "enforcement", "render"):
+        strays = _written(tmp_path, BASE + f"{block}: a-scalar\n").config_strays
+        assert any(f"`{block}:` is written as a value" in s for s in strays), block
 
 
 def test_a_block_name_may_also_be_a_key_one_level_down():
@@ -257,7 +247,5 @@ def test_doctor_still_passes_a_deployment_that_only_made_choices(tmp_path):
         "number the gate is made of"
     )
 
-
-def test_the_shipped_example_passes_the_gate():
-    """What continuous integration runs."""
+    # And the shipped example, which is what continuous integration runs.
     assert _doctor(ROOT / "config" / "gateway.example.yaml").returncode == 0

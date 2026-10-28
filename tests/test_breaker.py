@@ -196,33 +196,43 @@ def test_no_breaker_means_no_change(shipped):
 # ---------------------------------------------------------------------------
 
 
-def test_the_refusal_says_why_and_how_to_clear_it(breaker, clock):
-    trip = breaker.record("s", refusals(3, rule="shell.pipe_to_shell"))
-    rule = as_rule(trip, now=clock.now)
+def test_the_refusal_says_why_how_to_clear_it_and_names_each_rule_once(breaker, clock):
+    """What the agent gets back, and it has to be actionable on its own: the
+    rule that tripped the breaker, the command that clears it, and the fact
+    that the conversation is still working -- without that last clause an
+    agent reads a quarantine as a dead session and starts a new one, losing
+    the context the quarantine was protecting.
+
+    Five of the same refusal is **one** finding rather than a tally, because a
+    description that repeats `shell.destructive_rm` five times reads as five
+    different problems. And the rule's pattern never matches anything: the
+    decision is made in code, and a pattern that could fire on its own would
+    be a second, weaker copy of it.
+    """
+    rule = as_rule(breaker.record("s", refusals(3, rule="shell.pipe_to_shell")), now=clock.now)
     assert "shell.pipe_to_shell" in rule.description
     assert "ai-bunker breaker --reset" in rule.description
     assert "conversation is still working" in rule.description
     assert rule.source == "breaker.py"
     assert not rule.pattern.search("anything"), "the pattern must never match"
 
-
-def test_the_contributing_rules_are_deduplicated(breaker, clock):
-    """Five of the same refusal is one finding, not a tally."""
-    trip = breaker.record("s", refusals(5, rule="shell.destructive_rm"))
-    assert as_rule(trip, now=clock.now).description.count("shell.destructive_rm") == 1
+    repeated = breaker.record("dup", refusals(5, rule="shell.destructive_rm"))
+    assert as_rule(repeated, now=clock.now).description.count("shell.destructive_rm") == 1
 
 
-def test_the_status_is_readable_by_an_operator(breaker):
-    breaker.record("s", refusals(3))
+def test_an_operator_can_read_the_state_and_clear_one_session_or_all(breaker):
+    """The two operator controls, and the view they act on. The status names
+    how many refusals, which rules, and how long until it closes by itself --
+    a breaker that cannot be inspected leaves a session stopped for reasons
+    nobody can see. `--reset` takes one session or every session, because
+    after a bad deploy the answer is usually "all of them"."""
+    breaker.record("a", refusals(3))
     status = breaker.status()
     assert len(status) == 1
     assert status[0]["refusals"] == 3
     assert status[0]["closes_in_s"] > 0
     assert "shell.destructive_rm" in status[0]["rules"]
 
-
-def test_a_reset_closes_one_session_or_all(breaker):
-    breaker.record("a", refusals(3))
     breaker.record("b", refusals(3))
     assert breaker.reset("a") == 1
     assert breaker.state("a") is None and breaker.state("b") is not None

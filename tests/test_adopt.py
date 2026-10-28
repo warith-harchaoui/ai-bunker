@@ -50,6 +50,16 @@ def repo(tmp_path):
     return d
 
 
+def _repo(path):
+    """A fresh empty repository directory.
+
+    The `repo` fixture gives a test one; several tests need two or three,
+    because each precedence case has to be the only reason the check fires.
+    """
+    path.mkdir(parents=True)
+    return path
+
+
 def _adopt(repo, **over):
     kwargs = {"url": "http://gw.test:8000/v1", "api_key": "k", "model": "devstral"}
     kwargs.update(over)
@@ -113,16 +123,32 @@ def test_there_is_no_second_copy_of_the_operating_rules(repo):
 # ---------------------------------------------------------------------------
 
 
-def test_an_agents_md_about_to_go_dark_is_reported_with_the_way_out(repo):
-    """The note is the feature. Nothing errors when this happens -- the file
-    simply stops being read -- so a tool that writes `CLAUDE.md` into a
-    repository keeping its instructions in `AGENTS.md` has to say so, name
-    both files, and offer the escape (`--client opencode`). It has to reach
-    the printed summary too, or it is a note nobody sees.
+def test_the_precedence_trap_is_detected_the_way_claude_code_resolves_it(tmp_path, monkeypatch):
+    """One feature, and it only works if every half of it is right: the shadow
+    is detected by somebody else's rule, and then reported usefully.
 
-    The real run reports the same notes as the dry run, because a preview that
-    disagrees with the run is worse than no preview.
+    **Detected.** Which file shadows which is Claude Code's rule, so the check
+    follows it rather than approximating it, in both directions. It walks
+    **upward**, because a `CLAUDE.md` in a parent shadows just as effectively.
+    It counts **`.claude/AGENTS.md`**, which is read too. It does not count
+    **`~/.claude/CLAUDE.md`**, which keeps loading alongside `AGENTS.md` --
+    warning about it would fire for every user with personal instructions,
+    which is most of them. It does not count **`charter/AGENTS.md`**, the
+    operating rules the gateway injects, or every adopt would warn about the
+    file it just wrote. And it fires on nothing when no `CLAUDE.md` is being
+    written at all (`--client opencode`), which is also the escape hatch.
+
+    **Reported.** Nothing errors when a file goes dark -- it simply stops
+    being read -- so the note is the whole feature. It names both files, says
+    what happens, offers the way out, and reaches the printed summary, or it
+    is a note nobody sees. When both files were already there the note says
+    so instead of blaming the adopt, because that sends somebody looking at
+    the wrong change. And the real run reports the same notes as the dry run,
+    because a preview that disagrees with the run is worse than no preview.
     """
+    repo = _repo(tmp_path / "plain")
+    assert plan_adopt(repo).notes == [], "most repositories; a check that fires on all is noise"
+
     (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
     plan = plan_adopt(repo)
     assert plan.notes, "writing CLAUDE.md over a repo with AGENTS.md said nothing"
@@ -131,42 +157,31 @@ def test_an_agents_md_about_to_go_dark_is_reported_with_the_way_out(repo):
     assert "stops being read" in note
     assert "--client opencode" in note, "it should offer the way out"
     assert "~" in plan.summary(), "the note must reach the printed summary"
-    assert _adopt(repo).notes == plan.notes
+    assert _adopt(repo).notes == plan.notes, "the dry run and the run must agree"
 
+    # The escape hatch works: no CLAUDE.md written, so nothing is shadowed.
+    opencode_only = plan_adopt(repo, clients=("opencode",))
+    assert "CLAUDE.md" not in [relative for relative, _ in opencode_only.writes]
+    assert opencode_only.notes == []
 
-def test_a_claude_md_already_there_is_reported_as_not_this_tools_doing(repo):
-    """Both files present is still a real conflict, and still worth saying --
-    but blaming the adopt for it sends somebody looking at the wrong change."""
-    (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
-    (repo / "CLAUDE.md").write_text("theirs", encoding="utf-8")
-    plan = plan_adopt(repo)
-    assert "CLAUDE.md" in plan.kept
-    assert "did not cause it" in " ".join(plan.notes)
+    # Both files already present: a real conflict, and not this tool's doing.
+    both = _repo(tmp_path / "both")
+    (both / "AGENTS.md").write_text("our rules", encoding="utf-8")
+    (both / "CLAUDE.md").write_text("theirs", encoding="utf-8")
+    conflict = plan_adopt(both)
+    assert "CLAUDE.md" in conflict.kept
+    assert "did not cause it" in " ".join(conflict.notes)
 
-
-def test_the_check_reads_precedence_exactly_the_way_claude_code_does(tmp_path, monkeypatch):
-    """Which file shadows which is somebody else's rule, so the check has to
-    follow it rather than approximate it -- in both directions.
-
-    It **walks upward**, because a `CLAUDE.md` in a parent directory shadows
-    just as effectively. It counts **`.claude/AGENTS.md`**, which is read too.
-    It does not count **`~/.claude/CLAUDE.md`**, which keeps loading alongside
-    `AGENTS.md` -- warning about it would fire for every user with personal
-    instructions, which is most of them. And it does not count
-    **`charter/AGENTS.md`**, the operating rules the gateway injects: no client
-    reads those as project instructions, so counting them would make every
-    adopt warn about the file the adopt itself just wrote.
-    """
+    # Separate directories below, because each case has to be the only reason
+    # the check fires -- a leftover `.claude/AGENTS.md` would answer the next.
     above = tmp_path / "above"
     (above / "project").mkdir(parents=True)
     (above / "CLAUDE.md").write_text("from above", encoding="utf-8")
     (above / "project" / "AGENTS.md").write_text("our rules", encoding="utf-8")
-    note = " ".join(plan_adopt(above / "project").notes)
-    assert "from above" in note or "shadowed from above" in note
-    assert str(above / "CLAUDE.md") in note
+    upward = " ".join(plan_adopt(above / "project").notes)
+    assert "from above" in upward or "shadowed from above" in upward
+    assert str(above / "CLAUDE.md") in upward
 
-    # Separate directories, because each case has to be the only reason the
-    # check fires -- a leftover `.claude/AGENTS.md` would answer the next one.
     dot_claude = tmp_path / "dot-claude"
     (dot_claude / ".claude").mkdir(parents=True)
     (dot_claude / ".claude" / "AGENTS.md").write_text("our rules", encoding="utf-8")
@@ -184,17 +199,6 @@ def test_the_check_reads_precedence_exactly_the_way_claude_code_does(tmp_path, m
     personal = home / "project"
     personal.mkdir()
     assert shadowing_claude_files(personal) == []
-
-
-def test_a_repository_with_nothing_to_shadow_is_not_warned(repo):
-    """Most repositories. A check that fires on all of them is noise -- and
-    so is one that fires when no `CLAUDE.md` is being written at all."""
-    assert plan_adopt(repo).notes == []
-
-    (repo / "AGENTS.md").write_text("our rules", encoding="utf-8")
-    opencode_only = plan_adopt(repo, clients=("opencode",))
-    assert "CLAUDE.md" not in [relative for relative, _ in opencode_only.writes]
-    assert opencode_only.notes == [], "no CLAUDE.md is written, so nothing is shadowed"
 
 
 # ---------------------------------------------------------------------------
@@ -273,39 +277,35 @@ def test_charter_pages_are_copied_byte_for_byte(repo):
 # ---------------------------------------------------------------------------
 
 
-def test_an_existing_file_is_kept(repo):
-    """A repository with an opencode.json has one for a reason."""
+def test_nothing_a_repository_already_had_is_destroyed(repo):
+    """The property an adopt lives or dies by, over the three shapes it takes.
+
+    A file the repository already has is **kept**, byte for byte -- a project
+    with an `opencode.json` has one for a reason, and the same goes for a
+    charter it wrote itself. `--force` is the one thing that replaces, which
+    is what makes it worth typing. And a target that must not be adopted into
+    is refused rather than half-written: this installation, because it would
+    overwrite the templates with their own rendered output, and a path that
+    is not a directory at all.
+    """
     (repo / "opencode.json").write_text('{"mine": true}', encoding="utf-8")
+    (repo / "charter").mkdir()
+    (repo / "charter" / "AGENTS.md").write_text("# ours\n", encoding="utf-8")
+
     plan = _adopt(repo)
     assert "opencode.json" in plan.kept
     assert json.loads((repo / "opencode.json").read_text(encoding="utf-8")) == {"mine": True}
-
-
-def test_force_replaces_it(repo):
-    (repo / "opencode.json").write_text('{"mine": true}', encoding="utf-8")
-    _adopt(repo, force=True)
-    assert (
-        "ai-bunker" in json.loads((repo / "opencode.json").read_text(encoding="utf-8"))["provider"]
-    )
-
-
-def test_an_existing_charter_is_kept_in_full(repo):
-    (repo / "charter").mkdir()
-    (repo / "charter" / "AGENTS.md").write_text("# ours\n", encoding="utf-8")
-    plan = _adopt(repo)
     assert "charter/AGENTS.md" in plan.kept
     assert (repo / "charter" / "AGENTS.md").read_text(encoding="utf-8") == "# ours\n"
 
+    _adopt(repo, force=True)
+    replaced = json.loads((repo / "opencode.json").read_text(encoding="utf-8"))
+    assert "ai-bunker" in replaced["provider"]
 
-def test_adopting_into_this_installation_is_refused(tmp_path):
-    """It would overwrite the templates with their own rendered output."""
     with pytest.raises(AssertionError, match="installation itself"):
         adopt(ROOT)
-
-
-def test_a_missing_target_is_a_clear_error(tmp_path):
     with pytest.raises(AssertionError, match="not a directory"):
-        adopt(tmp_path / "nope")
+        adopt(repo / "nope")
 
 
 # ---------------------------------------------------------------------------
@@ -435,112 +435,100 @@ def test_the_claude_md_tells_an_agent_what_the_gateway_does(repo):
 # ---------------------------------------------------------------------------
 
 
-def test_a_framework_is_never_written_by_default(repo):
-    """Writing Python into a repository is not the same act as writing a config
-    file into one. A default that dropped three modules on every adopt would be
-    authoring application code on the user's behalf."""
+def test_a_framework_kit_is_opt_in_and_lands_exactly_one_module(repo):
+    """Writing Python into a repository is not the same act as writing a
+    config file into one, so no framework is ever in the default set: a
+    default that dropped three modules on every adopt would be authoring
+    application code on the user's behalf. Each is selectable by name --
+    `--client` is built from `ALL_CLIENTS`, and a kit missing from it is a kit
+    nobody can ask for -- and each lands one module and only its own. The
+    obvious design, one `ai_bunker_client.py`, would make the second adopt
+    silently replace the first, so the filenames are distinct on purpose.
+    """
     written = {relative for relative, _ in plan_adopt(repo).writes}
     for module in FRAMEWORK_KITS.values():
         assert module not in written, f"{module} landed without being asked for"
     assert set(FRAMEWORKS) & set(CLIENTS) == set(), "a framework is in the default set"
 
+    for name in list(FRAMEWORKS) + list(CLIENTS):
+        assert name in ALL_CLIENTS, f"{name} cannot be asked for on the command line"
 
-def test_every_framework_is_selectable_and_lands_one_module(repo):
     for name, module in FRAMEWORK_KITS.items():
         plan = plan_adopt(repo, clients=(name,), charter=False)
         assert plan.ok, plan.missing
         assert [relative for relative, _ in plan.writes] == [module]
 
-
-def test_two_frameworks_do_not_overwrite_each_other(repo):
-    """The obvious design -- one `ai_bunker_client.py` -- makes the second
-    adopt silently replace the first. The filenames are distinct on purpose."""
-    assert len(set(FRAMEWORK_KITS.values())) == len(FRAMEWORK_KITS)
+    assert len(set(FRAMEWORK_KITS.values())) == len(FRAMEWORK_KITS), "two kits share a filename"
     adopt(repo, clients=tuple(FRAMEWORK_KITS), charter=False, url="http://h:1/v1")
     for module in FRAMEWORK_KITS.values():
         assert (repo / module).exists(), f"{module} was not written"
 
 
-def test_the_cli_accepts_every_framework():
-    """`--client` is built from ALL_CLIENTS; a kit missing from it is a kit
-    nobody can ask for."""
-    for name in FRAMEWORKS:
-        assert name in ALL_CLIENTS
-    for name in CLIENTS:
-        assert name in ALL_CLIENTS
-
-
 @pytest.mark.parametrize("name", sorted(FRAMEWORK_KITS))
-def test_a_rendered_framework_kit_is_valid_python(repo, name):
-    """The template is not: it carries `{{PLACEHOLDER}}`, and `render` is
-    documented to leave an unresolved one in place so the file fails at load.
-    What gets written has to parse."""
+def test_a_rendered_framework_kit_parses_and_carries_no_credential(repo, name):
+    """What gets written has to load, and has to be committable.
+
+    The template is neither: it carries `{{PLACEHOLDER}}`, and `render` is
+    documented to leave an unresolved one in place so the file fails loudly at
+    load rather than quietly at run. The URL and the model name are deployment
+    facts and are rendered in; a key is a credential, and a credential
+    rendered into a committable module is a credential in a git history, so it
+    comes from the environment or not at all.
+    """
     import ast
 
-    adopt(repo, clients=(name,), charter=False, url="http://127.0.0.1:9/v1", model="m")
-    text = (repo / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
-    ast.parse(text)
-    assert "{{" not in text, "a placeholder survived into the rendered module"
-
-
-@pytest.mark.parametrize("name", sorted(FRAMEWORK_KITS))
-def test_a_framework_kit_never_carries_the_key(repo, name):
-    """The URL and the model name are deployment facts and are rendered in. A
-    key is a credential, and a credential rendered into a committable module is
-    a credential in a git history. It comes from the environment or not at all.
-    """
     adopt(
         repo,
         clients=(name,),
         charter=False,
         url="http://127.0.0.1:9/v1",
+        model="m",
         api_key="sk-secret-value",
     )
     text = (repo / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
+    ast.parse(text)
+    assert "{{" not in text, "a placeholder survived into the rendered module"
     assert "sk-secret-value" not in text, "the API key was written into the module"
     assert 'os.environ.get("AI_BUNKER_API_KEY"' in text
 
 
-@pytest.mark.parametrize(
-    "name,needle",
-    [
-        # Verified against each project's own documentation rather than
-        # remembered. The parameter names differ between all three, which is
-        # exactly why this is pinned: `base_url` for LangChain, `api_base` for
-        # the other two, and `model` versus `model_id`.
-        ("langgraph", "ChatOpenAI("),
-        ("langgraph", "base_url=AI_BUNKER_URL"),
-        ("llamaindex", "OpenAILike("),
-        ("llamaindex", "api_base=AI_BUNKER_URL"),
-        ("llamaindex", "context_window=AI_BUNKER_DECLARED_CONTEXT"),
-        ("smolagents", "OpenAIModel("),
-        ("smolagents", "api_base=AI_BUNKER_URL"),
-        ("smolagents", "model_id=AI_BUNKER_MODEL"),
+#: What each shipped kit has to say, verified against that project's own
+#: documentation rather than remembered. The constructor parameters differ
+#: between all three, which is exactly why they are pinned: `base_url` for
+#: LangChain, `api_base` for the other two, `model` versus `model_id`.
+KIT_NEEDLES = {
+    "langgraph": ["ChatOpenAI(", "base_url=AI_BUNKER_URL"],
+    "llamaindex": [
+        "OpenAILike(",
+        "api_base=AI_BUNKER_URL",
+        "context_window=AI_BUNKER_DECLARED_CONTEXT",
     ],
-)
-def test_the_kit_calls_the_constructor_each_project_documents(name, needle):
-    text = (ROOT / "clients" / name / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
-    assert needle in text, f"{name} kit no longer matches the documented API"
-
-
-def test_the_smolagents_kit_warns_about_local_code_execution():
-    """`CodeAgent` runs the model's Python in-process by default. The gateway
-    refuses dangerous shell commands because it sees them as tool calls; it
-    cannot see an `exec` inside the harness at all. That is the one risk a
-    gateway genuinely does not cover, so the kit has to say so."""
-    text = (ROOT / "clients" / "smolagents" / FRAMEWORK_KITS["smolagents"]).read_text(
-        encoding="utf-8"
-    )
-    assert "executor_type" in text
-    assert "docker" in text
+    # `CodeAgent` runs the model's Python in-process by default. The gateway
+    # refuses dangerous shell commands because it sees them as tool calls; it
+    # cannot see an `exec` inside the harness at all. That is the one risk a
+    # gateway genuinely does not cover, so this kit has to say so.
+    "smolagents": [
+        "OpenAIModel(",
+        "api_base=AI_BUNKER_URL",
+        "model_id=AI_BUNKER_MODEL",
+        "executor_type",
+        "docker",
+    ],
+}
 
 
 @pytest.mark.parametrize("name", sorted(FRAMEWORK_KITS))
-def test_a_framework_kit_says_what_it_does_not_carry(name):
-    """A thin kit read as a complete one is a kit someone adds rules to. Each
-    says outright that the charter, the screening and the budget are enforced
-    server-side and cannot be switched off from here."""
+def test_a_shipped_kit_matches_the_documented_api_and_states_its_limits(name):
+    """A kit is read as a specification of how to talk to this gateway, so
+    both halves have to hold. It calls the constructor its project documents,
+    with that project's parameter names. And it says outright what it does not
+    carry: a thin kit read as a complete one is a kit someone adds rules to,
+    when the charter, the screening and the budget are enforced server-side
+    and cannot be switched off from a client module at all.
+    """
     text = (ROOT / "clients" / name / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
+    for needle in KIT_NEEDLES[name]:
+        assert needle in text, f"{name} kit no longer matches the documented API: {needle}"
     collapsed = " ".join(text.split())
     assert "enforced server-side and cannot be switched off here" in collapsed
 
@@ -555,11 +543,17 @@ def test_the_temperature_follows_the_model_the_gateway_serves():
 
     `--temperature 0.15` is what the catalogue records for the Mistral
     generation, which is sensitive to it. The Qwen coder's authors ask for
-    1.0, and that is the model the helper picks on every card from 80 GiB up --
-    so the fixed default was wrong for the common deployment and silently so,
-    since a temperature does not fail, it just degrades.
+    1.0, and that is the model the helper picks on every card from 80 GiB up
+    -- so the fixed default was wrong for the common deployment and silently
+    so, since a temperature does not fail, it just degrades.
+
+    The lookup resolves a Hugging Face reference as well as a catalogue id,
+    because that is what an upstream config names and a gateway in front of
+    vLLM has no catalogue id. And an upstream it has never heard of -- the
+    common case, and not an error -- gets a neutral figure rather than one
+    tuned for a model nobody is serving.
     """
-    from ai_bunker.adopt import temperature_for
+    from ai_bunker.adopt import NEUTRAL_TEMPERATURE, temperature_for
     from ai_bunker.sizing import load_catalog
 
     catalog = load_catalog()
@@ -568,20 +562,11 @@ def test_the_temperature_follows_the_model_the_gateway_serves():
         if declared is None:
             continue
         assert temperature_for(str(model["id"]), catalog) == float(declared)
-        # The Hugging Face reference resolves too: that is what an upstream
-        # config names, and a gateway in front of vLLM has no catalogue id.
         assert temperature_for(str(model["hf"]), catalog) == float(declared)
 
     assert len({temperature_for(str(m["id"]), catalog) for m in catalog["models"]}) > 1, (
         "if every model wanted the same temperature this lookup would be pointless"
     )
-
-
-def test_an_unknown_upstream_gets_a_neutral_temperature_rather_than_a_guess():
-    """A gateway in front of somebody else's endpoint is the common case, and
-    it is not an error. What would be an error is inheriting a figure tuned for
-    a model that is not being served."""
-    from ai_bunker.adopt import NEUTRAL_TEMPERATURE, temperature_for
 
     assert temperature_for("some-model-we-have-never-heard-of") == NEUTRAL_TEMPERATURE
     assert temperature_for("") == NEUTRAL_TEMPERATURE

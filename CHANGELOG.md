@@ -39,6 +39,37 @@ was done: `ai-bunker sizing --accelerator h100-80 --image auto` fills code,
 vision, embed and image, and prints the budget, axis, score and passed-over
 candidates for each.
 
+### Rationalising the tests: one test per feature, continued
+
+The previous pass took the suite from 895 test functions to 700. This one
+takes it to 535 over 1,110 cases, on the same rule: the unit is the observable
+behaviour, not the function that implements it.
+
+What was fused was always the same shape — facets of one feature filed
+separately. The precedence trap in `adopt` was four tests (detect upward,
+detect `.claude/`, ignore `~/.claude/`, ignore our own `charter/AGENTS.md`)
+where the feature is *the shadow is detected the way Claude Code resolves it,
+and reported with the way out*. `verify_deployment` had one test per verdict
+and one per retry case; it now has one test per question — what does it look
+at, what are the four verdicts, what does the exit code mean, how is a stale
+cache told apart from a failed upload — and went from 30 cases to 9. The same
+applies in `gateway`, `tools`, `cli`, `dependencies`, `budget`, `gui`,
+`charter`, `payments`, `beacon`, `i18n`, `config_keys`, `report`, `sizing`,
+`breaker`, `mandates`, `skill` and `site`.
+
+Nothing was deleted. Every assertion survives in the test that now owns it,
+and where a guard and its inverse were separate tests they are now one table
+with both halves in it — the installer-shorthand check lists the three
+ordinary commands that must *not* match beside the six that must, which is
+where a reader would look to check it rejects the right half.
+
+Two things came out of it. `tests/test_verify_deployment.py` dropped from 4.1
+seconds to 0.06: fusing the two unreachable cases made it obvious that both
+were waiting out a retry pause belonging to a different test's subject.
+And the engine's three task-description tests became one that also asserts the
+words reach the ranking — the assertion that would have caught the drift
+above.
+
 ### The fourth model, and the reasoning that was built and dropped
 
 The helper answers for three kinds of model — language, vision-language and

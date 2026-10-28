@@ -82,7 +82,9 @@ def test_the_report_shows_the_chain_and_not_only_the_conclusion(sizing):
     because "it does not fit" is a verdict and `bandwidth` is a lever. And
     **the figures it was given**, unrounded and unrecomputed: a view that
     drifts from its model describes something that does not exist, and this
-    project's whole claim is that it does not.
+    project's whole claim is that it does not. The serve command can be left
+    off for callers embedding this inside a larger page, and that flag has to
+    actually suppress something.
     """
     text = render(sizing)
     assert sizing.accelerator in text
@@ -97,6 +99,10 @@ def test_the_report_shows_the_chain_and_not_only_the_conclusion(sizing):
     assert round(sizing.bandwidth_gbs) in printed
     assert sizing.concurrent_sessions in printed
 
+    # `show_command=False` exists for the places that print a report inside
+    # something else. A flag that suppresses nothing is decoration.
+    assert len(render(sizing, show_command=False)) < len(text)
+
 
 @pytest.mark.parametrize("verdict", sorted(_VERDICT))
 def test_every_verdict_has_a_rendering(verdict):
@@ -105,12 +111,6 @@ def test_every_verdict_has_a_rendering(verdict):
     this holds it to being complete and non-empty."""
     assert _VERDICT[verdict].strip()
     assert "—" in _VERDICT[verdict], "a verdict should say what it means"
-
-
-def test_the_serve_command_can_be_suppressed(sizing):
-    """`show_command=False` exists for the places that print a report inside
-    something else. If it suppressed nothing the flag would be decoration."""
-    assert len(render(sizing, show_command=False)) < len(render(sizing, show_command=True))
 
 
 def test_a_machine_that_does_not_fit_says_why_rather_than_just_no(too_small):
@@ -128,24 +128,26 @@ def test_a_machine_that_does_not_fit_says_why_rather_than_just_no(too_small):
 # ---------------------------------------------------------------------------
 
 
-def test_a_comparison_names_every_machine_it_compared(catalog):
+def test_a_comparison_names_every_machine_and_prices_them_when_asked(catalog):
+    """A machine missing from a comparison is a machine nobody compares. And
+    a price nobody can see is a price nobody can argue with -- the project's
+    own sizing document turns on them, and on cost *per person* rather than
+    per machine, which is the decision actually being made."""
     sizings = [
         size_machine(accelerator="rtx-4090", catalog=catalog),
         size_machine(accelerator="h100-80", catalog=catalog),
     ]
-    text = render_comparison(sizings)
+    plain = render_comparison(sizings)
     for one in sizings:
         # Truncated to the column width, so compare on what fits in it.
-        assert one.accelerator[:30] in text
+        assert one.accelerator[:30] in plain
 
-
-def test_a_comparison_with_prices_shows_them(catalog):
-    """A price nobody can see is a price nobody can argue with -- and the
-    project's own sizing document turns on them."""
-    sizings = [size_machine(accelerator="h100-80", catalog=catalog)]
-    plain = render_comparison(sizings)
     # Keyed on the accelerator's NAME, which is what the renderer looks up.
-    priced = render_comparison(sizings, prices={sizings[0].accelerator: 25_000.0})
+    # Priced on the H100 rather than the 4090: the per-person line only exists
+    # where there is usable capacity to divide by, and a card that carries
+    # nobody prints that instead -- which is the right output and the wrong
+    # specimen for this assertion.
+    priced = render_comparison(sizings, prices={sizings[1].accelerator: 25_000.0})
     assert priced != plain
     assert "25,000" in priced
     assert "per person" in priced, "a price per machine is not the decision being made"
@@ -159,27 +161,24 @@ def test_the_catalogue_renders_every_model_it_holds(catalog):
         assert model["id"][:24] in text, model["id"]
 
 
-def test_a_recommendation_says_who_it_is_for(catalog):
+def test_a_recommendation_says_who_it_is_for_and_stops_where_told(catalog):
+    """It names the **team size** it was computed for, because a list of
+    cards without the question above it is a list nobody can check. `top`
+    **bounds** it, or a recommendation prints the whole catalogue and stops
+    being a recommendation. And an **empty** result still says something:
+    nothing fits is an answer, where a heading over an empty list is not.
+    """
     recommendations = recommend_for_team(4, catalog=catalog)
     text = render_recommendation(recommendations, 4, plan="code")
     assert "4" in text
     assert text.strip()
 
+    if len(recommendations) >= 3:
+        assert len(render_recommendation(recommendations, 4, plan="code", top=1)) < len(
+            render_recommendation(recommendations, 4, plan="code", top=6)
+        )
 
-def test_a_recommendation_respects_its_cutoff(catalog):
-    """`top` bounds a list that would otherwise print the whole catalogue."""
-    recommendations = recommend_for_team(4, catalog=catalog)
-    if len(recommendations) < 3:
-        pytest.skip("the catalogue is too small for this to mean anything")
-    assert len(render_recommendation(recommendations, 4, plan="code", top=1)) < len(
-        render_recommendation(recommendations, 4, plan="code", top=6)
-    )
-
-
-def test_an_empty_recommendation_says_so_rather_than_printing_a_heading(catalog):
-    """Nothing fits is an answer. A heading over an empty list is not."""
-    text = render_recommendation([], 1, plan="code")
-    assert text.strip(), "an empty result must still say something"
+    assert render_recommendation([], 1, plan="code").strip(), "an empty result must still speak"
 
 
 # ---------------------------------------------------------------------------
@@ -199,18 +198,18 @@ def test_the_rule_report_counts_what_the_checker_counted():
     assert str(report.passed) in text
     assert "0" in text, "the failure count has to appear even when it is zero"
 
-
-def test_the_rule_report_names_a_rule_that_cannot_refuse():
-    """Its most useful output: a rule that reads as if it stops something and
-    does not. That is the failure worth catching before production."""
-    rules = load_rules("charter/rules")
-    text = render_rule_report(check_rules(rules), rules).lower()
-    assert "warning" in text or "noted" in text
+    # And its most useful output: a rule that reads as if it stops something
+    # and does not. That is the failure worth catching before production.
+    assert "warning" in text.lower() or "noted" in text.lower()
 
 
-def test_a_budget_report_shows_the_floor_by_owner():
+def test_a_budget_report_shows_the_floor_by_owner_and_who_counted_it():
     """`ai-bunker budget` itemises by owner, which is the point of it: a total
-    tells you there is a problem, an itemisation tells you whose."""
+    tells you there is a problem, an itemisation tells you whose. And the
+    backend has to survive rendering -- an estimate presented as a
+    measurement is the exact failure this project exists to prevent, and a
+    renderer that drops the label commits it on the last step.
+    """
     from ai_bunker.budget import Counter, measure_request
 
     budget = measure_request(
@@ -221,19 +220,7 @@ def test_a_budget_report_shows_the_floor_by_owner():
     text = render_budget(budget)
     assert text.strip()
     assert str(budget.served_context) in text.replace(",", "")
-
-
-def test_a_budget_report_says_which_backend_counted():
-    """An estimate presented as a measurement is the exact failure this project
-    exists to prevent, so the backend has to survive rendering."""
-    from ai_bunker.budget import Counter, measure_request
-
-    budget = measure_request(
-        {"messages": [{"role": "user", "content": "hello"}]},
-        counter=Counter(allow_ratio=True),
-        served_context=8192,
-    )
-    assert budget.backend in render_budget(budget)
+    assert budget.backend in text
 
 
 def test_the_rule_set_cost_is_measured_and_kept_out_of_the_default_table():

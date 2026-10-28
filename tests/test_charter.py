@@ -340,24 +340,28 @@ def test_nested_packs_keep_their_path(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_a_page_is_served_however_the_model_spells_its_reference(shipped):
-    """What a model sends back is the index's own string, give or take a prefix.
+def test_a_page_reference_is_resolved_against_the_index_and_never_as_a_path(shipped):
+    """One mechanism, and the three things it has to do.
 
-    The index shows `packs/python/10_style.md`; a model may send either half,
-    with or without a leading slash, and all of them have to arrive at the same
-    page -- otherwise the charter is navigable only by a client that normalises
-    for it.
+    It **hits**: what a model sends back is the index's own string, give or
+    take a prefix -- the index shows `packs/python/10_style.md` and a model
+    may send either half, with or without a leading slash. All of them reach
+    the same page, or the charter is navigable only by a client that
+    normalises for it.
+
+    It **misses usefully**: the realistic failure is a wrong filename, and the
+    fix is seeing the right one, at whichever level the model got it wrong. A
+    refusal that only says "no" costs a round trip and teaches nothing.
+
+    And it **cannot escape**, because the reference is matched against the
+    index rather than resolved as a path -- which is also why the traversal
+    attempts below need no separate defence, only the absence of one.
     """
     page = shipped.pages[0]
     expected = page.path.read_text(encoding="utf-8")
     for spelling in (page.ref, f"{PACKS_DIR}/{page.ref}", f"/{PACKS_DIR}/{page.ref}"):
         assert read_page(shipped, spelling) == expected, spelling
 
-
-def test_a_reference_that_misses_is_answered_with_the_real_names(shipped):
-    """The realistic failure is a wrong filename, and the fix is seeing the
-    right one -- at whichever level the model got it wrong. A refusal that only
-    says "no" costs a round trip and teaches nothing."""
     with pytest.raises(AssertionError) as wrong_page:
         read_page(shipped, "python/style.md")
     assert "no page" in str(wrong_page.value)
@@ -367,9 +371,6 @@ def test_a_reference_that_misses_is_answered_with_the_real_names(shipped):
         read_page(shipped, "cobol/style.md")
     assert "Known packs" in str(wrong_pack.value)
 
-
-def test_reading_a_page_cannot_escape_the_charter(shipped):
-    """A reference is matched against the index, never resolved as a path."""
     for attempt in ("../../etc/passwd", "python/../../../etc/passwd", "/etc/passwd"):
         with pytest.raises(AssertionError):
             read_page(shipped, attempt)
@@ -380,16 +381,8 @@ def test_reading_a_page_cannot_escape_the_charter(shipped):
 # ---------------------------------------------------------------------------
 
 
-def test_a_missing_charter_is_a_choice_not_an_error(tmp_path):
-    charter = load_charter(tmp_path / "absent")
-    assert charter.pages == []
-    assert build_index(charter) == ""
-    assert system_blocks(charter) == []
-    assert charter.warnings
-
-
 def test_a_charter_that_is_wrong_in_some_way_says_so_and_keeps_serving(tmp_path):
-    """One feature, three shapes of wrong, and the same answer to each.
+    """One feature, four shapes of wrong, and the same answer to each.
 
     A charter is a directory a human edits, so it is routinely slightly wrong.
     The rule is that loading reports the problem and serves what it can: a
@@ -397,11 +390,19 @@ def test_a_charter_that_is_wrong_in_some_way_says_so_and_keeps_serving(tmp_path)
     gateway down for a typo, and one that loaded silently would leave the
     operator to infer the problem from a model's behaviour weeks later.
 
-    The three cases are the three that actually happen -- forgetting
-    `AGENTS.md`, letting a page grow past the budget, and dropping a page
-    beside the packs rather than inside one -- and each has its own verdict
-    about whether the content still gets served.
+    The cases are the ones that actually happen -- no charter at all,
+    forgetting `AGENTS.md`, letting a page grow past the budget, and dropping
+    a page beside the packs rather than inside one -- and each has its own
+    verdict about whether the content still gets served.
     """
+    # No charter is a deployment choice, not a fault: nothing to serve, said
+    # out loud, with every accessor answering emptily rather than raising.
+    absent = load_charter(tmp_path / "absent")
+    assert absent.pages == []
+    assert build_index(absent) == ""
+    assert system_blocks(absent) == []
+    assert absent.warnings
+
     no_rules = tmp_path / "no-rules"
     (no_rules / PACKS_DIR / "default").mkdir(parents=True)
     (no_rules / PACKS_DIR / "default" / "a.md").write_text("# A\n", encoding="utf-8")
@@ -470,23 +471,28 @@ def test_the_fingerprint_identifies_the_charter_a_session_ran_under(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_the_shipped_charter_is_complete(shipped):
+def test_the_shipped_charter_is_complete_instructive_and_cheap(shipped):
+    """This project ships a charter, so the charter is a deliverable and gets
+    held to the three things that make one worth injecting.
+
+    **Complete**: the operating rules are there, there are pages, there is a
+    default pack, and nothing is missing or orphaned. **Instructive**: the
+    operating rules are injected on every request, so they have to earn the
+    space -- an agent must know that a cut output is not an error and that a
+    refusal is a decision rather than a transient failure, or it retries both.
+    **Cheap**: the published claim is that the charter's floor cost is a few
+    percent of the window, and this is the figure that claim is made of.
+    """
     assert shipped.operating_rules, "the shipped charter must carry its rules"
     assert len(shipped.pages) >= 5
     assert "default" in shipped.packs
     assert not [w for w in shipped.warnings if "missing" in w or "no pack" in w]
 
-
-def test_the_shipped_operating_rules_say_how_to_read(shipped):
-    """They are injected on every request, so they must earn the space."""
     text = shipped.operating_rules.lower()
     assert "slices" in text
     assert "truncated" in text, "an agent must know a cut output is not an error"
     assert "decision, not a transient failure" in text, "nor a refusal"
 
-
-def test_our_own_contribution_is_small(shipped):
-    """The published claim: the charter's floor cost is a few percent."""
     counter = Counter(allow_ratio=True)
     cost = sum(counter.count(b) for b in system_blocks(shipped))
     assert cost < 0.05 * 26_000, f"{cost} tokens is more than 5% of a 26k window"
