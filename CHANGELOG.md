@@ -40,8 +40,10 @@ anything wants it.
   immutable per key, so a key that stops describing the environment keeps
   restoring what it was saved with and never re-saves.
 
-Runner time per run: about 4.2 minutes to about 3.1, and roughly 590 megabytes
-less to download.
+Measured on the run that landed it, against the run before: installing went
+from 41, 36 and 38 seconds a leg to 15, 11 and 15, and total runner time from
+4.2 minutes to 2.7. The guard itself costs nothing a clock can see. Roughly
+590 megabytes less to download.
 
 One thing the measurement surfaced and did not change: the published helper
 carries no `imagine_rank` or `imagine_pick`, so continuous integration
