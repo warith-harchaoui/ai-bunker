@@ -553,7 +553,21 @@ def _choose_image(
         return float(plan.get("score") or 0.0)
 
     if lean:
-        close = [p for p in plans if p.get("fits") and points(best) - points(p) <= LEAN_TOLERANCE]
+        # Candidates that run, within tolerance of the best -- and never a
+        # trade down from a usable model to an unusable one. The rule exists
+        # so spare memory buys a better coder, not so the picture slot becomes
+        # something nobody can wait for: swapping a 3-second pipeline for a
+        # 55-second one to save fifteen gigabytes spends the saving on an
+        # endpoint the deployment cannot use. The clause is one-directional on
+        # purpose. When the helper's own pick is already unusable the whole
+        # affordable set is, and leanness is the only axis left to choose on.
+        close = [
+            p
+            for p in plans
+            if p.get("fits")
+            and points(best) - points(p) <= LEAN_TOLERANCE
+            and (p.get("usable") or not best.get("usable"))
+        ]
         if close:
             best = min(close, key=lambda p: float(p.get("resident_gb") or 0.0))
 

@@ -5,6 +5,43 @@ Standardization's year-month-day order.
 
 ## [Unreleased]
 
+### The image slot was the least-tested code in the project, and it had a bug
+
+The previous entry closed by noting that no published `best-engine-ai-helper`
+carries `imagine_rank` or `imagine_pick`, so continuous integration exercised
+the image slot's capability-degradation path rather than the picker. That was
+reported as a thing worth knowing. It was a thing worth fixing: measured in
+the environment the lane actually installs, `engine.py` sat at **74%**, and
+every uncovered line was the image slot.
+
+- **The layer this project owns is now tested on every machine.** The
+  diffusion arithmetic is the helper's and stays the helper's — component
+  footprints, denoising steps, seconds per image. What is ours is the budget
+  handed over, the gigabyte-to-gibibyte conversion, the anti-greed rule, the
+  five refusals and the running-budget ordering, and those are now pinned
+  against a stub helper rather than against whatever happens to be installed.
+  `engine.py` in the lane's environment: **74% to 93%**, forty statements that
+  CI had never run.
+- **A degradation test that skipped on the configuration it describes.** The
+  "helper predates the image picker" case was written, and gated behind a skip
+  that fires precisely when the helper predates the image picker. It runs
+  unconditionally now, which is where it was always needed.
+- **And the bug the coverage was hiding.** `LEAN_TOLERANCE` takes the leanest
+  candidate within ten benchmark points of the best. It filtered on `fits`,
+  which is not the same question as `usable`: offered a 3-second pipeline at
+  43 GB and a 55-second one at 28 GB six points below it, the slot took the
+  55-second one and emitted a warning about it. Fifteen gigabytes handed back
+  to the coder, paid for with an image endpoint nobody can wait for — the
+  priority backwards, which is the exact failure the rule exists to prevent.
+  It will not trade down from a usable model to an unusable one now. The
+  guard is one-directional: when the helper's own pick is already unusable the
+  whole affordable set is, and leanness is the only axis left.
+
+No published choice changes — on an 80 gibibyte card the slot still takes
+`sd35-medium` at about 3 seconds an image, because nothing in the helper's
+catalogue is both cheaper and unusable. The rule was right about every input
+it had been given and wrong about one it had not.
+
 ### The line that was keeping the lane light was the heaviest thing in it
 
 Continuous integration pre-installed the processor-only build of torch from
