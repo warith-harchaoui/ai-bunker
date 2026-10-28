@@ -483,6 +483,7 @@ est le premier endroit où les deux existent en même temps.
 | `GET /v1/models` | Modèles routables, chacun avec le contexte **déclaré** |
 | `POST /v1/chat/completions` | Atomique et streaming. Le pipeline complet |
 | `POST /v1/embeddings` | Relayé tel quel |
+| `POST /v1/images/generations` | Relayé vers le besoin `image`, ou un 501 disant qu'aucun n'est configuré |
 | `POST /v1/budget` | Mesurer le plancher d'une requête sans l'envoyer |
 | `GET /v1/charter`, `GET /v1/charter/{ref}` | L'index, et une fiche à la demande |
 | `GET /v1/decisions` | La fin du journal d'audit, jamais le texte apparié |
@@ -495,6 +496,17 @@ pendant qu'un tour grossit.
 `/v1/budget` permet à un client de demander ce que coûtera une session *avant*
 de la payer — la différence entre un budget seulement imposé et un budget sur
 lequel on peut planifier.
+
+`/v1/images/generations` est la seule route sans défaut raisonnable. Toutes les
+autres retombent sur l'upstream par défaut quand elles ne reconnaissent pas un
+modèle, et c'est ce qui permet à un client codé en dur sur le nom d'un modèle
+tiers de fonctionner tel quel. Un moteur de langage ne sait pas répondre à une
+demande d'image : retomber produirait un 502 qui parle d'une socket au lieu
+d'une phrase sur le déploiement. Elle refuse donc par un 501 qui nomme la ligne
+à écrire, et `ai-bunker doctor` dit si la route existe avant que quelqu'un ne
+le découvre dans une erreur. vLLM ne sert pas de modèles de diffusion ;
+`best-engine-ai-helper serve` si, et `ai-bunker sizing --image auto` dit quel
+modèle y mettre et ce qu'il coûte au modèle de code.
 
 ### Ce qu'elle dit d'elle-même
 
@@ -986,7 +998,8 @@ seule.
   seule conclusion.
 - **Passerelle compatible OpenAI** — `GET /v1/models`,
   `POST /v1/chat/completions` (atomique et streaming), `POST /v1/embeddings`,
-  `GET /health`. Tout client qui parle OpenAI parle ai-bunker.
+  `POST /v1/images/generations`, `GET /health`. Tout client qui parle OpenAI
+  parle ai-bunker.
 - **Double routage** — local (vLLM / Ollama) et une route premium distante pour
   les 20 % de requêtes qui exigent un modèle frontière, choisie modèle par
   modèle dans un registre versionné.
@@ -1025,7 +1038,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1467 tests, `ruff` propre | ✅ |
+| 1491 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
@@ -1075,15 +1088,35 @@ ai-bunker implémente délibérément le moins de choses possible :
   sous-processus sans shell. Il tient lieu de trois modules que ce projet aurait
   sinon écrits à la main, puis dû maintenir.
 - [`best-engine-ai-helper`](https://github.com/warith-harchaoui/best-engine-ai-helper)
-  — **quel modèle servir.** ai-bunker décrit en mots ce à quoi il sert
-  (`engine.TASK` : une passerelle souveraine pour des agents de code autonomes
-  qui appellent des outils et renvoient du JSON contraint par schéma sur un
-  contexte long), lui passe son propre catalogue de service, et prend la
-  réponse. Il ne nomme aucun modèle nulle part : `--model auto` est le défaut
-  de chaque commande de dimensionnement, et `tests/test_engine.py` échoue si un
-  littéral réapparaît. Le choix suit la machine : la carte de 72 Gio se voit
+  — **quel modèle servir, pour les quatre emplacements.** ai-bunker décrit en
+  mots ce à quoi il sert (`engine.TASK` : une passerelle souveraine pour des
+  agents de code autonomes qui appellent des outils et renvoient du JSON
+  contraint par schéma sur un contexte long), lui passe son propre catalogue de
+  service, et prend la réponse. Il ne nomme aucun modèle nulle part :
+  `--model auto` est le défaut de chaque commande de dimensionnement, et
+  `tests/test_engine.py` échoue si un littéral réapparaît — y compris un
+  préfixe de famille, ce par quoi `devstral` a survécu dans `adopt.py` pendant
+  plusieurs versions. Le choix suit la machine : la carte de 72 Gio se voit
   confier le 80B et celle de 48 Gio le 24B — ce que
   [docs/SIZING.md](docs/SIZING.md) démontrait à la main, maintenant dérivé.
+
+  Les emplacements **code** et **vision** sont classés sur le catalogue de
+  service de ce projet, chacun sur l'axe de benchmark qui le concerne
+  réellement. L'**embedder** est répondu directement : il y en a un, et classer
+  un ensemble d'un seul élément serait du théâtre. L'emplacement
+  **texte-vers-image** est délégué entièrement, catalogue compris — un modèle
+  de diffusion est trois ou quatre réseaux qui se relaient, donc son empreinte
+  dépend de s'ils sont tenus tous à la fois ou passés un par un dans
+  l'accélérateur, et son coût se compte en pas de débruitage plutôt qu'en
+  tokens. Aucune des colonnes pour lesquelles `catalog/serving.yaml` existe ne
+  décrit cela, et le helper porte déjà les entrées comme l'arithmétique.
+
+  Ce que ce projet ajoute à la réponse du helper tient en une règle : un modèle
+  co-résident prend le candidat le plus léger à dix points de benchmark du
+  meilleur, plutôt que le meilleur. Mesuré sur une carte de 80 Gio, le modèle
+  de vision glouton coûte le modèle de code 80B, et le modèle d'image glouton
+  le coûte aussi — `ai-bunker sizing --image auto` imprime cet arbitrage au
+  lieu de le faire en silence.
   Ce qui reste ici, c'est l'arithmétique : le helper choisit **quel** modèle,
   et `sizing.py` calcule le plafond de bande passante, la géométrie du cache
   clé-valeur et le nombre de personnes. Sur un poste de travail, il peut aussi
@@ -1132,6 +1165,10 @@ ai-bunker recommend --team 2
 # Que porte une machine, et pourquoi ?
 ai-bunker sizing --accelerator rtx-pro-6000-blackwell
 ai-bunker sizing --vram 96 --bandwidth 1792        # une machine hors catalogue
+
+# Avec un modèle texte-vers-image co-résident. Éteint par défaut, et le rapport
+# dit ce qu'il coûte : ses poids sont des poids que le modèle de code n'a pas.
+ai-bunker sizing --accelerator h100-80 --image auto
 
 # Toutes les machines, une ligne chacune, avec le coût par personne portée
 ai-bunker compare

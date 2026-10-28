@@ -66,6 +66,12 @@ EXPECTED: dict[tuple[str, str], tuple[bool, bool]] = {
     ("POST", "/v1/budget"): (True, True),
     ("POST", "/a2a/v1/message:send"): (True, True),
     ("POST", "/v1/embeddings"): (True, True),
+    # The ceiling is checked BEFORE the route is resolved, which is why this
+    # is `True` on a deployment with no image route at all: a body too large
+    # to read is refused unread whether or not anything could have answered
+    # it. The 501 comes after, and only for a body the gateway was willing to
+    # parse.
+    ("POST", "/v1/images/generations"): (True, True),
     # The MCP transport, on by default. The table never saw these: it built
     # the application with `enable_mcp=False`, so three routes existed in
     # every shipped deployment and in none of the assertions -- the same
@@ -204,6 +210,7 @@ def test_a_body_past_the_ceiling_is_refused_on_every_surface_that_bounds_one(met
         "/v1/chat/completions": {"model": "m", "messages": [{"role": "tool", "content": big}]},
         "/v1/budget": {"model": "m", "messages": [{"role": "tool", "content": big}]},
         "/v1/embeddings": {"model": "m", "input": big},
+        "/v1/images/generations": {"model": "m", "prompt": big},
         "/a2a/v1/message:send": {
             "message": {"role": "ROLE_USER", "messageId": "m-1", "parts": [{"text": big}]}
         },

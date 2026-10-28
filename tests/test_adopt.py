@@ -557,3 +557,58 @@ def test_a_framework_kit_says_what_it_does_not_carry(name):
     text = (ROOT / "clients" / name / FRAMEWORK_KITS[name]).read_text(encoding="utf-8")
     collapsed = " ".join(text.split())
     assert "enforced server-side and cannot be switched off here" in collapsed
+
+
+# ---------------------------------------------------------------------------
+# The temperature a kit is written with.
+# ---------------------------------------------------------------------------
+
+
+def test_the_temperature_follows_the_model_the_gateway_serves():
+    """It used to be a constant, and the constant was one family's figure.
+
+    `--temperature 0.15` is what the catalogue records for the Mistral
+    generation, which is sensitive to it. The Qwen coder's authors ask for
+    1.0, and that is the model the helper picks on every card from 80 GiB up --
+    so the fixed default was wrong for the common deployment and silently so,
+    since a temperature does not fail, it just degrades.
+    """
+    from ai_bunker.adopt import temperature_for
+    from ai_bunker.sizing import load_catalog
+
+    catalog = load_catalog()
+    for model in catalog["models"]:
+        declared = model.get("temperature")
+        if declared is None:
+            continue
+        assert temperature_for(str(model["id"]), catalog) == float(declared)
+        # The Hugging Face reference resolves too: that is what an upstream
+        # config names, and a gateway in front of vLLM has no catalogue id.
+        assert temperature_for(str(model["hf"]), catalog) == float(declared)
+
+    assert len({temperature_for(str(m["id"]), catalog) for m in catalog["models"]}) > 1, (
+        "if every model wanted the same temperature this lookup would be pointless"
+    )
+
+
+def test_an_unknown_upstream_gets_a_neutral_temperature_rather_than_a_guess():
+    """A gateway in front of somebody else's endpoint is the common case, and
+    it is not an error. What would be an error is inheriting a figure tuned for
+    a model that is not being served."""
+    from ai_bunker.adopt import NEUTRAL_TEMPERATURE, temperature_for
+
+    assert temperature_for("some-model-we-have-never-heard-of") == NEUTRAL_TEMPERATURE
+    assert temperature_for("") == NEUTRAL_TEMPERATURE
+
+
+def test_a_kit_asks_for_a_need_rather_than_naming_a_model(repo):
+    """The gateway matches needs before model names so the deployment can swap
+    the model without regenerating a single client config. A kit that names a
+    model is a kit that has to be regenerated when the helper picks better."""
+    from ai_bunker.sizing import load_catalog
+
+    adopt(repo, clients=("opencode",))
+    rendered = (repo / "opencode.json").read_text(encoding="utf-8")
+    for model in load_catalog()["models"]:
+        assert str(model["id"]) not in rendered
+        assert str(model["id"]).split("-", 1)[0] not in rendered

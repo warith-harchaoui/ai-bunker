@@ -263,3 +263,65 @@ def test_the_rule_set_cost_is_measured_and_kept_out_of_the_default_table():
 
     asked = render_rule_report(report, rules, show_cost=True)
     assert "cost to screen" in asked
+
+
+# ---------------------------------------------------------------------------
+# Why these models: the chain that was computed and then dropped.
+# ---------------------------------------------------------------------------
+
+
+def test_the_report_shows_why_each_slot_holds_what_it_holds():
+    """`engine.py` built this reasoning for several releases and nothing read
+    it -- `sizing` took the warnings and discarded the rest -- while that
+    module's docstring said this report printed it. The claim is only true if
+    the figures a reader would argue with are on the page."""
+    from ai_bunker.sizing import size_machine
+
+    sizing = size_machine(accelerator="h100-80")
+    if not sizing.choices:
+        pytest.skip("no helper installed, so nothing was delegated to explain")
+    text = render(sizing, show_command=False)
+
+    assert "WHY THESE MODELS" in text
+    for choice in sizing.choices:
+        assert choice["model_id"] in text
+        # The anti-greed trade is the one a reader is most likely to dispute,
+        # so the candidate that was passed over has to be named with its score.
+        for passed in choice["rejected"]:
+            if passed["affordable"]:
+                assert passed["id"] in text
+
+
+def test_a_plan_the_caller_named_outright_explains_nothing():
+    """There is no choice to show when nobody delegated one, and a heading over
+    an empty list is worse than no heading."""
+    from ai_bunker.sizing import size_machine
+
+    sizing = size_machine(
+        accelerator="h100-80",
+        primary="devstral-small-2-24b",
+        with_vision=None,
+        with_embeddings=None,
+    )
+    assert sizing.choices == []
+    assert "WHY THESE MODELS" not in render(sizing, show_command=False)
+
+
+def test_the_image_slot_is_reported_in_the_unit_a_person_waits_in():
+    """A diffusion pipeline has no context window and answers in pictures, so
+    every column this report is built around says nothing about it. Seconds per
+    image is the figure that decides whether the slot earns its memory."""
+    from ai_bunker.sizing import size_machine
+
+    sizing = size_machine(accelerator="h100-80", with_image="auto")
+    picture = next((p for p in sizing.plan if p.role == "image"), None)
+    if picture is None:
+        pytest.skip("no helper installed, so no image model was chosen")
+
+    assert picture.max_context == 0, "a denoising loop has no context window"
+    assert picture.seconds_per_image
+    text = render(sizing, show_command=False)
+    assert "s an image" in text
+    assert picture.model_id in text
+    # And its weights are in the total, not alongside it.
+    assert sizing.resident_weights_gib >= picture.weights_gib

@@ -74,9 +74,23 @@ def test_no_model_name_is_hardcoded_in_the_package():
     Six literals across `sizing.py` and `cli.py` used to contradict the
     README's own sentence. The catalogue is data and `engine.py` names models
     in its prose, so both are exempt; everything else must ask.
+
+    **Families count, not just ids.** The first version of this guard matched
+    whole catalogue ids, and `adopt.py` kept `model: str = "devstral"` through
+    it for several releases -- a model name by any reading, on the line that
+    decides what every client kit asks the gateway for. So the family a
+    catalogue id starts with is an offender too.
     """
 
     from ai_bunker.adopt import ROOT
+
+    names: set[str] = set()
+    for model in load_catalog()["models"]:
+        ident = str(model["id"])
+        names.add(ident)
+        # `devstral-small-2-24b` -> `devstral`. The segment before the first
+        # hyphen is how a family is written when somebody abbreviates one.
+        names.add(ident.split("-", 1)[0])
 
     offenders: list[str] = []
     for path in sorted((ROOT / "ai_bunker").glob("*.py")):
@@ -86,9 +100,8 @@ def test_no_model_name_is_hardcoded_in_the_package():
             code = line.split("#", 1)[0]
             if "default=" not in code and ": str = " not in code and "str | None = " not in code:
                 continue
-            for model in load_catalog()["models"]:
-                if f'"{model["id"]}"' in code:
-                    offenders.append(f"{path.name}:{number}: {line.strip()}")
+            if any(f'"{name}"' in code for name in names):
+                offenders.append(f"{path.name}:{number}: {line.strip()}")
     assert offenders == [], "a model name is hardcoded as a default:\n" + "\n".join(offenders)
 
 
@@ -96,12 +109,10 @@ def test_the_sentinel_is_a_word_because_none_already_means_something():
     """`None` means "leave this model out of the plan", and it has to keep
     meaning that -- so "ask the helper" needs its own spelling."""
     assert ASK == "auto"
-    code, vision, embed, made = resolve_plan(
-        primary=ASK, with_vision=None, with_embeddings=None, vram_gib=96
-    )
-    assert code
-    assert vision is None and embed is None
-    assert [c.role for c in made] == ["code"]
+    settled = resolve_plan(primary=ASK, with_vision=None, with_embeddings=None, vram_gib=96)
+    assert settled.code
+    assert settled.vision is None and settled.embeddings is None and settled.image is None
+    assert [c.role for c in settled.choices] == ["code"]
 
 
 # ---------------------------------------------------------------------------
@@ -278,17 +289,25 @@ def test_the_plan_is_resolved_against_what_is_left_not_the_whole_card(helper):
 
 def test_the_coder_gets_the_remainder_not_the_first_claim(helper):
     """Cheapest first, so the slot spare memory is meant for receives it."""
-    code, vision, embed, made = resolve_plan(vram_gib=72)
-    assert (code, vision, embed) == ("qwen3-coder-next", "qwen3-vl-8b", "bge-m3")
-    assert [c.role for c in made] == ["embed", "vision", "code"]
+    settled = resolve_plan(vram_gib=72)
+    assert (settled.code, settled.vision, settled.embeddings) == (
+        "qwen3-coder-next",
+        "qwen3-vl-8b",
+        "bge-m3",
+    )
+    # No image slot unless one was asked for: it is the only slot that is off
+    # by default, because its memory would come out of the coder's.
+    assert settled.image is None
+    assert [c.role for c in settled.choices] == ["embed", "vision", "code"]
 
 
 def test_a_named_model_still_spends_the_budget(helper, catalog):
     """A slot the caller pinned is not free, and treating it as free would size
     the remaining slots against memory that is already committed."""
-    code, vision, _embed, _made = resolve_plan(
+    settled = resolve_plan(
         primary=ASK, with_vision="qwen3-vl-32b", with_embeddings=None, vram_gib=72
     )
+    code, vision = settled.code, settled.vision
     assert vision == "qwen3-vl-32b"
     # 72 - 35 (pinned vision) - 4 overhead leaves 33, which the 45 GiB coder
     # cannot have; so pinning the greedy vision model costs the better coder.
@@ -428,3 +447,165 @@ def test_sizing_still_works_with_no_helper_at_all(monkeypatch):
     assert sizing.verdict != "does-not-fit"
     assert sizing.primary
     assert any("best-engine-ai-helper" in w for w in sizing.warnings)
+
+
+# ---------------------------------------------------------------------------
+# The reported reasoning is about the slot it belongs to.
+# ---------------------------------------------------------------------------
+
+
+def test_the_vision_slot_is_reported_on_the_axis_it_was_ranked_on(helper):
+    """The bug: `choose` computed the axis, used it for the anti-greed
+    tie-break, and then hardcoded `code` in all three places that report. Vision
+    models leave the code column empty, so the slot published `benchmark None`,
+    `score=None` and a rejected list of nulls -- every figure a reader needs to
+    argue with the anti-greed trade, absent."""
+    choice = choose("vision", vram_gib=96)
+    assert choice.axis == "vision"
+    assert choice.score and choice.score > 0
+    assert f"vision benchmark {choice.score:g}" in choice.reason
+    assert choice.rejected and all(r["score"] for r in choice.rejected)
+
+
+def test_the_code_slot_is_reported_on_its_own_axis_too(helper):
+    choice = choose("code", vram_gib=96)
+    assert choice.axis == "code"
+    assert (
+        choice.score
+        == find_model(load_catalog(), choice.model_id)["benchmarks"]["swe_bench_verified"]
+    )
+
+
+def test_the_rejected_list_says_which_candidates_the_card_could_have_held(helper):
+    """ "Nothing better exists" and "something better exists and does not fit"
+    are different answers, and only one of them argues for a bigger card."""
+    tight = choose("code", vram_gib=48)
+    assert any(not r["affordable"] for r in tight.rejected), "the 80B does not fit 48 GiB"
+    roomy = choose("code", vram_gib=96)
+    assert all(r["affordable"] for r in roomy.rejected)
+
+
+# ---------------------------------------------------------------------------
+# The image slot, which is delegated whole.
+# ---------------------------------------------------------------------------
+
+
+def test_this_project_keeps_no_image_catalogue(catalog):
+    """The slot exists and the entries deliberately do not: a diffusion
+    pipeline's figures -- component footprints, denoising steps, seconds per
+    image -- are none of the columns `catalog/serving.yaml` is for."""
+    assert "image" in ROLE_KINDS
+    assert [m for m in catalog["models"] if m.get("role") == "image"] == []
+
+
+def test_the_image_slot_is_answered_from_the_helpers_catalogue(helper):
+    if not hasattr(helper, "imagine_rank"):
+        pytest.skip("the installed best-engine-ai-helper offers no image picker")
+    choice = choose("image", vram_gib=80, bandwidth_gbs=3350.0)
+    assert choice.asked is True
+    assert choice.model_id and choice.hf
+    assert choice.weights_gib and choice.weights_gib > 0
+    assert choice.detail["steps"] and choice.detail["seconds_per_image"]
+    # Named in the helper's catalogue and in no catalogue of ours.
+    assert choice.model_id in {str(e.get("id")) for e in helper.load_catalog()}
+
+
+def test_the_image_slot_applies_the_anti_greed_rule_the_helper_does_not(helper):
+    """`imagine_pick` takes the best image model that runs, which on a large
+    card is the biggest pipeline in its catalogue. This is a gateway for coding
+    agents: spare memory is supposed to buy a better coder, so the slot takes
+    the leanest candidate within LEAN_TOLERANCE of the best."""
+    if not hasattr(helper, "imagine_rank"):
+        pytest.skip("the installed best-engine-ai-helper offers no image picker")
+    plans = helper.imagine_rank(
+        [e for e in helper.load_catalog() if e.get("kind") == "image"],
+        budget_gb=200.0,
+        bandwidth_gbs=3350.0,
+    )
+    greedy = helper.imagine_pick(plans)
+    lean = choose("image", vram_gib=200, bandwidth_gbs=3350.0)
+    assert lean.score is not None and greedy["score"] - lean.score <= LEAN_TOLERANCE
+    chosen = next(p for p in plans if p["catalog_id"] == lean.model_id)
+    assert chosen["resident_gb"] <= greedy["resident_gb"]
+
+
+def test_an_image_model_the_helper_never_heard_of_is_refused_by_name(helper):
+    if not hasattr(helper, "imagine_rank"):
+        pytest.skip("the installed best-engine-ai-helper offers no image picker")
+    settled = resolve_plan(
+        primary=ASK,
+        with_vision=None,
+        with_embeddings=None,
+        with_image="not-a-diffusion-model",
+        vram_gib=96,
+    )
+    assert settled.image is None
+    picture = next(c for c in settled.choices if c.role == "image")
+    assert "no model" in picture.reason and picture.warnings
+
+
+def test_the_image_slot_is_off_unless_asked_for(helper):
+    """The only slot that is, and the reason is arithmetic: its memory comes
+    out of the coder's, and this gateway's first job is to serve a coder."""
+    assert resolve_plan(vram_gib=96).image is None
+
+
+def test_asking_for_pictures_costs_the_better_coder_and_the_report_says_so(helper):
+    """The trade, made visible. On an 80 GiB card the image model's weights are
+    weights the coder does not get -- so the plan drops from the 80B to the 24B,
+    and that is a decision the operator should be able to see rather than
+    discover."""
+    if not hasattr(helper, "imagine_rank"):
+        pytest.skip("the installed best-engine-ai-helper offers no image picker")
+    without = resolve_plan(vram_gib=80, bandwidth_gbs=3350.0)
+    with_pictures = resolve_plan(vram_gib=80, bandwidth_gbs=3350.0, with_image=ASK)
+    assert with_pictures.image
+    assert with_pictures.code != without.code
+    code = next(c for c in with_pictures.choices if c.role == "code")
+    assert any(not r["affordable"] for r in code.rejected)
+
+
+def test_the_image_slot_degrades_honestly_when_the_helper_cannot_answer(monkeypatch):
+    """There is no catalogue here to fall back to, so the slot is dropped --
+    and dropping it quietly would size a plan the machine never agreed to."""
+    import types
+
+    stub = types.ModuleType("best_engine_ai_helper")  # no imagine_* at all
+    monkeypatch.setitem(__import__("sys").modules, "best_engine_ai_helper", stub)
+    choice = choose("image", vram_gib=96)
+    assert choice.asked is False
+    assert choice.model_id == ""
+    assert choice.warnings and "left out" in choice.warnings[0]
+
+
+def test_an_image_model_that_could_not_be_timed_still_answers(helper, monkeypatch):
+    """A crash, found by calling the slot the way a library caller would.
+
+    `seconds_per_image` is None when the machine's bandwidth is unknown and no
+    measurement exists, and `usable` is False whenever it is -- so the warning
+    that explains the unusable choice was formatting a None. "Could not be
+    timed" and "too slow" are different sentences and the warning has to be
+    able to say either."""
+    if not hasattr(helper, "imagine_rank"):
+        pytest.skip("the installed best-engine-ai-helper offers no image picker")
+    # No bandwidth, and an accelerator named -- so there is nothing to borrow
+    # this machine's figure for, which is the combination that crashed.
+    monkeypatch.setattr(helper, "compute_profile", lambda: {}, raising=False)
+    choice = choose("image", vram_gib=96)
+    assert choice.model_id
+    assert choice.detail["seconds_per_image"] is None
+    assert choice.warnings and "could not be timed" in choice.warnings[0]
+
+
+def test_the_local_machines_bandwidth_is_borrowed_only_for_the_local_machine(helper):
+    """Asked about this machine, the slot should time the answer on it. Asked
+    about a catalogue accelerator, it must not: borrowing this laptop's
+    bandwidth would report a number about the wrong machine, which is worse
+    than reporting that it could not be timed."""
+    if not hasattr(helper, "imagine_rank") or not hasattr(helper, "compute_profile"):
+        pytest.skip("the installed best-engine-ai-helper offers no image picker")
+    here = choose("image")
+    named = choose("image", vram_gib=96)
+    if (helper.compute_profile() or {}).get("bandwidth_gbs"):
+        assert here.detail["seconds_per_image"]
+    assert named.detail["seconds_per_image"] is None

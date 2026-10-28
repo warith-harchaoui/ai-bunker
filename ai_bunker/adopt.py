@@ -237,6 +237,53 @@ def shadowing_notes(target: Path, *, writes: list[str], kept: list[str]) -> list
     return notes
 
 
+#: Sampling temperature written into a client kit when the catalogue has no
+#: opinion about the model being served. Neutral on purpose: the alternative
+#: is one family's figure, and this file used to carry one.
+NEUTRAL_TEMPERATURE = 0.2
+
+
+def temperature_for(served: str, catalog: dict | None = None) -> float:
+    """The sampling temperature this catalogue publishes for ``served``.
+
+    ``adopt`` writes a temperature into every client kit, and that figure is a
+    property of the weights rather than a taste: this catalogue records 0.15
+    for the Mistral family, which is sensitive to it, and 1.0 for the Qwen
+    coder, whose authors ask for exactly that. A fixed default is therefore
+    right for at most one deployment -- and the one it was fixed at belonged
+    to the model the helper stopped choosing on most cards.
+
+    Parameters
+    ----------
+    served : str
+        What the gateway's default upstream serves: a catalogue id, or the
+        Hugging Face reference, or a name this catalogue has never heard of.
+    catalog : dict, optional
+        Injectable serving catalogue, for tests.
+
+    Returns
+    -------
+    float
+        The catalogue's figure, or :data:`NEUTRAL_TEMPERATURE` when the served
+        model is not one of ours -- which is the common case for a gateway in
+        front of somebody else's endpoint, and not an error.
+    """
+    from .sizing import load_catalog
+
+    name = (served or "").strip().lower()
+    if not name:
+        return NEUTRAL_TEMPERATURE
+    for entry in (catalog or load_catalog())["models"]:
+        known = {
+            str(entry.get("id") or ""),
+            str(entry.get("hf") or ""),
+            str(entry.get("awq") or ""),
+        }
+        if name in {k.lower() for k in known if k}:
+            return float(entry.get("temperature") or NEUTRAL_TEMPERATURE)
+    return NEUTRAL_TEMPERATURE
+
+
 def _values(
     *,
     url: str,
@@ -381,10 +428,17 @@ def adopt(
     *,
     url: str = "http://127.0.0.1:8000/v1",
     api_key: str = "",
-    model: str = "devstral",
+    # A *need*, not a model name. The command line has defaulted to one since
+    # needs existed; this signature did not follow, so a caller using the
+    # library got `devstral` baked into every client kit it wrote -- the exact
+    # thing the gateway's need routing exists to stop, and a model name in a
+    # project whose README says it names none. The literal also slipped the
+    # hardcode guard, which matched catalogue ids and not family prefixes.
+    model: str = "code",
     declared_context: int = 104_000,
     compaction_reserve: int = 16_000,
-    temperature: float = 0.15,
+    temperature: float | None = None,
+    served: str = "",
     clients: tuple[str, ...] = CLIENTS,
     charter: bool = True,
     force: bool = False,
@@ -401,10 +455,19 @@ def adopt(
     api_key : str
         The gateway key. Substituted too, so prefer an environment variable
         for it on a machine where the rendered file will be committed.
-    model, declared_context, compaction_reserve, temperature
+    model, declared_context, compaction_reserve
         Client-side figures. ``declared_context`` should match what
         ``GET /v1/models`` publishes: the gateway audits it, and a client that
         declares more is eventually refused.
+    temperature : float, optional
+        Sampling temperature for the kits. Omit it and the figure comes from
+        the catalogue entry for ``served``, because temperature is a property
+        of the weights: this catalogue records 0.15 for one family and 1.0 for
+        another, and a fixed default is right for at most one of them.
+    served : str
+        What the gateway's default upstream actually serves, used only to
+        resolve the temperature above. A need is what the client *asks* for;
+        this is what answers it, and the two are deliberately different.
     clients : tuple of str
         Which kits to write.
     charter : bool
@@ -440,7 +503,7 @@ def adopt(
         model=model,
         declared_context=declared_context,
         compaction_reserve=compaction_reserve,
-        temperature=temperature,
+        temperature=temperature if temperature is not None else temperature_for(served),
     )
 
     sources = {

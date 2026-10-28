@@ -260,6 +260,11 @@ class Plan:
     quant: str
     weights_gib: float
     max_context: int
+    #: Seconds per image, for the image slot and nothing else. A diffusion
+    #: pipeline has no context window and answers in pictures, so the two
+    #: figures this dataclass exists to carry -- ``max_context`` and tokens --
+    #: say nothing about it, and the one that does had nowhere to go.
+    seconds_per_image: float | None = None
 
 
 @dataclass
@@ -288,6 +293,15 @@ class Sizing:
     verdict: str
     warnings: list[str] = field(default_factory=list)
     assumptions: dict[str, Any] = field(default_factory=dict)
+    #: Why each slot holds the model it holds: the budget the helper was given,
+    #: the axis it ranked on, the score, and every candidate it passed over.
+    #: One entry per slot that said ``auto``; empty when the caller named every
+    #: model, because then there is no choice to explain.
+    #:
+    #: This used to be built in `engine.resolve_plan`, read for its warnings
+    #: and dropped -- while that module's docstring said `ai-bunker sizing` was
+    #: able to print it. Carrying it is what makes the sentence true.
+    choices: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -310,6 +324,7 @@ def size_machine(
     primary: str = "auto",
     with_vision: str | None = "auto",
     with_embeddings: str | None = "auto",
+    with_image: str | None = None,
     served_context: int | None = None,
     kv_dtype: str = "fp8",
     assumptions: Assumptions | None = None,
@@ -334,6 +349,13 @@ def size_machine(
         Catalogue ids of co-resident models, ``"auto"`` to ask the helper, or
         None to leave them out -- which is why the sentinel is a word and not
         ``None``. A resident VLM is what makes 96 GiB worth more than 80.
+    with_image : str or None
+        A text-to-image model for ``POST /v1/images/generations``: an id from
+        **the helper's** image catalogue, ``"auto"`` to let it choose, or None.
+        Off by default, and the only slot that is. A coding agent needs a
+        coder; it does not generate pictures unless somebody asked, and a slot
+        that turned itself on would take its memory from the coder -- which on
+        an 80 GiB card is the difference between serving the 80B and the 24B.
     served_context : int, optional
         Context to serve. Defaults to the primary model's maximum, capped so a
         single session's KV cache never exceeds a third of the pool -- serving
@@ -376,13 +398,17 @@ def size_machine(
     # machine's memory, so the answer moves when the machine does.
     from ai_bunker.engine import resolve_plan
 
-    primary, with_vision, with_embeddings, chosen = resolve_plan(
+    settled = resolve_plan(
         primary=primary,
         with_vision=with_vision,
         with_embeddings=with_embeddings,
+        with_image=with_image,
         vram_gib=vram,
+        bandwidth_gbs=bw,
         catalog=cat,
     )
+    primary, with_vision, with_embeddings = settled.code, settled.vision, settled.embeddings
+    with_image, chosen = settled.image, settled.choices
     for choice in chosen:
         warnings.extend(choice.warnings)
 
@@ -402,6 +428,28 @@ def size_machine(
             )
         plan.append(Plan(mid, str(m["role"]), q, w, int(m["max_context"])))
         resident += w
+
+    # The image model, which is in no catalogue here. Its footprint is the one
+    # the helper worked out -- per component, and lower when `diffusers` is to
+    # swap them through the accelerator rather than hold them all -- so it is
+    # read off the `Choice` rather than looked up. `max_context` is 0 and means
+    # it: a denoising loop has no context window, and writing the coder's there
+    # would put a number in the table that is about a different model.
+    if with_image:
+        picture = next((c for c in chosen if c.role == "image"), None)
+        footprint = float(picture.weights_gib or 0.0) if picture else 0.0
+        detail = picture.detail if picture else {}
+        plan.append(
+            Plan(
+                with_image,
+                "image",
+                str(detail.get("dtype") or ("offload" if detail.get("offload") else "fp16")),
+                round(footprint, 1),
+                0,
+                seconds_per_image=detail.get("seconds_per_image"),
+            )
+        )
+        resident += footprint
 
     pool = vram - resident - a.vram_overhead_gib
     if pool <= 0:
@@ -433,6 +481,7 @@ def size_machine(
                 "Drop a co-resident model or quantize further.",
             ],
             assumptions=asdict(a),
+            choices=[c.to_dict() for c in chosen],
         )
 
     # --- context ------------------------------------------------------------
@@ -522,6 +571,7 @@ def size_machine(
         verdict=verdict,
         warnings=warnings,
         assumptions=asdict(a),
+        choices=[c.to_dict() for c in chosen],
     )
 
 
@@ -721,6 +771,7 @@ def recommend_for_team(
     primary: str = "auto",
     with_vision: str | None = "auto",
     with_embeddings: str | None = "auto",
+    with_image: str | None = None,
     served_context: int | None = None,
     kv_dtype: str = "fp8",
     assumptions: Assumptions | None = None,
@@ -756,6 +807,7 @@ def recommend_for_team(
             primary=primary,
             with_vision=with_vision,
             with_embeddings=with_embeddings,
+            with_image=with_image,
             served_context=served_context,
             kv_dtype=kv_dtype,
             assumptions=a,

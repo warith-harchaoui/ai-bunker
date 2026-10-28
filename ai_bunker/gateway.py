@@ -86,6 +86,13 @@ from ai_bunker.tools import Pins, approved_fingerprints
 #: is worse than no gateway.
 UPSTREAM_TIMEOUT = httpx.Timeout(connect=10.0, read=600.0, write=60.0, pool=10.0)
 
+#: The need ``POST /v1/images/generations`` routes on when a client declares
+#: none. A need and not a model name, for the reason every route here gives:
+#: a need survives the model being swapped, and which text-to-image model a
+#: deployment holds is `ai-bunker sizing --image auto`'s answer, not a client's
+#: business.
+IMAGE_NEED = "image"
+
 
 class State:
     """Everything loaded once at startup.
@@ -746,6 +753,88 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return _error(400, str(exc), "model_not_found")
         except httpx.HTTPError as exc:
             return _error(502, f"Upstream unreachable: {exc}", "upstream_error")
+
+    # -- images ----------------------------------------------------------
+
+    @app.post("/v1/images/generations", dependencies=[Depends(_authenticate)])
+    async def images(request: Request):
+        """Proxied to an upstream that can actually answer, or refused saying so.
+
+        Same treatment as ``/v1/embeddings`` and for the same reason: no
+        charter, no rules, no budget. A prompt for a picture has no system
+        prompt to carry a charter, no tool results to screen, and no
+        conversation to run out of; a budget counted in tokens against a served
+        context says nothing about a model whose cost is denoising steps.
+
+        **One thing is different, and it is why this route exists separately
+        rather than falling through the default.** A language engine cannot
+        answer this request. Every other route here degrades gracefully when a
+        model is unknown -- the default upstream takes it, which is exactly
+        what lets a client hardcoded to somebody else's model name work
+        unchanged. Do that here and the operator gets a 502 from a vLLM that
+        has no such endpoint, which is a true statement about a socket and a
+        useless one about the deployment. So an image route has to be
+        configured on purpose, and when it is not, this says which line to
+        write.
+
+        The upstream that answers it is `best-engine-ai-helper serve`, whose
+        OpenAI-compatible surface carries ``/v1/images/generations`` over
+        ``diffusers`` -- the same package ``ai-bunker sizing --image auto``
+        asks which model to put there.
+        """
+        state: State = app.state.bunker
+        s = state.settings
+        body = await request.json()
+        model = str(body.get("model") or "")
+        need = request.headers.get("x-ai-bunker-need", "") or IMAGE_NEED
+
+        # The ceiling still applies. A prompt is text and a body no engine
+        # could accept should be refused rather than parsed, held in memory
+        # and forwarded.
+        ceiling = s.default_served_context * CEILING_CHARS_PER_TOKEN
+        size = request_chars(body)
+        if size > ceiling:
+            return _error(
+                413,
+                f"This request carries {size:,} characters and this gateway reads "
+                f"at most {ceiling:,}.",
+                "request_too_large",
+                characters=size,
+                ceiling=ceiling,
+            )
+
+        if need not in s.needs and model not in s.routes:
+            return _error(
+                501,
+                "This gateway has no text-to-image route. A language engine cannot answer "
+                f"{request.url.path}, so there is no sensible default to fall through to. "
+                f"Add an upstream that serves images and point the {IMAGE_NEED!r} need at it "
+                "(`best-engine-ai-helper serve` carries this endpoint); "
+                "`ai-bunker sizing --image auto` says which model it should hold.",
+                "image_route_not_configured",
+                need=IMAGE_NEED,
+                configured_needs=sorted(s.needs),
+            )
+
+        try:
+            upstream, resolved, why = s.route(model, need)
+        except AssertionError as exc:
+            return _error(400, str(exc), "model_not_found")
+        if resolved != model:
+            osh.debug(f"[gateway] {model!r} -> {resolved!r} on {upstream.name} ({why})")
+            body = {**body, "model": resolved}
+
+        try:
+            return await _forward(body, upstream, "/images/generations", request)
+        except ClientGone:
+            return _error(
+                499,
+                "The client disconnected before the engine answered; the upstream "
+                "call was cancelled.",
+                "client_disconnected",
+            )
+        except httpx.HTTPError as exc:
+            return _error(502, f"Upstream {upstream.name} is unreachable: {exc}", "upstream_error")
 
     _mount_mcp(app)
     return app

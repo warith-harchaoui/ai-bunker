@@ -449,6 +449,7 @@ place both exist at once.
 | `GET /v1/models` | Routable models, each with the context the gateway **declares** |
 | `POST /v1/chat/completions` | Atomic and streaming. The full pipeline |
 | `POST /v1/embeddings` | Proxied unchanged |
+| `POST /v1/images/generations` | Proxied to the `image` need, or a 501 saying none is configured |
 | `POST /v1/budget` | Measure a request's floor without sending it anywhere |
 | `GET /v1/charter`, `GET /v1/charter/{ref}` | The index, and one page on demand |
 | `GET /v1/decisions` | The tail of the audit log, never the matched text |
@@ -461,6 +462,17 @@ protection while a turn grows.
 `/v1/budget` lets a client ask what a session will cost *before* paying for it
 — the difference between a budget that is merely enforced and one that can be
 planned against.
+
+`/v1/images/generations` is the one route with no sensible default. Every other
+one falls through to the default upstream when it does not recognise a model,
+which is what lets a client hardcoded to somebody else's model name work
+unchanged. A language engine cannot answer an image request, so falling through
+would return a 502 about a socket instead of a sentence about the deployment.
+It therefore refuses with a 501 naming the line to write, and `ai-bunker doctor`
+reports whether the route exists before anybody discovers it from an error.
+vLLM does not serve diffusion models; `best-engine-ai-helper serve` does, and
+`ai-bunker sizing --image auto` says which model it should hold and what that
+costs the coder.
 
 ### What it says about itself
 
@@ -919,7 +931,8 @@ A missing dependency is not an error — the HTTP surface is complete on its own
   rather than just the conclusion.
 - **OpenAI-compatible gateway** — `GET /v1/models`,
   `POST /v1/chat/completions` (atomic and streaming), `POST /v1/embeddings`,
-  `GET /health`. Any client that speaks OpenAI speaks ai-bunker.
+  `POST /v1/images/generations`, `GET /health`. Any client that speaks OpenAI
+  speaks ai-bunker.
 - **Dual routing** — local (vLLM / Ollama) and a premium remote route for the
   20% of requests that need a frontier model, chosen per model by a versioned
   registry.
@@ -955,7 +968,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1467 tests, `ruff` clean | ✅ |
+| 1491 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
@@ -1004,15 +1017,34 @@ ai-bunker deliberately implements as little as possible:
   subprocess. It stands in for three modules this project would otherwise have
   hand-rolled and then had to maintain.
 - [`best-engine-ai-helper`](https://github.com/warith-harchaoui/best-engine-ai-helper)
-  — **which model to serve.** ai-bunker describes what it is for in words
-  (`engine.TASK`: a sovereign gateway for autonomous coding agents that call
-  tools and return schema-constrained JSON over a long context), hands over its
-  own serving catalogue, and takes the answer. It names no model anywhere:
-  `--model auto` is the default on every sizing command, and
-  `tests/test_engine.py` fails if a literal reappears.
+  — **which model to serve, for all four slots.** ai-bunker describes what it
+  is for in words (`engine.TASK`: a sovereign gateway for autonomous coding
+  agents that call tools and return schema-constrained JSON over a long
+  context), hands over its own serving catalogue, and takes the answer. It
+  names no model anywhere: `--model auto` is the default on every sizing
+  command, and `tests/test_engine.py` fails if a literal reappears — including
+  a family prefix, which is how `devstral` survived in `adopt.py` for several
+  releases.
   The choice follows the machine, so the 72 GiB card is told to serve the 80B
   and the 48 GiB card the 24B — which is what
   [docs/SIZING.md](docs/SIZING.md) argued by hand, now derived.
+
+  The **code** and **vision** slots are ranked over this project's own serving
+  catalogue, on the benchmark axis each is actually for. The **embedder** is
+  answered directly: there is one, and ranking a set of one is theatre. The
+  **text-to-image** slot is delegated whole, catalogue included — a diffusion
+  model is three or four networks taking turns, so its footprint depends on
+  whether they are held at once or swapped through the accelerator one at a
+  time, and its cost is denoising steps rather than tokens. None of the columns
+  `catalog/serving.yaml` exists for describe any of that, and the helper
+  already carries both the entries and the arithmetic.
+
+  What this project adds to the helper's answer is one rule: a co-resident
+  model takes the leanest candidate within ten benchmark points of the best,
+  rather than the best. Measured on an 80 GiB card, the greedy vision model
+  costs the 80B coder, and the greedy image model costs it too —
+  `ai-bunker sizing --image auto` prints that trade rather than making it
+  quietly.
   What stays here is the arithmetic: the helper picks *which* model, and
   `sizing.py` works out the roofline, the key-value cache geometry and the
   headcount. On a workstation it can also be the thing serving: it exposes an
@@ -1059,6 +1091,10 @@ ai-bunker recommend --team 2
 # What does one machine carry, and why?
 ai-bunker sizing --accelerator rtx-pro-6000-blackwell
 ai-bunker sizing --vram 96 --bandwidth 1792        # a machine not in the catalogue
+
+# With a text-to-image model co-resident. Off by default, and the report says
+# what it costs: its weights are weights the coder does not get.
+ai-bunker sizing --accelerator h100-80 --image auto
 
 # Every machine, one line each, with cost per person carried
 ai-bunker compare

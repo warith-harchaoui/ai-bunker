@@ -113,6 +113,16 @@ def _add_plan_flags(p: argparse.ArgumentParser) -> None:
         default="auto",
         help="Co-resident embedder id, 'auto' to ask the helper, or 'none' (auto).",
     )
+    # Off by default, and the only slot that is. The other three serve the
+    # coding agent this gateway exists for; a picture is something somebody has
+    # to ask for, and the memory it takes comes straight out of the coder's --
+    # on an 80 GiB card, the difference between serving the 80B and the 24B.
+    g.add_argument(
+        "--image",
+        default="none",
+        help="Text-to-image model for POST /v1/images/generations: an id from "
+        "best-engine-ai-helper's image catalogue, 'auto' to let it choose, or 'none' (none).",
+    )
     g.add_argument("--context", type=int, help="Context to serve (default: the model's max).")
     g.add_argument("--kv-dtype", default="fp8", choices=["fp8", "bf16"])
 
@@ -130,7 +140,7 @@ def _plan_label(args) -> str:
     construction. The label says which case it is instead of printing a
     sentinel at the reader.
     """
-    parts = [args.model, _none(args.vision), _none(args.embeddings)]
+    parts = [args.model, _none(args.vision), _none(args.embeddings), _none(args.image)]
     named = [x for x in parts if x and x != "auto"]
     if any(x == "auto" for x in parts if x):
         chosen = "chosen per machine by best-engine-ai-helper"
@@ -144,6 +154,7 @@ def cmd_sizing(args) -> int:
         primary=args.model,
         with_vision=_none(args.vision),
         with_embeddings=_none(args.embeddings),
+        with_image=_none(args.image),
         served_context=args.context,
         kv_dtype=args.kv_dtype,
         assumptions=a,
@@ -179,6 +190,7 @@ def cmd_compare(args) -> int:
             primary=args.model,
             with_vision=_none(args.vision),
             with_embeddings=_none(args.embeddings),
+            with_image=_none(args.image),
             served_context=args.context,
             kv_dtype=args.kv_dtype,
             assumptions=a,
@@ -202,6 +214,7 @@ def cmd_recommend(args) -> int:
         primary=args.model,
         with_vision=_none(args.vision),
         with_embeddings=_none(args.embeddings),
+        with_image=_none(args.image),
         served_context=args.context,
         kv_dtype=args.kv_dtype,
         assumptions=a,
@@ -398,6 +411,10 @@ def cmd_serve(args) -> int:
 
 def cmd_doctor(args) -> int:
     """Check that everything the deployment claims is actually true."""
+    # Local, like `serve` above: importing the gateway pulls FastAPI in, and
+    # `sizing`/`doctor` have to work on a machine with only the base install.
+    from ai_bunker.gateway import IMAGE_NEED
+
     settings = load_settings(args.config)
     charter = load_charter(settings.charter_dir, locale=settings.language)
     rules = load_rules(settings.rules_dir)
@@ -512,6 +529,18 @@ def cmd_doctor(args) -> int:
         ""
         if settings.sovereign
         else "remote: " + ", ".join(u.name for u in settings.upstreams.values() if u.remote),
+    )
+    # A report, not a requirement. Most deployments serve coding agents and
+    # want no image route at all; what would be wrong is leaving an operator
+    # to discover from a 501 that the endpoint exists and theirs is unwired.
+    image_upstream = settings.needs.get(IMAGE_NEED, "")
+    check(
+        bool(image_upstream),
+        "text-to-image is routed",
+        ""
+        if image_upstream
+        else f"no {IMAGE_NEED!r} need: POST /v1/images/generations will refuse rather than "
+        "fall through to a language engine that cannot answer it",
     )
     check(
         bool(settings.audit_log),
@@ -804,6 +833,7 @@ def cmd_adopt(args) -> int:
         declared_context=declared,
         compaction_reserve=args.reserve or settings.compaction_reserve,
         temperature=args.temperature,
+        served=upstream.model if upstream else "",
         clients=clients,
         charter=not args.no_charter,
         force=args.force,
@@ -990,7 +1020,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Default: the configured upstream's served context x declared_fraction.",
     )
     ad.add_argument("--reserve", type=int, help="Client compaction margin.")
-    ad.add_argument("--temperature", type=float, default=0.15)
+    # No default here, and that is the point: temperature belongs to the
+    # weights, not to this command. The catalogue records 0.15 for one family
+    # and 1.0 for another, so a fixed figure would be wrong for whichever
+    # deployment it was not chosen for -- and it was chosen for the model the
+    # helper stopped picking on most cards.
+    ad.add_argument(
+        "--temperature",
+        type=float,
+        help="Override the sampling temperature (default: the catalogue's figure for "
+        "whatever the default upstream serves).",
+    )
     ad.add_argument("--force", action="store_true", help="Replace files that already exist.")
     ad.add_argument("--list", action="store_true", help="Show what would be written.")
     ad.add_argument("--config", default=None)

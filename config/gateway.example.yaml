@@ -101,6 +101,23 @@ needs:
   #   upstream: premium
   #   model: claude-sonnet-5
 
+  # Text-to-image. `POST /v1/images/generations` routes on this need, and
+  # refuses with a 501 when it is absent rather than handing the request to a
+  # language engine that has no such endpoint -- `doctor` reports which it is.
+  #
+  # vLLM does not serve diffusion models; `best-engine-ai-helper serve` does,
+  # over `diffusers`, on the same OpenAI-compatible shape. Define it as an
+  # upstream above (`images: {base_url: http://127.0.0.1:8000/v1, ...}`) and
+  # point this need at it.
+  #
+  # Which model it should hold is `ai-bunker sizing --image auto`'s answer,
+  # and that sizing also says what the slot costs: on an 80 GiB card the image
+  # model's weights come out of the coder's budget, which is the difference
+  # between serving the 80B and the 24B. Leave this commented on a machine
+  # whose job is code.
+  #
+  # image: images
+
 budget:
   # Tokens the client keeps free for compaction.
   compaction_reserve: 16000

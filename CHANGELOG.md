@@ -5,6 +5,80 @@ Standardization's year-month-day order.
 
 ## [Unreleased]
 
+### The fourth model, and the reasoning that was built and dropped
+
+The helper answers for three kinds of model — language, vision-language and
+text-to-image — and this project was asking for two of them. It now asks for
+all four slots it serves, and the explanation it was already computing is
+finally on the page.
+
+- **`POST /v1/images/generations`.** The slot is delegated whole, catalogue
+  included, and that asymmetry is the point: `code`, `vision` and `embed` are
+  ranked over `catalog/serving.yaml`, which records what a vLLM deployment
+  needs. A diffusion model is three or four networks taking turns, so its
+  footprint depends on whether they are held at once or swapped through the
+  accelerator one at a time, and its cost is denoising steps rather than
+  tokens — none of which any column in that catalogue describes. The helper
+  carries both the entries and the arithmetic (`imagine_rank`, `imagine_pick`,
+  `image_footprint_gb`), so copying either here would buy nothing and go
+  stale.
+- **What the slot costs is printed rather than absorbed.** `--image` defaults
+  to `none` and is the only slot that does: its weights come out of the
+  coder's budget. Measured on an 80 gibibyte (GiB, 2³⁰ bytes) card, asking for
+  pictures drops the plan from the 80B mixture of experts to the dense 24B,
+  and the report now names the candidate the card could no longer hold.
+- **The anti-greed rule applies here too.** The helper's `imagine_pick` takes
+  the best image model that runs, which on a large card is the biggest
+  pipeline in its catalogue. This is a gateway for coding agents, so the slot
+  takes the leanest candidate within ten benchmark points of the best — the
+  same rule and the same reason as the vision slot.
+- **The route has no sensible default, so it says so.** Every other route
+  falls through to the default upstream when it does not recognise a model,
+  which is what lets a client hardcoded to somebody else's model name work
+  unchanged. A language engine cannot answer an image request, and falling
+  through returns a 502 about a socket instead of a sentence about the
+  deployment. Unconfigured, the route refuses with a 501 naming the line to
+  write; `ai-bunker doctor` reports it before anybody meets it as an error;
+  and `tests/test_surfaces.py` made the new route declare, in writing, whether
+  it needs a key and a ceiling — which is what that table exists for.
+
+### The sizing report prints the chain it was told to print
+
+- **The vision slot was reported on the code axis.** `choose` computed which
+  benchmark column to rank on, used it for the anti-greed tie-break, and then
+  hardcoded `code` in all three places that report. Vision models leave that
+  column empty, so the slot published `benchmark None`, a null score and a
+  rejected list of nulls — every figure a reader needs in order to argue with
+  the trade, missing. One table (`AXES`) now answers the question once, and
+  the choice carries the axis so the two cannot drift apart again.
+- **And nothing read any of it.** `engine.py`'s docstring said *`Choice`
+  carries all of it so `ai-bunker sizing` can print the chain instead of a
+  name*; `sizing` took the warnings and discarded the rest, and `Sizing` had
+  no field for it. A claim about code that did not run. `ai-bunker sizing` now
+  prints `WHY THESE MODELS` — the budget each slot was given, the axis, the
+  score, and the candidates passed over with theirs — and `--json` carries it.
+  Which makes the anti-greed trade auditable: the vision slot gives up seven
+  points to save 26 GiB, and now says so.
+- **`resolve_plan` returns a record rather than a tuple.** It was three slots,
+  the image slot made it four, and a caller unpacking positionally would have
+  gone on working while silently reading the image model as the embedder.
+
+### A model name the guard could not see
+
+- **`adopt()` still defaulted to `devstral`.** The command line moved to needs
+  and this changelog recorded it; the function signature did not follow, so a
+  caller using the library got a model name baked into every client kit it
+  wrote. It slipped `test_no_model_name_is_hardcoded_in_the_package` because
+  that guard matched whole catalogue ids and `devstral` is a family prefix.
+  The guard now matches families too.
+- **And so did a temperature.** The kits were written with `0.15`, which is
+  the catalogue's figure for the Mistral family and not for the Qwen coder,
+  whose authors ask for `1.0` — and which is the model the helper picks on
+  every card from 80 GiB up. Temperature is a property of the weights, so it
+  is now looked up from what the default upstream actually serves, by
+  catalogue id or by Hugging Face reference, with a neutral figure for an
+  upstream this catalogue has never heard of.
+
 ### ai-bunker stops choosing models
 
 Both read-me files have said, for several releases, that *ai-bunker describes its

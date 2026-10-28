@@ -1184,3 +1184,74 @@ def test_an_unknown_model_on_embeddings_is_a_named_error(client, upstream):
         "/v1/embeddings", json={"model": "nothing-routes-here", "input": "x"}, headers=AUTH
     )
     assert response.status_code in (200, 400)
+
+
+# ---------------------------------------------------------------------------
+# Images: the one endpoint with no sensible default to fall through to.
+# ---------------------------------------------------------------------------
+
+
+def test_an_unconfigured_image_route_refuses_and_says_which_line_to_write(client):
+    """Every other route degrades to the default upstream, which is what lets a
+    client hardcoded to somebody else's model name work unchanged. Doing that
+    here hands the request to a vLLM with no such endpoint and returns a 502 --
+    a true statement about a socket and a useless one about the deployment."""
+    response = client().post("/v1/images/generations", json={"prompt": "a cat"}, headers=AUTH)
+    assert response.status_code == 501
+    body = response.json()["error"]
+    assert body["code"] == "image_route_not_configured"
+    assert body["need"] == "image"
+    assert "best-engine-ai-helper serve" in body["message"]
+    assert "sizing --image auto" in body["message"]
+
+
+def test_the_image_endpoint_needs_the_key_like_every_other_one(client):
+    """Checked before the route is resolved, so an unauthenticated caller
+    cannot learn whether this deployment serves images."""
+    assert client().post("/v1/images/generations", json={"prompt": "a cat"}).status_code == 401
+
+
+def test_a_configured_image_need_forwards_to_its_own_upstream(client, upstream):
+    """The need routes, and the pinned model is substituted on the way through
+    -- so a client asks for `image` and never learns which checkpoint answers."""
+    upstream.reply = {"created": 1, "data": [{"b64_json": "aGk="}]}
+    response = client(
+        upstreams={
+            "local": Upstream(name="local", base_url="http://up.test/v1"),
+            "pictures": Upstream(
+                name="pictures", base_url="http://pix.test/v1", model="sd35-medium"
+            ),
+        },
+        needs={"image": "pictures"},
+    ).post("/v1/images/generations", json={"prompt": "a cat"}, headers=AUTH)
+
+    assert response.status_code == 200
+    assert response.json()["data"][0]["b64_json"] == "aGk="
+    assert upstream.last["prompt"] == "a cat"
+    assert upstream.last["model"] == "sd35-medium"
+
+
+def test_an_oversized_image_prompt_is_refused_unread(client):
+    """A prompt is text, so the ceiling applies here too: a body no engine
+    could accept should be refused rather than parsed, held and forwarded."""
+    response = client(
+        upstreams={
+            "local": Upstream(name="local", base_url="http://up.test/v1", served_context=1000)
+        },
+        needs={"image": "local"},
+    ).post("/v1/images/generations", json={"prompt": "x" * 200_000}, headers=AUTH)
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "request_too_large"
+
+
+def test_a_model_named_in_routes_reaches_images_without_a_need(client, upstream):
+    """A need is the better thing to ask for, but a client that names the model
+    is not refused -- the route table answers it, as it does everywhere else."""
+    upstream.reply = {"created": 1, "data": []}
+    response = client(
+        upstreams={"pictures": Upstream(name="pictures", base_url="http://pix.test/v1")},
+        routes={"sdxl": "pictures"},
+        default_upstream="pictures",
+        needs={},
+    ).post("/v1/images/generations", json={"model": "sdxl", "prompt": "a cat"}, headers=AUTH)
+    assert response.status_code == 200

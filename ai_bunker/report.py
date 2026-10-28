@@ -13,6 +13,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import textwrap
 from typing import TYPE_CHECKING
 
 from ai_bunker.sizing import Assumptions, Sizing, load_catalog, serve_command
@@ -47,11 +48,21 @@ def render(sizing: Sizing, *, show_command: bool = True) -> str:
 
     w("  RESIDENT PLAN")
     for p in sizing.plan:
-        w(f"    {p.role:<7} {p.model_id:<24} {p.quant:<6} {p.weights_gib:>6.1f} GiB")
+        line = f"    {p.role:<7} {p.model_id:<24} {p.quant:<6} {p.weights_gib:>6.1f} GiB"
+        # The image slot's unit. A diffusion pipeline has no context window and
+        # answers in pictures, so seconds per image is the figure a reader
+        # needs to decide whether the slot earns its memory -- and it is the
+        # one figure the rest of this report has no column for.
+        if p.seconds_per_image:
+            line += f"   ~{p.seconds_per_image:g} s an image"
+        w(line)
     w(f"    {'':<7} {'weights total':<24} {'':<6} {sizing.resident_weights_gib:>6.1f} GiB")
     w(f"    {'':<7} {'overhead':<24} {'':<6} {a['vram_overhead_gib']:>6.1f} GiB")
     w(f"    {'':<7} {'KV cache pool':<24} {'':<6} {sizing.kv_pool_gib:>6.1f} GiB")
     w("")
+
+    for line in render_choices(sizing.choices):
+        w(line)
 
     if sizing.verdict == "does-not-fit":
         w(f"  VERDICT  {_VERDICT[sizing.verdict]}")
@@ -118,6 +129,57 @@ def render(sizing: Sizing, *, show_command: bool = True) -> str:
     w(f"    --duty-cycle {a['duty_cycle']}  --simultaneity {a['simultaneity']}")
     w(_rule())
     return "\n".join(out)
+
+
+def render_choices(choices: list[dict]) -> list[str]:
+    """Why each slot holds the model it holds, slot by slot.
+
+    The whole argument of this module applied to the one decision that used to
+    arrive as a bare name. `engine.py` builds this reasoning -- the budget the
+    helper was given, the column it ranked on, the score, and every candidate
+    it passed over -- and for several releases nothing read it: `sizing` took
+    the warnings and dropped the rest, while the module's docstring said this
+    report printed it. A reader who disagrees with the choice should be able to
+    see which number to argue with, and now can.
+
+    Parameters
+    ----------
+    choices : list of dict
+        ``Choice.to_dict()`` per slot, from :attr:`Sizing.choices`.
+
+    Returns
+    -------
+    list of str
+        Report lines, or empty when every model was named by the caller and
+        there is therefore no choice to explain.
+    """
+    if not choices:
+        return []
+    out = ["  WHY THESE MODELS"]
+    for choice in choices:
+        role = str(choice.get("role") or "")
+        model = str(choice.get("model_id") or "") or "(slot left out)"
+        out.append(f"    {role:<7} {model}")
+        for line in textwrap.wrap(str(choice.get("reason") or ""), width=62):
+            out.append(f"    {'':<7} {line}")
+
+        # Only the candidates the machine could actually have held. The ones
+        # it could not are counted rather than listed: "three more did not
+        # fit" is the useful half of that sentence, and naming them turns a
+        # four-line explanation into a page.
+        passed = [r for r in choice.get("rejected") or [] if r.get("affordable")]
+        missed = len(choice.get("rejected") or []) - len(passed)
+        for index, entry in enumerate(passed):
+            label = "passed over" if index == 0 else ""
+            score = entry.get("score")
+            figure = f"{float(score):g}" if score is not None else "no score"
+            ident = str(entry.get("id") or "")
+            weight = float(entry.get("weights_gib") or 0.0)
+            out.append(f"    {'':<7} {label:<12} {ident:<22} {figure:>8}  {weight:>5.1f} GiB")
+        if missed:
+            out.append(f"    {'':<7} {'':<12} and {missed} the machine could not hold at all")
+        out.append("")
+    return out
 
 
 def render_comparison(sizings: list[Sizing], *, prices: dict[str, float] | None = None) -> str:

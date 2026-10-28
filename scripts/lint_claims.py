@@ -190,6 +190,32 @@ CLAIMS: tuple[Claim, ...] = (
         files=("ai_bunker/engine.py", "ai_bunker/sizing.py"),
     ),
     Claim(
+        name="the-image-slot-is-delegated-whole",
+        because=(
+            "Both READMEs say this project keeps no text-to-image catalogue "
+            "and asks the helper for the entries as well as the order. The "
+            "temptation when the helper is slow to install, or when one entry "
+            "looks wrong, is to paste a model name into `engine.py` -- which "
+            "is exactly how the three language slots acquired six literals "
+            "the prose spent several releases denying."
+        ),
+        required_somewhere=("imagine_rank",),
+        files=("ai_bunker/engine.py",),
+    ),
+    Claim(
+        name="the-image-route-refuses-rather-than-falls-through",
+        because=(
+            "Both READMEs say an unconfigured image route answers 501 naming "
+            "the line to write, rather than handing the request to a language "
+            "engine with no such endpoint. Deleting the guard would restore "
+            "the default fall-through and turn a sentence about the "
+            "deployment back into a 502 about a socket, with nothing in the "
+            "prose changing to say so."
+        ),
+        required_somewhere=("image_route_not_configured",),
+        files=("ai_bunker/gateway.py",),
+    ),
+    Claim(
         name="the-dashboard-is-translated",
         because=(
             "`i18n.py` listed the dashboard under 'what is deliberately NOT "

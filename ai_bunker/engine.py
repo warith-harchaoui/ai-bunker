@@ -57,7 +57,33 @@ answer should move when the machine does.
 
 **The reasoning is inspectable.** The helper returns the budget it used, the
 headroom it kept, the candidates it rejected and why. :class:`Choice` carries
-all of it so ``ai-bunker sizing`` can print the chain instead of a name.
+all of it, :class:`ResolvedPlan` carries one per slot, and ``ai-bunker sizing``
+prints the chain under ``WHY THESE MODELS`` instead of a bare name. That last
+clause was false for a while: the reasoning was built, attached to nothing and
+dropped, so the sentence describing it was a claim about code that did not run.
+
+The fourth slot: a picture
+--------------------------
+``code``, ``vision`` and ``embed`` are chosen over ``catalog/serving.yaml``,
+which is this project's own and records what a *server* needs. ``image`` is
+not, and keeps no entry here at all.
+
+The reason is that a diffusion model is not a language model with different
+weights. It is three or four networks that take turns -- text encoders, a
+denoiser, a decoder -- so its footprint depends on whether they are held at
+once or swapped through the accelerator one at a time, and its cost is in
+denoising steps rather than tokens, which makes the honest unit *seconds per
+image*. None of the columns this catalogue exists for -- weights per
+quantization, key-value cache geometry, tool-call parsers -- say anything
+about any of that.
+
+The helper already carries that catalogue and that arithmetic
+(``imagine_rank``, ``imagine_pick``, ``image_footprint_gb``), so the slot is
+delegated whole rather than copied. What this project adds is the one rule the
+helper's ``pick`` does not apply, :data:`LEAN_TOLERANCE`: ``pick`` takes the
+best image model that runs, which on an 80 GiB card is a 43 GiB pipeline, and
+this is a gateway for coding agents whose spare memory is supposed to buy a
+better coder.
 
 What is deliberately NOT delegated
 ----------------------------------
@@ -88,7 +114,25 @@ from ai_bunker.sizing import find_model, load_catalog
 ASK = "auto"
 
 #: Catalogue roles, and the ``kind`` the helper knows them as.
-ROLE_KINDS = {"code": "llm", "vision": "vlm", "embed": "embed"}
+#:
+#: ``image`` is the odd one and deliberately so. The other three name models
+#: this project's own ``catalog/serving.yaml`` carries; the image slot names
+#: none, because a diffusion pipeline is not a vLLM deployment and the figures
+#: that decide it -- component footprints, a denoising step count, seconds per
+#: image -- are a different arithmetic over different data. The helper already
+#: owns all of it (``imagine_rank``, ``imagine_pick``), so the slot is
+#: delegated whole rather than copied into a catalogue that would then have to
+#: be kept in step with somebody else's.
+ROLE_KINDS = {"code": "llm", "vision": "vlm", "embed": "embed", "image": "image"}
+
+#: Which benchmark column each role is ranked and reported on. One table
+#: rather than an expression repeated per use, because the repetition is what
+#: let the vision slot rank on ``vision`` and publish ``code`` -- a column its
+#: models leave empty, so the slot's whole published reasoning read ``None``.
+#: An embedder has no column here: this catalogue records no benchmark for the
+#: one it carries, and inventing an axis to report zero on would be worse than
+#: saying nothing.
+AXES = {"code": "code", "vision": "vision", "image": "image"}
 
 #: What this project is for, written out, because that sentence is the input to
 #: somebody else's decision and not a comment.
@@ -160,7 +204,30 @@ class Choice:
     asked: bool
     reason: str
     budget_gb: float | None = None
+    #: Which benchmark column the ranking was ordered by, so a reader can tell
+    #: what :attr:`score` is a score *of*. Carried rather than inferred from
+    #: the role, because the two were allowed to disagree once already: the
+    #: vision slot was ranked on `vision` and reported on `code`, which is a
+    #: column its models leave empty, so every figure the slot published read
+    #: `None` and said nothing.
+    axis: str = ""
     score: float | None = None
+    #: What the chosen model occupies, in GiB. Redundant for the three roles
+    #: whose weights ``catalog/serving.yaml`` records, and the only source of
+    #: the figure for the image slot, which this project deliberately keeps no
+    #: catalogue of. ``None`` means "ask the catalogue", and the image slot is
+    #: the one role that cannot be asked.
+    weights_gib: float | None = None
+    #: The reference that actually serves the model -- a Hugging Face id. For
+    #: the three local roles it duplicates the catalogue's ``hf``; for the
+    #: image slot it is the only name the runtime understands, since
+    #: ``catalog_id`` belongs to the helper's catalogue and not to ours.
+    hf: str = ""
+    #: Whatever is true of this role and no other. The image slot puts its
+    #: output size, its denoising step count and its seconds-per-image here:
+    #: three figures that mean nothing for a language model, and promoting
+    #: them to fields would leave every other role carrying three nulls.
+    detail: dict[str, Any] = field(default_factory=dict)
     rejected: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -278,11 +345,12 @@ def _fallback(
     arithmetic.
     """
     allowed = {e["id"] for e in affordable} if affordable is not None else None
-    candidates = [
-        m
-        for m in catalog["models"]
-        if str(m.get("role")) == role and (allowed is None or str(m["id"]) in allowed)
-    ]
+    # Both sets are kept. The choice is made among the ones the card can hold;
+    # the ones it cannot are still named in `rejected`, because "nothing better
+    # exists" and "something better exists and does not fit" are different
+    # answers and only one of them is an argument for a bigger card.
+    role_models = [m for m in catalog["models"] if str(m.get("role")) == role]
+    candidates = [m for m in role_models if allowed is None or str(m["id"]) in allowed]
     osh.check(bool(candidates), f"The serving catalogue carries no {role!r} model.")
 
     def score(m: dict[str, Any]) -> float:
@@ -315,6 +383,20 @@ def _fallback(
         model_id=str(best["id"]),
         asked=False,
         reason=reason,
+        axis=AXES.get(role, ""),
+        score=score(best) or None,
+        weights_gib=weight(best) or None,
+        hf=str(best.get("hf") or ""),
+        rejected=[
+            {
+                "id": str(m["id"]),
+                "weights_gib": weight(m),
+                "score": score(m) or None,
+                "affordable": allowed is None or str(m["id"]) in allowed,
+            }
+            for m in sorted(role_models, key=score, reverse=True)
+            if m["id"] != best["id"]
+        ],
         warnings=[
             f"{role}: chose {best['id']} from this catalogue's own benchmarks rather than "
             f"through best-engine-ai-helper. {reason}"
@@ -322,10 +404,209 @@ def _fallback(
     )
 
 
+# ---------------------------------------------------------------------------
+# The image slot, which this project keeps no catalogue of
+# ---------------------------------------------------------------------------
+
+#: GiB per gigabyte. The helper answers in gigabytes and this project sizes in
+#: gibibytes, and the two differ by 7% -- small enough to ignore by accident
+#: and large enough to turn a card that fits into one that does not, which is
+#: the only kind of rounding error worth naming a constant for.
+GIB_PER_GB = 1 / 1.073741824
+
+
+def _image_entries(be: Any) -> list[dict[str, Any]]:
+    """The helper's own text-to-image catalogue.
+
+    Theirs, not ours, and that is the point of the slot: ``catalog/serving.yaml``
+    records what a vLLM deployment needs -- weights per quantization, key-value
+    cache geometry, tool-call parsers -- and none of those words mean anything
+    to a denoising loop. Keeping a second copy of somebody else's image
+    catalogue here would buy nothing and go stale.
+    """
+    return [e for e in be.load_catalog() if str(e.get("kind")) == "image"]
+
+
+def _no_image(reason: str) -> Choice:
+    """No image model, said out loud rather than sized as though free.
+
+    The empty ``model_id`` is what :func:`resolve_plan` reads as "drop this
+    slot". Degrading in quality -- no image generation on this deployment --
+    is the intent; degrading in arithmetic, by planning a model whose
+    footprint nobody could work out, is what this avoids.
+    """
+    return Choice(
+        role="image",
+        model_id="",
+        asked=False,
+        reason=reason,
+        axis=AXES["image"],
+        warnings=[f"image: the slot was requested and is being left out. {reason}"],
+    )
+
+
+def _choose_image(
+    *,
+    vram_gib: float | None,
+    bandwidth_gbs: float | None,
+    lean: bool,
+    only: str | None = None,
+) -> Choice:
+    """Ask the helper which text-to-image model this machine should serve.
+
+    Delegated whole. ``imagine_rank`` sizes a diffusion pipeline the way it has
+    to be sized -- per component, with the option of letting ``diffusers`` swap
+    them so the peak is the largest rather than the sum -- and returns seconds
+    per image, which is the unit a person waits in and the one that decides
+    whether the slot is worth its memory at all. None of that is a language
+    model's arithmetic and none of it belongs here.
+
+    What this project adds is the one rule the helper's own ``pick`` does not
+    apply: :data:`LEAN_TOLERANCE`. ``pick`` takes the best image model that
+    runs, which on an 80 GiB card is a 43 GiB pipeline -- and this deployment's
+    first job is to serve a coding agent, so a slot that halves the coder's
+    budget to buy a few points of image quality has the priority backwards.
+    """
+    try:
+        import best_engine_ai_helper as be  # lazy: keeps `import ai_bunker` cheap
+    except ImportError:
+        return _no_image(
+            "best-engine-ai-helper is not importable in this interpreter, and the image "
+            "catalogue, the footprints and the timings all live there."
+        )
+
+    missing = [n for n in ("load_catalog", "imagine_rank", "imagine_pick") if not hasattr(be, n)]
+    if missing:
+        return _no_image(
+            f"the installed best-engine-ai-helper offers no {' or '.join(missing)}; it "
+            "predates the image picker."
+        )
+
+    # In gigabytes, because that is the unit the helper answers in. `vram_gib`
+    # is already net of whatever the earlier slots spent -- `resolve_plan`
+    # hands over what is left, not what the card holds.
+    room_gb = None if vram_gib is None else max(float(vram_gib) - OVERHEAD_GIB, 0.0) / GIB_PER_GB
+    try:
+        entries = _image_entries(be)
+        if only:
+            # A caller who named a model is still sized, not trusted: the same
+            # footprint and timing arithmetic runs over a candidate set of one,
+            # so `--image sdxl` on a card that cannot hold it says so instead
+            # of planning it as though it were free.
+            entries = [e for e in entries if str(e.get("id")) == only]
+            if not entries:
+                known = ", ".join(sorted(str(e.get("id")) for e in _image_entries(be)))
+                return _no_image(
+                    f"best-engine-ai-helper's image catalogue has no model {only!r}. "
+                    f"Known: {known}."
+                )
+        if room_gb is None:
+            # No machine was named, so the question is about this one -- and
+            # then its bandwidth is the right one too. Only here: when a
+            # caller named an accelerator, borrowing this laptop's bandwidth
+            # would time the answer on the wrong machine, which is worse than
+            # reporting that it could not be timed.
+            hardware = dict(be.available_memory())
+            room_gb = float(hardware.get("vram_gb") or hardware.get("unified_gb") or 0.0)
+            if bandwidth_gbs is None and hasattr(be, "compute_profile"):
+                bandwidth_gbs = (dict(be.compute_profile()) or {}).get("bandwidth_gbs")
+        plans = be.imagine_rank(entries, budget_gb=room_gb, bandwidth_gbs=bandwidth_gbs)
+        best = be.imagine_pick(plans)
+    except Exception as exc:  # a recommendation is advice; its failure is not fatal
+        return _no_image(f"best-engine-ai-helper could not rank the image models ({exc}).")
+
+    if not best:
+        smallest = min(
+            (p for p in plans if p.get("resident_gb")),
+            key=lambda p: float(p["resident_gb"]),
+            default=None,
+        )
+        short = (
+            f" The smallest is {smallest['catalog_id']} at {smallest['resident_gb']:.0f} GB."
+            if smallest
+            else ""
+        )
+        return _no_image(
+            f"No text-to-image model fits the {room_gb:.0f} GB left once the language models "
+            f"are resident.{short}"
+        )
+
+    def points(plan: dict[str, Any]) -> float:
+        return float(plan.get("score") or 0.0)
+
+    if lean:
+        close = [p for p in plans if p.get("fits") and points(best) - points(p) <= LEAN_TOLERANCE]
+        if close:
+            best = min(close, key=lambda p: float(p.get("resident_gb") or 0.0))
+
+    resident_gib = float(best.get("resident_gb") or 0.0) * GIB_PER_GB
+    seconds = best.get("seconds_per_image")
+    return Choice(
+        role="image",
+        model_id=str(best.get("catalog_id") or best.get("model") or ""),
+        asked=True,
+        reason=(
+            f"best-engine-ai-helper chose {best.get('catalog_id')} among "
+            f"{len(plans)} text-to-image model(s) for the {room_gb:.0f} GB left after the "
+            f"language models (image benchmark {points(best):g}, {resident_gib:.0f} GiB "
+            f"resident, {best.get('steps')} denoising steps at {best.get('size')}"
+            + (f", about {seconds:g} s an image)." if seconds else ").")
+        ),
+        budget_gb=round(room_gb, 1),
+        axis=AXES["image"],
+        score=best.get("score"),
+        weights_gib=round(resident_gib, 1),
+        hf=str(best.get("model") or ""),
+        detail={
+            "size": best.get("size"),
+            "steps": best.get("steps"),
+            "seconds_per_image": seconds,
+            # True when `diffusers` is to swap the components through the
+            # accelerator one at a time. It is what makes a pipeline fit a card
+            # that cannot hold it whole, and it is slower, so it is reported
+            # rather than quietly assumed.
+            "offload": bool(best.get("offload")),
+            "usable": bool(best.get("usable")),
+        },
+        rejected=[
+            {
+                "id": p.get("catalog_id"),
+                "weights_gib": round(float(p.get("resident_gb") or 0.0) * GIB_PER_GB, 1),
+                "score": p.get("score"),
+                "affordable": bool(p.get("fits")),
+                "seconds_per_image": p.get("seconds_per_image"),
+            }
+            for p in plans
+            if p.get("catalog_id") != best.get("catalog_id")
+        ],
+        warnings=(
+            []
+            if best.get("usable")
+            else [
+                # `seconds` is None when no bandwidth was supplied and no
+                # measurement exists, which is the ordinary case for
+                # `choose('image')` called without a machine. Unusable then
+                # means "could not be timed", not "too slow", and the warning
+                # has to be able to say either without formatting a None.
+                f"image: {best.get('catalog_id')} fits but "
+                + (
+                    f"takes about {seconds:g} s an image, which is batch work rather than "
+                    "interactive. "
+                    if seconds
+                    else "could not be timed on this machine. "
+                )
+                + "The blockers the helper named: "
+                + ", ".join(best.get("blockers") or ["none"])
+            ]
+        ),
+    )
+
+
 def choose(
     role: str = "code",
     *,
     vram_gib: float | None = None,
+    bandwidth_gbs: float | None = None,
     task: str | None = None,
     lean: bool | None = None,
     catalog: dict[str, Any] | None = None,
@@ -334,13 +615,21 @@ def choose(
 
     Parameters
     ----------
-    role : {'code', 'vision', 'embed'}
-        Which slot in the deployment plan is being filled.
+    role : {'code', 'vision', 'embed', 'image'}
+        Which slot in the deployment plan is being filled. The first three are
+        decided over this project's serving catalogue; ``image`` is delegated
+        whole to the helper, which keeps the only catalogue of them -- see
+        :func:`_choose_image`.
     vram_gib : float, optional
         Memory the target machine has for weights. This is the figure that
         makes the answer machine-specific, and it is usually *not* this
         machine's -- sizing is normally asked about a catalogue accelerator.
         Omit it and the helper is asked about the local machine instead.
+    bandwidth_gbs : float, optional
+        Memory bandwidth of the target machine. Read only by the image slot,
+        whose honest unit is seconds per image and whose sampling loop is
+        bound by it. The language slots are ranked on benchmarks and memory
+        fit, and sizing does their throughput arithmetic itself.
     task : str, optional
         What the model is for, in words the helper parses. Defaults to
         :data:`TASK`, or :data:`VISION_TASK` for the vision role.
@@ -355,10 +644,22 @@ def choose(
     Returns
     -------
     Choice
-        The model id, whether the helper answered, and why.
+        The model id, whether the helper answered, and why. An empty
+        ``model_id`` means the slot could not be filled and should be dropped,
+        which only the image slot can answer.
     """
     cat = catalog or load_catalog()
     osh.check(role in ROLE_KINDS, f"Unknown role {role!r}. Known: {', '.join(ROLE_KINDS)}")
+
+    if role == "image":
+        return _choose_image(
+            vram_gib=vram_gib,
+            bandwidth_gbs=bandwidth_gbs,
+            # The same anti-greed default as the vision slot, and for the same
+            # reason: this is a gateway for coding agents, and an image model
+            # that halves the coder's budget has the priority backwards.
+            lean=True if lean is None else lean,
+        )
 
     # An embedder is not an `llm` or a `vlm`, which are the only kinds the
     # helper's ranking knows. There is one in this catalogue and ranking a set
@@ -377,6 +678,8 @@ def choose(
                 f"{only['id']} is the catalogue's embedder. The helper ranks `llm` and `vlm` "
                 "kinds; an embedder is neither, and ranking a set of one would be theatre."
             ),
+            weights_gib=only["weights_gib"],
+            hf=str(only["vllm_id"]),
         )
 
     # The affordable set, decided here. This catalogue records what each model's
@@ -402,6 +705,24 @@ def choose(
                     f"Naming the smallest ({smallest['id']}, {smallest['weights_gib']:.0f} GiB) so "
                     "the sizing can say by how much it misses."
                 ),
+                axis=AXES[role],
+                score=smallest["benchmarks"].get(AXES[role]),
+                weights_gib=smallest["weights_gib"],
+                hf=str(smallest["vllm_id"]),
+                # Named even though none of them fits, because that is the
+                # whole content of this answer: the reader is being told the
+                # card is too small, and the list of what it is too small for
+                # is how they decide which bigger card to ask for.
+                rejected=[
+                    {
+                        "id": e["id"],
+                        "weights_gib": e["weights_gib"],
+                        "score": e["benchmarks"].get(AXES[role]),
+                        "affordable": False,
+                    }
+                    for e in sorted(entries, key=lambda e: e["weights_gib"])
+                    if e["id"] != smallest["id"]
+                ],
                 warnings=[
                     f"{role}: nothing fits, so this is the smallest candidate rather than a "
                     "choice. The sizing below will report `does-not-fit`."
@@ -450,7 +771,11 @@ def choose(
             hardware,
             affordable,
             kind,
-            application="code" if kind == "llm" else "vision",
+            # The same column the choice is reported on, from the same table.
+            # The helper ranks by it and `points` below re-reads it for the
+            # anti-greed tie-break, so a divergence here would order the
+            # candidates on one axis and justify the winner on another.
+            application=AXES[role],
             backend="vllm",
             # A coding agent's tool call is constrained decoding, so a model
             # that cannot honour a schema is not a candidate at all. Enforced
@@ -477,7 +802,7 @@ def choose(
         )
 
     by_id = {e["id"]: e for e in affordable}
-    axis = "code" if kind == "llm" else "vision"
+    axis = AXES[role]
 
     def points(entry: dict[str, Any]) -> float:
         return float(entry["benchmarks"].get(axis) or 0.0)
@@ -507,32 +832,47 @@ def choose(
             f"{len(affordable)} candidate(s)"
         )
         + (
-            f" (benchmark {chosen['benchmarks']['code']}, {chosen['weights_gib']:.0f} GiB of "
+            f" ({axis} benchmark {points(chosen):g}, {chosen['weights_gib']:.0f} GiB of "
             f"weights{', structured output' if chosen['structured_output'] else ''})."
         ),
         budget_gb=hardware.get("vram_gb") or hardware.get("unified_gb"),
-        score=chosen["benchmarks"]["code"],
+        axis=axis,
+        score=chosen["benchmarks"][axis],
+        weights_gib=chosen["weights_gib"],
+        hf=str(chosen["vllm_id"]),
         rejected=[
             {
                 "id": e["id"],
                 "weights_gib": e["weights_gib"],
-                "code": e["benchmarks"]["code"],
-                "affordable": True,
+                "score": e["benchmarks"][axis],
+                "affordable": e in affordable,
             }
-            for e in affordable
+            for e in sorted(entries, key=lambda e: (e not in affordable, -points(e)))
             if e["id"] != model_id
-        ]
-        + [
-            {
-                "id": e["id"],
-                "weights_gib": e["weights_gib"],
-                "code": e["benchmarks"]["code"],
-                "affordable": False,
-            }
-            for e in entries
-            if e not in affordable
         ],
     )
+
+
+@dataclass
+class ResolvedPlan:
+    """A deployment plan with every slot settled, and why each one is what it is.
+
+    A record rather than a tuple because the slots grew: it was three, the
+    image slot made it four, and a caller unpacking positionally would have
+    gone on working and silently read the image model as the embedder.
+    """
+
+    code: str
+    vision: str | None = None
+    embeddings: str | None = None
+    image: str | None = None
+    #: One per slot that was asked about -- so a report can show the reasoning
+    #: rather than a bare name.
+    choices: list[Choice] = field(default_factory=list)
+
+    def warnings(self) -> list[str]:
+        """Every slot's warnings, in the order the slots were settled."""
+        return [w for choice in self.choices for w in choice.warnings]
 
 
 def resolve_plan(
@@ -540,63 +880,103 @@ def resolve_plan(
     primary: str | None = ASK,
     with_vision: str | None = ASK,
     with_embeddings: str | None = ASK,
+    with_image: str | None = None,
     vram_gib: float | None = None,
+    bandwidth_gbs: float | None = None,
     catalog: dict[str, Any] | None = None,
-) -> tuple[str, str | None, str | None, list[Choice]]:
-    """Turn a plan that may say :data:`ASK` into one that names three models.
+) -> ResolvedPlan:
+    """Turn a plan that may say :data:`ASK` into one that names its models.
 
     ``None`` is left alone and keeps meaning "leave this model out", which it
-    has always meant and which :data:`ASK` exists so as not to disturb.
+    has always meant and which :data:`ASK` exists so as not to disturb. It is
+    also the default for ``with_image``, and that asymmetry is deliberate: a
+    coding agent needs a coder, usually wants eyes and an embedder, and does
+    not generate pictures unless somebody asked for it. A slot that turned
+    itself on would take its memory from the coder.
 
-    The three slots are resolved against a **running budget**, cheapest first,
-    and that ordering is the whole subtlety. Asking each slot independently
-    what fits the card over-commits it: on a 72 GiB card the best coder, the
-    vision model and the embedder each fit on their own and do not fit
-    together, which is how an earlier version of this function turned the
-    cheapest card that holds the best model into ``does-not-fit``.
+    The slots are resolved against a **running budget**, cheapest first, and
+    that ordering is the whole subtlety. Asking each slot independently what
+    fits the card over-commits it: on a 72 GiB card the best coder, the vision
+    model and the embedder each fit on their own and do not fit together, which
+    is how an earlier version of this function turned the cheapest card that
+    holds the best model into ``does-not-fit``.
 
     So the embedder is settled first (it is about a gibibyte and there is one
-    of it), then the vision model, and the code model takes what is left. That
-    is also the priority ``docs/SIZING.md`` argues for from the other
-    direction: with memory to spare you spend it on **a better coder**, so the
-    coder is the slot that should receive the remainder rather than compete for
-    it.
+    of it), then the vision model, then the image model, and the code model
+    takes what is left. That is also the priority ``docs/SIZING.md`` argues for
+    from the other direction: with memory to spare you spend it on **a better
+    coder**, so the coder is the slot that should receive the remainder rather
+    than compete for it.
+
+    Parameters
+    ----------
+    primary, with_vision, with_embeddings, with_image : str or None
+        A catalogue id, :data:`ASK` to put the question to the helper, or
+        ``None`` to leave the slot out.
+    vram_gib : float, optional
+        The target machine's memory for weights.
+    bandwidth_gbs : float, optional
+        The target machine's memory bandwidth. Read only by the image slot,
+        whose answer is in seconds per image.
+    catalog : dict, optional
+        Injectable serving catalogue, for tests.
 
     Returns
     -------
-    (str, str or None, str or None, list of Choice)
-        The three model ids, and one :class:`Choice` per slot that was asked
-        about -- so a report can show the reasoning rather than a bare name.
+    ResolvedPlan
+        The settled slots, and one :class:`Choice` per slot that was asked
+        about.
     """
     cat = catalog or load_catalog()
     made: list[Choice] = []
     remaining = None if vram_gib is None else float(vram_gib)
 
-    def settle(value: str | None, role: str) -> str | None:
+    def spend(gib: float) -> None:
         nonlocal remaining
+        if remaining is not None:
+            remaining = max(remaining - gib, 0.0)
+
+    def spend_catalogue(model_id: str) -> None:
+        if remaining is None:
+            return
+        entry = find_model(cat, model_id)
+        quant = str(entry.get("recommended_quant") or "")
+        spend(float((entry.get("weights") or {}).get(quant) or 0.0))
+
+    def settle(value: str | None, role: str) -> str | None:
         if value is None:
             return None
+        if role == "image":
+            # Both branches go through the helper, because even a model the
+            # caller named has a footprint only the helper can work out --
+            # this project keeps no image catalogue to look it up in.
+            choice = _choose_image(
+                vram_gib=remaining,
+                bandwidth_gbs=bandwidth_gbs,
+                lean=True,
+                only=None if value == ASK else value,
+            )
+            made.append(choice)
+            if not choice.model_id:
+                return None
+            spend(float(choice.weights_gib or 0.0))
+            return choice.model_id
         if value != ASK:
             # A named model still consumes budget, or the slots that follow
             # would be sized as though it were free.
-            _spend(value, role, cat)
+            spend_catalogue(value)
             return value
         choice = choose(role, vram_gib=remaining, catalog=cat)
         made.append(choice)
-        _spend(choice.model_id, role, cat)
+        spend_catalogue(choice.model_id)
         return choice.model_id
-
-    def _spend(model_id: str, _role: str, catalogue: dict[str, Any]) -> None:
-        nonlocal remaining
-        if remaining is None:
-            return
-        entry = find_model(catalogue, model_id)
-        quant = str(entry.get("recommended_quant") or "")
-        remaining = max(remaining - float((entry.get("weights") or {}).get(quant) or 0.0), 0.0)
 
     # Cheapest first; the coder gets the remainder. See the docstring.
     embeddings = settle(with_embeddings, "embed")
     vision = settle(with_vision, "vision")
+    image = settle(with_image, "image")
     code = settle(primary, "code")
     osh.check(bool(code), "A deployment plan needs a code model.")
-    return str(code), vision, embeddings, made
+    return ResolvedPlan(
+        code=str(code), vision=vision, embeddings=embeddings, image=image, choices=made
+    )
