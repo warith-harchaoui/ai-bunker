@@ -14,12 +14,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The suite, on the two interpreters that bound what `pyproject.toml`
+  # declares: `>=3.10,<3.14`.
+  #
+  # It was all four, and every leg also ran the seven checks below -- lint,
+  # format, rules, three page audits and doctor -- none of which can produce a
+  # different answer on a different interpreter. So the lane paid four times
+  # for one result, and paid it in the expensive currency: each leg installs
+  # `best-engine-ai-helper`, whose base dependencies are torch, transformers,
+  # accelerate and diffusers.
+  #
+  # What the trim gives up is stated rather than implied: a bug that appears
+  # on 3.11 or 3.12 and on neither 3.10 nor 3.13 would now reach a release.
+  # That is a narrow window -- the project has no version-conditional code and
+  # no C extension of its own -- and it is the trade a light lane is.
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.13"]
 
     steps:
       - uses: actions/checkout@v5
@@ -34,26 +48,46 @@ jobs:
           python -m pip install --upgrade pip
           # torch is not a dependency of this project and never will be: this
           # is a proxy that never loads a model. It arrives anyway, through
-          # best-engine-ai-helper, which carries `airllm` as a core dependency
-          # for layer streaming -- and PyPI's Linux torch wheel is the CUDA
-          # build, gigabytes of nvidia-* payload for a runner with no GPU.
+          # best-engine-ai-helper, which carries it in its base dependencies
+          # alongside transformers and diffusers -- and PyPI's Linux torch
+          # wheel is the CUDA build, gigabytes of nvidia-* payload for a
+          # runner with no GPU.
           #
           # Pre-installing the CPU build satisfies the requirement first, so
           # the project install below resolves against it instead of fetching
-          # the CUDA one. Same reasoning and same line as the sibling package's
-          # own lane, deliberately: two repositories solving one problem two
-          # ways is how one of them silently gets slow again.
+          # the CUDA one. Same reasoning and same line as the sibling
+          # package's own lane, deliberately: two repositories solving one
+          # problem two ways is how one of them silently gets slow again.
           #
           # `--index-url`, not `--extra-index-url`: with two indexes offering
           # the same version, which one pip picks is not a documented
           # guarantee, and a lane whose download size depends on resolver luck
           # is a lane that regresses without anyone editing it.
           #
-          # It is a no-op while the published helper has no torch in its base
-          # dependencies, and it is what stops this lane growing by gigabytes
-          # on the day that changes. `|| true`, because a resolver that cannot
-          # place the CPU wheel on some future Python must not fail the build
-          # before the real install has been tried.
+          # `|| true`, because a resolver that cannot place the CPU wheel on
+          # some future Python must not fail the build before the real install
+          # has been tried.
+          pip install --index-url https://download.pytorch.org/whl/cpu torch || true
+          pip install -e ".[api,mcp,dev]"
+
+      - name: Tests
+        run: pytest -q
+
+  # Everything whose answer does not depend on the interpreter, once.
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          # See the note in `test`: same line, same reason.
           pip install --index-url https://download.pytorch.org/whl/cpu torch || true
           pip install -e ".[api,mcp,dev]"
 
@@ -64,9 +98,6 @@ jobs:
 
       - name: Format
         run: ruff format --check .
-
-      - name: Tests
-        run: pytest -q
 
       # The rules ship with their own examples, so the rule set is itself
       # under test. A regular expression that silently stops matching is a

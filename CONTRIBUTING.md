@@ -80,7 +80,12 @@ python scripts/lint_claims.py        # no claim that stopped being true
 python scripts/sync_counts.py        # rewrite every quoted figure from its source
 ```
 
-CI runs exactly these, on Python 3.10 through 3.13.
+CI runs all of these. The suite runs on **Python 3.10 and 3.13** — the two
+ends of the range `pyproject.toml` declares — and everything else runs once,
+on 3.13, because lint, format, rule evidence, the three page audits and
+`doctor` cannot answer differently on a different interpreter. The acronym and
+claim linters reach CI through the suite, which calls them
+(`tests/test_acronyms.py`, `tests/test_claims.py`).
 
 Two checks are deliberately **not** in that list.
 

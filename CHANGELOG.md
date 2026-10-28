@@ -70,6 +70,25 @@ And the engine's three task-description tests became one that also asserts the
 words reach the ranking — the assertion that would have caught the drift
 above.
 
+### The lane pays once for an answer that cannot differ
+
+Continuous integration ran four Python versions, and every one of them also
+ran lint, format, rule evidence, three page audits and `doctor` — seven checks
+whose answer cannot depend on the interpreter. So the lane paid four times for
+one result, in the expensive currency: each leg installs
+`best-engine-ai-helper`, whose base dependencies are torch, transformers,
+accelerate and diffusers.
+
+- **The suite runs on 3.10 and 3.13**, the two ends of the range
+  `pyproject.toml` declares.
+- **Everything else runs once**, on 3.13, in a separate job that runs in
+  parallel with it.
+- **What this gives up is written down** rather than implied: a bug that
+  appears on 3.11 or 3.12 and on neither bound would now reach a release.
+  Narrow — there is no version-conditional code here and no C extension of
+  this project's own — and it is the trade a light lane is. `CONTRIBUTING.md`
+  says so where it used to claim all four.
+
 ### The fourth model, and the reasoning that was built and dropped
 
 The helper answers for three kinds of model — language, vision-language and
