@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 356" role="img"
+     aria-labelledby="path-t path-d">
+  <title id="path-t">Quatre positions sur un trajet, une seule voit les deux bouts</title>
+  <desc id="path-d">Un tour qui traverse de gauche à droite quatre boîtes : un agent de code, la position de passerelle, un moteur d'inférence et les serveurs d'outils. Sous chaque boîte, les outils qui s'y tiennent — configuration côté client et bibliothèques de garde-fous chez l'agent ; LiteLLM, Kong, Portkey, Bifrost, agentgateway, l'Envoy AI Gateway et ai-bunker à la passerelle ; ToolHive, la Docker MCP Gateway et agent-scan autour des serveurs d'outils. Rien ne se tient au moteur d'inférence.</desc>
+  <style>
+    svg { font-family: Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    text { font-size: 12px; }
+    .t { font-size: 13px; font-weight: 600; }
+    .s { font-size: 11.5px; }
+    .n { font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+    .h { font-size: 13px; font-weight: 600; letter-spacing: .08em; }
+    .band { fill-opacity: 0.05; stroke-opacity: .30; }
+    .card-blue, .card-orange { fill-opacity: 0.10; }
+    .card-blue { stroke-opacity: .45; }
+    .card-orange { stroke-opacity: .50; }
+    .outline { fill: none; stroke-width: 1.5; }
+    .wire, .wire-back { fill: none; stroke-width: 2; }
+    .axis { fill: none; stroke-width: 1; }
+    .dash { fill: none; stroke-width: 1; stroke-dasharray: 4 4; }
+    text { fill: #1B1B1F; }
+    .muted { fill: #656569; }
+    .blue { fill: #0062CC; }
+    .orange { fill: #995600; }
+    .red { fill: #C12F26; }
+    .green { fill: #158126; }
+    .band, .card-blue { fill: #0062CC; stroke: #0062CC; }
+    .card-orange { fill: #995600; stroke: #995600; }
+    .outline, .wire-back, .axis, .dash { stroke: #656569; }
+    .wire { stroke: #0062CC; }
+    .seg-muted { fill: #656569; stroke: #656569; }
+    .seg-blue { fill: #0062CC; stroke: #0062CC; }
+    .seg-orange { fill: #995600; stroke: #995600; }
+    .seg-red { fill: #C12F26; stroke: #C12F26; }
+    .seg-green { fill: #158126; stroke: #158126; }
+    .dot-blue { fill: #0062CC; }
+    .dot-red { fill: #C12F26; }
+    .head-fwd { fill: #0062CC; }
+    .head-back { fill: #656569; }
+    @media (prefers-color-scheme: dark) {
+      text { fill: #E8E8EA; }
+      .muted { fill: #92929A; }
+      .blue { fill: #3C9BFF; }
+      .orange { fill: #FFA52B; }
+      .red { fill: #FF5349; }
+      .green { fill: #35D94E; }
+      .band, .card-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .card-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .outline, .wire-back, .axis, .dash { stroke: #92929A; }
+      .wire { stroke: #3C9BFF; }
+      .seg-muted { fill: #92929A; stroke: #92929A; }
+      .seg-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .seg-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .seg-red { fill: #FF5349; stroke: #FF5349; }
+      .seg-green { fill: #35D94E; stroke: #35D94E; }
+      .dot-blue { fill: #3C9BFF; }
+      .dot-red { fill: #FF5349; }
+      .head-fwd { fill: #3C9BFF; }
+      .head-back { fill: #92929A; }
+    }
+  </style>
+  <defs>
+    <marker id="fwd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+            markerHeight="7" orient="auto">
+      <path class="head-fwd" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+    <marker id="back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+            markerHeight="7" orient="auto">
+      <path class="head-back" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+  <text class="h blue" x="60" y="38">OÙ UN TOUR PEUT ÊTRE LU, ET PAR QUI</text>
+  <text class="s muted" x="60" y="58">le même terrain que la carte de positionnement, posé sur le trajet plutôt que dans un espace</text>
+  <rect class="outline" x="28.0" y="92" width="197.0" height="60" rx="12"/>
+  <text class="t" x="126.5" y="118" text-anchor="middle">Agent de code</text>
+  <text class="s muted" x="126.5" y="138" text-anchor="middle">tout client compatible OpenAI</text>
+  <rect class="card-blue" x="245.0" y="92" width="200.0" height="60" rx="12"/>
+  <text class="t blue" x="345.0" y="118" text-anchor="middle">La position de passerelle</text>
+  <text class="s muted" x="345.0" y="138" text-anchor="middle">chaque requête, sans exception</text>
+  <rect class="outline" x="465.0" y="92" width="185.0" height="60" rx="12"/>
+  <text class="t" x="557.5" y="118" text-anchor="middle">Moteur d'inférence</text>
+  <text class="s muted" x="557.5" y="138" text-anchor="middle">vLLM, Ollama, autre</text>
+  <rect class="outline" x="670.0" y="92" width="200.0" height="60" rx="12"/>
+  <text class="t" x="770.0" y="118" text-anchor="middle">Serveurs d'outils</text>
+  <text class="s muted" x="770.0" y="138" text-anchor="middle">MCP, le shell, le monde</text>
+  <path class="wire" d="M225 122 H245" marker-end="url(#fwd)"/>
+  <path class="wire" d="M445 122 H465" marker-end="url(#fwd)"/>
+  <path class="wire" d="M650 122 H670" marker-end="url(#fwd)"/>
+  <text class="n muted" x="28" y="172">QUI S'Y TIENT</text>
+  <text class="s muted" x="28.0" y="192">Configuration côté client</text>
+  <text class="s muted" x="28.0" y="212">Bibliothèques de garde-fous</text>
+  <text class="s muted" x="245.0" y="192">LiteLLM · Kong · Portkey</text>
+  <text class="s muted" x="245.0" y="212">Bifrost · agentgateway</text>
+  <text class="s muted" x="245.0" y="232">Envoy AI Gateway</text>
+  <text class="s blue" x="245.0" y="252">ai-bunker</text>
+  <text class="s muted" x="670.0" y="192">ToolHive</text>
+  <text class="s muted" x="670.0" y="212">Docker MCP Gateway</text>
+  <text class="s muted" x="670.0" y="232">agent-scan</text>
+  <text class="s muted" x="60" y="298">Quatre positions, et elles ne sont pas interchangeables. Un fichier sur un portable dérive ; une bibliothèque ne tourne que si l'application</text>
+  <text class="s muted" x="60" y="316">l'appelle ; une passerelle de serveurs d'outils voit un appel que le modèle a déjà décidé. Seule la position de passerelle voit chaque requête, de</text>
+  <text class="s muted" x="60" y="334">chaque client, aux deux bouts du tour — et l'essentiel de ce qui s'y tient transmet les octets sans les lire. Open Policy Agent, lui, n'y est pas.</text>
+</svg>

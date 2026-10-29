@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 526" role="img"
+     aria-labelledby="budget-t budget-d">
+  <title id="budget-t">One 26,000-token window, twice</title>
+  <desc id="budget-d">Two bars of the same 26,000-token context window, with a dashed line at 20,000 where compaction starts. In the first, the floor paid before anyone speaks is 6,767 tokens — 5,509 owned by the client, 1,258 by ai-bunker — and 13,233 tokens of conversation reach the line. In the second, 59 installed agent skills push the client's share to 23,263, so the floor crosses the line and no conversation fits at all: the session compacts on every turn with nothing to compact.</desc>
+  <style>
+    svg { font-family: Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    text { font-size: 12px; }
+    .t { font-size: 13px; font-weight: 600; }
+    .s { font-size: 11.5px; }
+    .n { font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+    .h { font-size: 13px; font-weight: 600; letter-spacing: .08em; }
+    .band { fill-opacity: 0.05; stroke-opacity: .30; }
+    .card-blue, .card-orange { fill-opacity: 0.10; }
+    .card-blue { stroke-opacity: .45; }
+    .card-orange { stroke-opacity: .50; }
+    .outline { fill: none; stroke-width: 1.5; }
+    .wire, .wire-back { fill: none; stroke-width: 2; }
+    .axis { fill: none; stroke-width: 1; }
+    .dash { fill: none; stroke-width: 1; stroke-dasharray: 4 4; }
+    text { fill: #1B1B1F; }
+    .muted { fill: #656569; }
+    .blue { fill: #0062CC; }
+    .orange { fill: #995600; }
+    .red { fill: #C12F26; }
+    .green { fill: #158126; }
+    .band, .card-blue { fill: #0062CC; stroke: #0062CC; }
+    .card-orange { fill: #995600; stroke: #995600; }
+    .outline, .wire-back, .axis, .dash { stroke: #656569; }
+    .wire { stroke: #0062CC; }
+    .seg-muted { fill: #656569; stroke: #656569; }
+    .seg-blue { fill: #0062CC; stroke: #0062CC; }
+    .seg-orange { fill: #995600; stroke: #995600; }
+    .seg-red { fill: #C12F26; stroke: #C12F26; }
+    .seg-green { fill: #158126; stroke: #158126; }
+    .dot-blue { fill: #0062CC; }
+    .dot-red { fill: #C12F26; }
+    .head-fwd { fill: #0062CC; }
+    .head-back { fill: #656569; }
+    @media (prefers-color-scheme: dark) {
+      text { fill: #E8E8EA; }
+      .muted { fill: #92929A; }
+      .blue { fill: #3C9BFF; }
+      .orange { fill: #FFA52B; }
+      .red { fill: #FF5349; }
+      .green { fill: #35D94E; }
+      .band, .card-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .card-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .outline, .wire-back, .axis, .dash { stroke: #92929A; }
+      .wire { stroke: #3C9BFF; }
+      .seg-muted { fill: #92929A; stroke: #92929A; }
+      .seg-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .seg-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .seg-red { fill: #FF5349; stroke: #FF5349; }
+      .seg-green { fill: #35D94E; stroke: #35D94E; }
+      .dot-blue { fill: #3C9BFF; }
+      .dot-red { fill: #FF5349; }
+      .head-fwd { fill: #3C9BFF; }
+      .head-back { fill: #92929A; }
+    }
+  </style>
+  <text class="h blue" x="60" y="38">ONE 26,000-TOKEN WINDOW, TWICE</text>
+  <text class="s muted" x="60" y="58">ai-bunker budget --gate · both measured at the relay, 2026-09-28</text>
+
+  <text class="s muted" x="660" y="90" text-anchor="middle">compaction starts at 20,000</text>
+  <path class="dash" d="M660 98 V266"/>
+
+  <text class="t" x="60" y="124">A session that works</text>
+  <text class="s muted" x="840" y="124" text-anchor="end">13,233 tokens to work in</text>
+  <rect class="seg-orange" x="60.0" y="134.0" width="165.3" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-blue" x="225.3" y="134.0" width="37.7" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-green" x="263.0" y="134.0" width="397.0" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-muted" x="660.0" y="134.0" width="180.0" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+
+  <text class="t" x="60" y="212">A session that loops</text>
+  <text class="s red" x="840" y="212" text-anchor="end">no room, and nothing to compact</text>
+  <rect class="seg-orange" x="60.0" y="222.0" width="697.9" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-blue" x="757.9" y="222.0" width="37.7" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-red" x="795.6" y="222.0" width="44.4" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+
+  <text class="n muted" x="700" y="288" text-anchor="end">WORKS</text>
+  <text class="n muted" x="840" y="288" text-anchor="end">LOOPS</text>
+  <rect class="seg-orange" x="60" y="299" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="310">The client owns</text>
+  <text class="s muted" x="310" y="310">tool schemas, its system prompt, 59 installed agent skills</text>
+  <text class="s" x="700" y="310" text-anchor="end">5,509</text>
+  <text class="s" x="840" y="310" text-anchor="end">23,263</text>
+  <rect class="seg-blue" x="60" y="324" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="335">ai-bunker owns</text>
+  <text class="s muted" x="310" y="335">the charter and the knowledge index — under 5% of the window</text>
+  <text class="s" x="700" y="335" text-anchor="end">1,258</text>
+  <text class="s" x="840" y="335" text-anchor="end">1,258</text>
+  <rect class="seg-green" x="60" y="349" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="360">Room to work</text>
+  <text class="s muted" x="310" y="360">what reaches the trigger — the only row that is the point</text>
+  <text class="s" x="700" y="360" text-anchor="end">13,233</text>
+  <text class="s" x="840" y="360" text-anchor="end">—</text>
+  <rect class="seg-muted" x="60" y="374" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="385">Compaction margin</text>
+  <text class="s muted" x="310" y="385">held back so there is something left to compact</text>
+  <text class="s" x="700" y="385" text-anchor="end">6,000</text>
+  <text class="s" x="840" y="385" text-anchor="end">—</text>
+  <rect class="seg-red" x="60" y="399" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="410">Past the trigger</text>
+  <text class="s muted" x="310" y="410">window the floor ran into, with no conversation behind it</text>
+  <text class="s" x="700" y="410" text-anchor="end">—</text>
+  <text class="s" x="840" y="410" text-anchor="end">1,479</text>
+  <path class="axis" d="M600 422 H840"/>
+  <text class="s muted" x="86" y="442">The window</text>
+  <text class="s" x="700" y="442" text-anchor="end">26,000</text>
+  <text class="s" x="840" y="442" text-anchor="end">26,000</text>
+
+  <text class="s muted" x="60" y="486">A floor past the line is a session that compacts on turn one and has nothing to compact: build → compaction → build, eight tokens a turn, the</text>
+  <text class="s muted" x="60" y="504">accelerator busy for nothing. The harness never said a word. `ai-bunker budget --gate` makes the verdict the exit code instead.</text>
+</svg>

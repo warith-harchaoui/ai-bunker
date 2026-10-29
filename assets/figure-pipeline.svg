@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 524" role="img"
+     aria-labelledby="pipe-t pipe-d">
+  <title id="pipe-t">A turn crossing the gateway, in four stages</title>
+  <desc id="pipe-d">A client on the left and a serving engine on the right, with the gateway between them. Four stages are marked inside it: screen inbound tool results, inject the charter, measure and enforce the budget, screen outbound tool calls. A bracket joins the first and the last, which are the same rule engine at the two ends of one turn.</desc>
+  <style>
+    svg { font-family: Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    text { font-size: 12px; }
+    .t { font-size: 13px; font-weight: 600; }
+    .s { font-size: 11.5px; }
+    .n { font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+    .h { font-size: 13px; font-weight: 600; letter-spacing: .08em; }
+    .band { fill-opacity: 0.05; stroke-opacity: .30; }
+    .card-blue, .card-orange { fill-opacity: 0.10; }
+    .card-blue { stroke-opacity: .45; }
+    .card-orange { stroke-opacity: .50; }
+    .outline { fill: none; stroke-width: 1.5; }
+    .wire, .wire-back { fill: none; stroke-width: 2; }
+    .axis { fill: none; stroke-width: 1; }
+    .dash { fill: none; stroke-width: 1; stroke-dasharray: 4 4; }
+    text { fill: #1B1B1F; }
+    .muted { fill: #656569; }
+    .blue { fill: #0062CC; }
+    .orange { fill: #995600; }
+    .red { fill: #C12F26; }
+    .green { fill: #158126; }
+    .band, .card-blue { fill: #0062CC; stroke: #0062CC; }
+    .card-orange { fill: #995600; stroke: #995600; }
+    .outline, .wire-back, .axis, .dash { stroke: #656569; }
+    .wire { stroke: #0062CC; }
+    .seg-muted { fill: #656569; stroke: #656569; }
+    .seg-blue { fill: #0062CC; stroke: #0062CC; }
+    .seg-orange { fill: #995600; stroke: #995600; }
+    .seg-red { fill: #C12F26; stroke: #C12F26; }
+    .seg-green { fill: #158126; stroke: #158126; }
+    .dot-blue { fill: #0062CC; }
+    .dot-red { fill: #C12F26; }
+    .head-fwd { fill: #0062CC; }
+    .head-back { fill: #656569; }
+    @media (prefers-color-scheme: dark) {
+      text { fill: #E8E8EA; }
+      .muted { fill: #92929A; }
+      .blue { fill: #3C9BFF; }
+      .orange { fill: #FFA52B; }
+      .red { fill: #FF5349; }
+      .green { fill: #35D94E; }
+      .band, .card-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .card-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .outline, .wire-back, .axis, .dash { stroke: #92929A; }
+      .wire { stroke: #3C9BFF; }
+      .seg-muted { fill: #92929A; stroke: #92929A; }
+      .seg-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .seg-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .seg-red { fill: #FF5349; stroke: #FF5349; }
+      .seg-green { fill: #35D94E; stroke: #35D94E; }
+      .dot-blue { fill: #3C9BFF; }
+      .dot-red { fill: #FF5349; }
+      .head-fwd { fill: #3C9BFF; }
+      .head-back { fill: #92929A; }
+    }
+  </style>
+  <defs>
+    <marker id="fwd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+            markerHeight="7" orient="auto">
+      <path class="head-fwd" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+    <marker id="back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+            markerHeight="7" orient="auto">
+      <path class="head-back" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+  <rect class="band" x="206" y="24" width="488" height="452" rx="16"/>
+  <text class="h blue" x="450" y="50" text-anchor="middle">AI-BUNKER</text>
+  <text class="n muted" x="226" y="76">ON THE WAY IN</text>
+  <text class="n muted" x="226" y="362">ON THE WAY BACK</text>
+
+  <rect class="outline" x="16" y="100" width="170" height="320" rx="14"/>
+  <text class="t" x="101" y="252" text-anchor="middle">Coding agent</text>
+  <text class="s muted" x="101" y="274" text-anchor="middle">any OpenAI-compatible client</text>
+
+  <rect class="outline" x="714" y="100" width="170" height="320" rx="14"/>
+  <text class="t" x="799" y="252" text-anchor="middle">Serving engine</text>
+  <text class="s muted" x="799" y="274" text-anchor="middle">vLLM, Ollama, anything</text>
+
+  <rect class="card-orange" x="226" y="86" width="448" height="76" rx="12"/>
+  <text class="n orange" x="242" y="108">01</text>
+  <text class="t" x="242" y="130">Screen inbound tool results</text>
+  <text class="s muted" x="242" y="150">secrets out, injected instructions marked</text>
+  <rect class="card-blue" x="226" y="172" width="448" height="76" rx="12"/>
+  <text class="n blue" x="242" y="194">02</text>
+  <text class="t" x="242" y="216">Inject the charter</text>
+  <text class="s muted" x="242" y="236">first system block, byte-stable, idempotent</text>
+  <rect class="card-blue" x="226" y="258" width="448" height="76" rx="12"/>
+  <text class="n blue" x="242" y="280">03</text>
+  <text class="t" x="242" y="302">Measure and enforce the budget</text>
+  <text class="s muted" x="242" y="322">counted with the engine's own tokenizer; 413 names the culprit</text>
+  <rect class="card-orange" x="226" y="372" width="448" height="76" rx="12"/>
+  <text class="n orange" x="242" y="394">04</text>
+  <text class="t" x="242" y="416">Screen outbound tool calls</text>
+  <text class="s muted" x="242" y="436">the command has not run yet — refused as a tool result</text>
+
+  <path class="wire" d="M186 124 H226" marker-end="url(#fwd)"/>
+  <path class="wire" d="M450 162 V172" marker-end="url(#fwd)"/>
+  <path class="wire" d="M450 248 V258" marker-end="url(#fwd)"/>
+  <path class="wire" d="M674 296 H714" marker-end="url(#fwd)"/>
+  <path class="wire-back" d="M714 410 H674" marker-end="url(#back)"/>
+  <path class="wire-back" d="M226 410 H186" marker-end="url(#back)"/>
+
+  <text class="s muted" x="60" y="502">01 and 04 are one rule engine, read twice — and a gateway is the only position from which both ends of a turn are visible.</text>
+</svg>

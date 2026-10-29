@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" role="img"
+     aria-labelledby="trade-t trade-d">
+  <title id="trade-t">What one picture costs, on five machines</title>
+  <desc id="trade-d">Seconds per image against memory bandwidth for five machines, all running the same text-to-image model. A MacBook Pro M2 Max at 400 gigabytes per second takes 24.8 seconds; a Mac Studio M3 Ultra at 819 takes 12.1; an RTX PRO 5000 72 GB at 1,344 takes 7.4; an RTX PRO 6000 96 GB at 1,792 takes 5.5; an H100 at 3,350 takes 3. Two of them are marked in red, where asking for pictures also costs the 80B coder.</desc>
+  <style>
+    svg { font-family: Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    text { font-size: 12px; }
+    .t { font-size: 13px; font-weight: 600; }
+    .s { font-size: 11.5px; }
+    .n { font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+    .h { font-size: 13px; font-weight: 600; letter-spacing: .08em; }
+    .band { fill-opacity: 0.05; stroke-opacity: .30; }
+    .card-blue, .card-orange { fill-opacity: 0.10; }
+    .card-blue { stroke-opacity: .45; }
+    .card-orange { stroke-opacity: .50; }
+    .outline { fill: none; stroke-width: 1.5; }
+    .wire, .wire-back { fill: none; stroke-width: 2; }
+    .axis { fill: none; stroke-width: 1; }
+    .dash { fill: none; stroke-width: 1; stroke-dasharray: 4 4; }
+    text { fill: #1B1B1F; }
+    .muted { fill: #656569; }
+    .blue { fill: #0062CC; }
+    .orange { fill: #995600; }
+    .red { fill: #C12F26; }
+    .green { fill: #158126; }
+    .band, .card-blue { fill: #0062CC; stroke: #0062CC; }
+    .card-orange { fill: #995600; stroke: #995600; }
+    .outline, .wire-back, .axis, .dash { stroke: #656569; }
+    .wire { stroke: #0062CC; }
+    .seg-muted { fill: #656569; stroke: #656569; }
+    .seg-blue { fill: #0062CC; stroke: #0062CC; }
+    .seg-orange { fill: #995600; stroke: #995600; }
+    .seg-red { fill: #C12F26; stroke: #C12F26; }
+    .seg-green { fill: #158126; stroke: #158126; }
+    .dot-blue { fill: #0062CC; }
+    .dot-red { fill: #C12F26; }
+    .head-fwd { fill: #0062CC; }
+    .head-back { fill: #656569; }
+    @media (prefers-color-scheme: dark) {
+      text { fill: #E8E8EA; }
+      .muted { fill: #92929A; }
+      .blue { fill: #3C9BFF; }
+      .orange { fill: #FFA52B; }
+      .red { fill: #FF5349; }
+      .green { fill: #35D94E; }
+      .band, .card-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .card-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .outline, .wire-back, .axis, .dash { stroke: #92929A; }
+      .wire { stroke: #3C9BFF; }
+      .seg-muted { fill: #92929A; stroke: #92929A; }
+      .seg-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .seg-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .seg-red { fill: #FF5349; stroke: #FF5349; }
+      .seg-green { fill: #35D94E; stroke: #35D94E; }
+      .dot-blue { fill: #3C9BFF; }
+      .dot-red { fill: #FF5349; }
+      .head-fwd { fill: #3C9BFF; }
+      .head-back { fill: #92929A; }
+    }
+  </style>
+  <text class="h blue" x="60" y="38">ONE PICTURE MODEL, FIVE MEMORY SYSTEMS</text>
+  <text class="s muted" x="60" y="58">Stable Diffusion 3.5 Medium, 26.4 GiB, 28 denoising steps at 1024x1024, on every machine</text>
+  <path class="dash" d="M92 302.2 H844"/>
+  <text class="s muted" x="80" y="306.2" text-anchor="end">5</text>
+  <path class="dash" d="M92 248.3 H844"/>
+  <text class="s muted" x="80" y="252.3" text-anchor="end">10</text>
+  <path class="dash" d="M92 194.5 H844"/>
+  <text class="s muted" x="80" y="198.5" text-anchor="end">15</text>
+  <path class="dash" d="M92 140.6 H844"/>
+  <text class="s muted" x="80" y="144.6" text-anchor="end">20</text>
+  <path class="dash" d="M92 86.8 H844"/>
+  <text class="s muted" x="80" y="90.8" text-anchor="end">25</text>
+  <path class="axis" d="M92 76 V356 H844"/>
+  <path class="wire" d="M177.9 88.9 L268.0 225.7 L380.8 276.3 L477.0 296.8 L811.8 323.7" stroke-opacity=".55"/>
+  <circle class="dot-blue" cx="177.9" cy="88.9" r="5"/>
+  <text class="t" x="191.9" y="108.9" text-anchor="start">MacBook Pro M2 Max · 24.8 s</text>
+  <circle class="dot-blue" cx="268.0" cy="225.7" r="5"/>
+  <text class="t" x="282.0" y="230.7" text-anchor="start">Mac Studio M3 Ultra · 12.1 s</text>
+  <circle class="dot-red" cx="380.8" cy="276.3" r="5"/>
+  <text class="t red" x="394.8" y="266.3" text-anchor="start">RTX PRO 5000 72 GB · 7.4 s</text>
+  <circle class="dot-blue" cx="477.0" cy="296.8" r="5"/>
+  <text class="t" x="491.0" y="320.8" text-anchor="start">RTX PRO 6000 96 GB · 5.5 s</text>
+  <circle class="dot-red" cx="811.8" cy="323.7" r="5"/>
+  <text class="t red" x="797.8" y="328.7" text-anchor="end">H100 80 GB · 3 s</text>
+  <text class="s muted" x="92.0" y="378.0" text-anchor="middle">0</text>
+  <text class="s muted" x="306.9" y="378.0" text-anchor="middle">1,000</text>
+  <text class="s muted" x="521.7" y="378.0" text-anchor="middle">2,000</text>
+  <text class="s muted" x="736.6" y="378.0" text-anchor="middle">3,000</text>
+  <text class="s muted" x="468" y="402"
+        text-anchor="middle">memory bandwidth, GB/s</text>
+  <text class="s muted" x="24" y="216" text-anchor="middle"
+        transform="rotate(-90 24 216)">seconds an image (lower is better)</text>
+  <text class="s red" x="60" y="444">Red: the picture fits and the 45 GiB coder no longer does. Below 92 GiB the slot is not paid for in seconds — it is paid for in the coder.</text>
+</svg>

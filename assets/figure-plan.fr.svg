@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 452" role="img"
+     aria-labelledby="plan-t plan-d">
+  <title id="plan-t">Où passent 80 Gio de carte, et dans quel ordre cela se décide</title>
+  <desc id="plan-d">Une barre divisée en six parts d'un accélérateur de 80 gibioctets : surcoût 4, embeddeur 1,2, vision 9, texte-vers-image 26,4, codeur 25 et une réserve de cache clé-valeur de 14,4 Gio. Un tableau en dessous numérote les quatre emplacements de modèles dans l'ordre où ils sont réglés — embeddeur, vision, image, codeur — et précise que le codeur est réglé en dernier et prend le reste.</desc>
+  <style>
+    svg { font-family: Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    text { font-size: 12px; }
+    .t { font-size: 13px; font-weight: 600; }
+    .s { font-size: 11.5px; }
+    .n { font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+    .h { font-size: 13px; font-weight: 600; letter-spacing: .08em; }
+    .band { fill-opacity: 0.05; stroke-opacity: .30; }
+    .card-blue, .card-orange { fill-opacity: 0.10; }
+    .card-blue { stroke-opacity: .45; }
+    .card-orange { stroke-opacity: .50; }
+    .outline { fill: none; stroke-width: 1.5; }
+    .wire, .wire-back { fill: none; stroke-width: 2; }
+    .axis { fill: none; stroke-width: 1; }
+    .dash { fill: none; stroke-width: 1; stroke-dasharray: 4 4; }
+    text { fill: #1B1B1F; }
+    .muted { fill: #656569; }
+    .blue { fill: #0062CC; }
+    .orange { fill: #995600; }
+    .red { fill: #C12F26; }
+    .green { fill: #158126; }
+    .band, .card-blue { fill: #0062CC; stroke: #0062CC; }
+    .card-orange { fill: #995600; stroke: #995600; }
+    .outline, .wire-back, .axis, .dash { stroke: #656569; }
+    .wire { stroke: #0062CC; }
+    .seg-muted { fill: #656569; stroke: #656569; }
+    .seg-blue { fill: #0062CC; stroke: #0062CC; }
+    .seg-orange { fill: #995600; stroke: #995600; }
+    .seg-red { fill: #C12F26; stroke: #C12F26; }
+    .seg-green { fill: #158126; stroke: #158126; }
+    .dot-blue { fill: #0062CC; }
+    .dot-red { fill: #C12F26; }
+    .head-fwd { fill: #0062CC; }
+    .head-back { fill: #656569; }
+    @media (prefers-color-scheme: dark) {
+      text { fill: #E8E8EA; }
+      .muted { fill: #92929A; }
+      .blue { fill: #3C9BFF; }
+      .orange { fill: #FFA52B; }
+      .red { fill: #FF5349; }
+      .green { fill: #35D94E; }
+      .band, .card-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .card-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .outline, .wire-back, .axis, .dash { stroke: #92929A; }
+      .wire { stroke: #3C9BFF; }
+      .seg-muted { fill: #92929A; stroke: #92929A; }
+      .seg-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .seg-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .seg-red { fill: #FF5349; stroke: #FF5349; }
+      .seg-green { fill: #35D94E; stroke: #35D94E; }
+      .dot-blue { fill: #3C9BFF; }
+      .dot-red { fill: #FF5349; }
+      .head-fwd { fill: #3C9BFF; }
+      .head-back { fill: #92929A; }
+    }
+  </style>
+  <text class="h blue" x="60" y="40">UNE H100 80 Gio, TOUS LES EMPLACEMENTS REMPLIS</text>
+  <text class="s muted" x="60" y="62">ai-bunker sizing --accelerator h100-80 --image auto</text>
+  <text class="n blue" x="104.8" y="88" text-anchor="middle">1</text>
+  <path class="axis" d="M104.8 92 V100"/>
+  <text class="n blue" x="154.6" y="88" text-anchor="middle">2</text>
+  <path class="axis" d="M154.6 92 V100"/>
+  <text class="n orange" x="327.1" y="88" text-anchor="middle">3</text>
+  <path class="axis" d="M327.1 92 V100"/>
+  <text class="n green" x="577.7" y="88" text-anchor="middle">4</text>
+  <path class="axis" d="M577.7 92 V100"/>
+  <rect class="seg-muted" x="60.0" y="100" width="39.0" height="54" rx="4" fill-opacity="0.18" stroke-opacity=".55"/>
+  <rect class="seg-blue" x="99.0" y="100" width="11.7" height="54" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-blue" x="110.7" y="100" width="87.8" height="54" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-orange" x="198.4" y="100" width="257.4" height="54" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-green" x="455.8" y="100" width="243.8" height="54" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-muted" x="699.6" y="100" width="140.4" height="54" rx="4" fill-opacity="0.18" stroke-opacity=".55"/>
+  <path class="axis" d="M60.0 154 V160"/>
+  <text class="s muted" x="60.0" y="174" text-anchor="middle">0</text>
+  <path class="axis" d="M255.0 154 V160"/>
+  <text class="s muted" x="255.0" y="174" text-anchor="middle">20</text>
+  <path class="axis" d="M450.0 154 V160"/>
+  <text class="s muted" x="450.0" y="174" text-anchor="middle">40</text>
+  <path class="axis" d="M645.0 154 V160"/>
+  <text class="s muted" x="645.0" y="174" text-anchor="middle">60</text>
+  <path class="axis" d="M840.0 154 V160"/>
+  <text class="s muted" x="840.0" y="174" text-anchor="end">80 Gio</text>
+  <text class="s muted" x="60" y="198">réglés du moins cher au plus cher ; le codeur prend le reste</text>
+  <text class="n muted" x="60" y="228">·</text>
+  <rect class="seg-muted" x="84" y="217" width="13" height="13" rx="3" fill-opacity="0.18" stroke-opacity=".55"/>
+  <text class="t" x="110" y="228">Surcoût</text>
+  <text class="s muted" x="330" y="228">contexte, activations, de quoi être utile</text>
+  <text class="s" x="840" y="228" text-anchor="end">4 Gio</text>
+  <text class="n blue" x="60" y="258">1</text>
+  <rect class="seg-blue" x="84" y="247" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="110" y="258">Embeddeur</text>
+  <text class="s muted" x="330" y="258">bge-m3 — pas classé ; le catalogue n'en porte qu'un</text>
+  <text class="s" x="840" y="258" text-anchor="end">1.2 Gio</text>
+  <text class="n blue" x="60" y="288">2</text>
+  <rect class="seg-blue" x="84" y="277" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="110" y="288">Vision</text>
+  <text class="s muted" x="330" y="288">qwen3-vl-8b — le plus sobre à 10 points du meilleur</text>
+  <text class="s" x="840" y="288" text-anchor="end">9 Gio</text>
+  <text class="n orange" x="60" y="318">3</text>
+  <rect class="seg-orange" x="84" y="307" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="110" y="318">Texte vers image</text>
+  <text class="s muted" x="330" y="318">sd35-medium — éteint sauf demande explicite</text>
+  <text class="s" x="840" y="318" text-anchor="end">26.4 Gio</text>
+  <text class="n green" x="60" y="348">4</text>
+  <rect class="seg-green" x="84" y="337" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="110" y="348">Codeur</text>
+  <text class="s muted" x="330" y="348">devstral-small-2-24b — le reste, donc pas le 80B</text>
+  <text class="s" x="840" y="348" text-anchor="end">25 Gio</text>
+  <text class="n muted" x="60" y="378">·</text>
+  <rect class="seg-muted" x="84" y="367" width="13" height="13" rx="3" fill-opacity="0.18" stroke-opacity=".55"/>
+  <text class="t" x="110" y="378">Réserve de cache clé-valeur</text>
+  <text class="s muted" x="330" y="378">ce qui subsiste : de la concurrence, pas des poids</text>
+  <text class="s" x="840" y="378" text-anchor="end">14.4 Gio</text>
+  <text class="s muted" x="60" y="432">Demandez des images sur cette carte et le codeur passe du 80B à mélange d'experts au 24B dense. Le rapport le dit avant le déploiement.</text>
+</svg>

@@ -373,7 +373,7 @@ def test_the_figures_meet_their_contrast_floor_on_both_schemes():
         cwd=ROOT,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "all pairs meet" in result.stdout
+    assert "every pair meets" in result.stdout
 
     spec = importlib.util.spec_from_file_location(
         "audit_figures", ROOT / "scripts" / "audit_figures.py"

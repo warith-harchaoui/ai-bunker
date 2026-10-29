@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 526" role="img"
+     aria-labelledby="budget-t budget-d">
+  <title id="budget-t">Une fenêtre de 26 000 tokens, deux fois</title>
+  <desc id="budget-d">Deux barres de la même fenêtre de contexte de 26 000 tokens, avec une ligne pointillée à 20 000 où démarre la compaction. Dans la première, le plancher payé avant que quiconque parle vaut 6 767 tokens — 5 509 à la charge du client, 1 258 à celle d'ai-bunker — et 13 233 tokens de conversation atteignent la ligne. Dans la seconde, 59 compétences d'agent installées portent la part du client à 23 263 : le plancher franchit la ligne et aucune conversation ne tient — la session compacte à chaque tour sans rien à compacter.</desc>
+  <style>
+    svg { font-family: Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    text { font-size: 12px; }
+    .t { font-size: 13px; font-weight: 600; }
+    .s { font-size: 11.5px; }
+    .n { font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+    .h { font-size: 13px; font-weight: 600; letter-spacing: .08em; }
+    .band { fill-opacity: 0.05; stroke-opacity: .30; }
+    .card-blue, .card-orange { fill-opacity: 0.10; }
+    .card-blue { stroke-opacity: .45; }
+    .card-orange { stroke-opacity: .50; }
+    .outline { fill: none; stroke-width: 1.5; }
+    .wire, .wire-back { fill: none; stroke-width: 2; }
+    .axis { fill: none; stroke-width: 1; }
+    .dash { fill: none; stroke-width: 1; stroke-dasharray: 4 4; }
+    text { fill: #1B1B1F; }
+    .muted { fill: #656569; }
+    .blue { fill: #0062CC; }
+    .orange { fill: #995600; }
+    .red { fill: #C12F26; }
+    .green { fill: #158126; }
+    .band, .card-blue { fill: #0062CC; stroke: #0062CC; }
+    .card-orange { fill: #995600; stroke: #995600; }
+    .outline, .wire-back, .axis, .dash { stroke: #656569; }
+    .wire { stroke: #0062CC; }
+    .seg-muted { fill: #656569; stroke: #656569; }
+    .seg-blue { fill: #0062CC; stroke: #0062CC; }
+    .seg-orange { fill: #995600; stroke: #995600; }
+    .seg-red { fill: #C12F26; stroke: #C12F26; }
+    .seg-green { fill: #158126; stroke: #158126; }
+    .dot-blue { fill: #0062CC; }
+    .dot-red { fill: #C12F26; }
+    .head-fwd { fill: #0062CC; }
+    .head-back { fill: #656569; }
+    @media (prefers-color-scheme: dark) {
+      text { fill: #E8E8EA; }
+      .muted { fill: #92929A; }
+      .blue { fill: #3C9BFF; }
+      .orange { fill: #FFA52B; }
+      .red { fill: #FF5349; }
+      .green { fill: #35D94E; }
+      .band, .card-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .card-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .outline, .wire-back, .axis, .dash { stroke: #92929A; }
+      .wire { stroke: #3C9BFF; }
+      .seg-muted { fill: #92929A; stroke: #92929A; }
+      .seg-blue { fill: #3C9BFF; stroke: #3C9BFF; }
+      .seg-orange { fill: #FFA52B; stroke: #FFA52B; }
+      .seg-red { fill: #FF5349; stroke: #FF5349; }
+      .seg-green { fill: #35D94E; stroke: #35D94E; }
+      .dot-blue { fill: #3C9BFF; }
+      .dot-red { fill: #FF5349; }
+      .head-fwd { fill: #3C9BFF; }
+      .head-back { fill: #92929A; }
+    }
+  </style>
+  <text class="h blue" x="60" y="38">UNE FENÊTRE DE 26 000 TOKENS, DEUX FOIS</text>
+  <text class="s muted" x="60" y="58">ai-bunker budget --gate · mesurées au relais, le 28/09/2026</text>
+
+  <text class="s muted" x="660" y="90" text-anchor="middle">la compaction démarre à 20 000</text>
+  <path class="dash" d="M660 98 V266"/>
+
+  <text class="t" x="60" y="124">Une session qui fonctionne</text>
+  <text class="s muted" x="840" y="124" text-anchor="end">13 233 tokens pour travailler</text>
+  <rect class="seg-orange" x="60.0" y="134.0" width="165.3" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-blue" x="225.3" y="134.0" width="37.7" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-green" x="263.0" y="134.0" width="397.0" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-muted" x="660.0" y="134.0" width="180.0" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+
+  <text class="t" x="60" y="212">Une session qui boucle</text>
+  <text class="s red" x="840" y="212" text-anchor="end">aucune place, et rien à compacter</text>
+  <rect class="seg-orange" x="60.0" y="222.0" width="697.9" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-blue" x="757.9" y="222.0" width="37.7" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+  <rect class="seg-red" x="795.6" y="222.0" width="44.4" height="40" rx="4" fill-opacity="0.55" stroke-opacity=".55"/>
+
+  <text class="n muted" x="700" y="288" text-anchor="end">MARCHE</text>
+  <text class="n muted" x="840" y="288" text-anchor="end">BOUCLE</text>
+  <rect class="seg-orange" x="60" y="299" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="310">À la charge du client</text>
+  <text class="s muted" x="310" y="310">schémas d'outils, invite système, 59 compétences installées</text>
+  <text class="s" x="700" y="310" text-anchor="end">5 509</text>
+  <text class="s" x="840" y="310" text-anchor="end">23 263</text>
+  <rect class="seg-blue" x="60" y="324" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="335">À la charge d'ai-bunker</text>
+  <text class="s muted" x="310" y="335">la charte et l'index de connaissances — moins de 5 % de la fenêtre</text>
+  <text class="s" x="700" y="335" text-anchor="end">1 258</text>
+  <text class="s" x="840" y="335" text-anchor="end">1 258</text>
+  <rect class="seg-green" x="60" y="349" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="360">De quoi travailler</text>
+  <text class="s muted" x="310" y="360">ce qui atteint le seuil — la seule ligne qui compte</text>
+  <text class="s" x="700" y="360" text-anchor="end">13 233</text>
+  <text class="s" x="840" y="360" text-anchor="end">—</text>
+  <rect class="seg-muted" x="60" y="374" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="385">Marge de compaction</text>
+  <text class="s muted" x="310" y="385">réservée pour qu'il reste quelque chose à compacter</text>
+  <text class="s" x="700" y="385" text-anchor="end">6 000</text>
+  <text class="s" x="840" y="385" text-anchor="end">—</text>
+  <rect class="seg-red" x="60" y="399" width="13" height="13" rx="3" fill-opacity="0.55" stroke-opacity=".55"/>
+  <text class="t" x="86" y="410">Au-delà du seuil</text>
+  <text class="s muted" x="310" y="410">la fenêtre où le plancher a mordu, sans conversation derrière</text>
+  <text class="s" x="700" y="410" text-anchor="end">—</text>
+  <text class="s" x="840" y="410" text-anchor="end">1 479</text>
+  <path class="axis" d="M600 422 H840"/>
+  <text class="s muted" x="86" y="442">La fenêtre</text>
+  <text class="s" x="700" y="442" text-anchor="end">26 000</text>
+  <text class="s" x="840" y="442" text-anchor="end">26 000</text>
+
+  <text class="s muted" x="60" y="486">Un plancher au-delà de la ligne, c'est une session qui compacte dès le premier tour sans rien à compacter : construire → compacter →</text>
+  <text class="s muted" x="60" y="504">construire, huit tokens par tour, l'accélérateur occupé pour rien. Le harnais n'a rien dit. `ai-bunker budget --gate` en fait un code de sortie.</text>
+</svg>

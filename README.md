@@ -140,6 +140,8 @@ declared context                              26000
   = conversation before compaction            13233 tokens
 ```
 
+![Two bars of the same 26,000-token context window, with a dashed line at 20,000 where compaction starts. In the working session the floor is 6,767 tokens — 5,509 owned by the client, 1,258 by ai-bunker — and 13,233 tokens of conversation reach the line. In the looping session 59 installed agent skills push the client's share to 23,263, the floor crosses the line, and no conversation fits at all.](assets/figure-budget.svg)
+
 Those are real figures, measured at the relay on 2026-09-28. The same
 measurement caught something a convention never would have: before the fix,
 59 agent skills installed on one workstation were being injected into every
@@ -195,6 +197,8 @@ by watching which weights the activations actually use. **GB** is gigabytes;
 tokens per second, the only speed a reader of generated text feels. And
 **VRAM** is video random-access memory, the fast memory sitting next to a
 graphics processor, which on a discrete card is all the room a model has.
+
+![An 80 GiB card divided into six parts — overhead 4, embedder 1.2, vision 9, text-to-image 26.4, coder 25, key-value cache pool 14.4 GiB — with the four model slots numbered in the order they are settled, the coder last and taking the remainder.](assets/figure-plan.svg)
 
 ### The constraint is bandwidth, not capacity
 
@@ -407,6 +411,8 @@ export OPENAI_API_KEY="$AI_BUNKER_API_KEY"
 ```
 
 ### Four stages, and the order is load-bearing
+
+![A turn crossing the gateway in four stages: screen inbound tool results, inject the charter, measure and enforce the budget, screen outbound tool calls. A bracket joins the first and the last, which are the same rule engine at the two ends of one turn.](assets/figure-pipeline.svg)
 
 **1 — Screen inbound tool results.** A `role: "tool"` message is text the world
 just handed the agent. It is screened and marked before anything else looks at
@@ -968,7 +974,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1115 tests, `ruff` clean | ✅ |
+| 1133 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
@@ -1045,6 +1051,8 @@ ai-bunker deliberately implements as little as possible:
   costs the 80B coder, and the greedy image model costs it too —
   `ai-bunker sizing --image auto` prints that trade rather than making it
   quietly.
+  ![Seconds per image against memory bandwidth for five machines running the same text-to-image model: 24.8 s on a MacBook Pro M2 Max, 12.1 on a Mac Studio M3 Ultra, 7.4 on an RTX PRO 5000 72 GB, 5.5 on an RTX PRO 6000 96 GB and 3.0 on an H100. Two are marked red, where the pictures also cost the 80B coder.](assets/figure-trade.svg)
+
   What stays here is the arithmetic: the helper picks *which* model, and
   `sizing.py` works out the roofline, the key-value cache geometry and the
   headcount. On a workstation it can also be the thing serving: it exposes an

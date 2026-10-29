@@ -156,6 +156,8 @@ contexte déclaré                                    26000
   = conversation avant compaction                   13233 tokens
 ```
 
+![Deux barres de la même fenêtre de contexte de 26 000 tokens, avec une ligne pointillée à 20 000 où démarre la compaction. Dans la session qui fonctionne, le plancher vaut 6 767 tokens — 5 509 à la charge du client, 1 258 à celle d'ai-bunker — et 13 233 tokens de conversation atteignent la ligne. Dans celle qui boucle, 59 compétences d'agent installées portent la part du client à 23 263 : le plancher franchit la ligne et aucune conversation ne tient.](assets/figure-budget.fr.svg)
+
 Ce sont des chiffres réels, mesurés au relais le 28/09/2026. La même mesure a
 attrapé ce qu'aucune convention n'aurait vu : avant correction, **59 skills**
 installées sur un poste étaient injectées dans chaque prompt — **17 754 tokens,
@@ -214,6 +216,8 @@ vraiment. **Go** est le gigaoctet ; **Gio** le gibioctet, 2³⁰ octets, environ
 ressente le lecteur d'un texte généré. Et le **VRAM** est la *video
 random-access memory*, la mémoire vidéo rapide posée contre un processeur
 graphique, qui sur une carte dédiée est toute la place dont dispose un modèle.
+
+![Une carte de 80 Gio découpée en six parts — surcoût 4, embeddeur 1,2, vision 9, texte-vers-image 26,4, codeur 25, réserve de cache clé-valeur 14,4 Gio — avec les quatre emplacements de modèles numérotés dans l'ordre où ils sont réglés, le codeur en dernier et prenant le reste.](assets/figure-plan.fr.svg)
 
 ### La contrainte est la bande passante, pas la capacité
 
@@ -439,6 +443,8 @@ export OPENAI_API_KEY="$AI_BUNKER_API_KEY"
 ```
 
 ### Quatre étapes, et l'ordre porte le sens
+
+![Un tour qui traverse la passerelle en quatre étapes : filtrer les résultats d'outils entrants, injecter la charte, mesurer et appliquer le budget, filtrer les appels d'outils sortants. Une accolade relie la première et la dernière, qui sont le même moteur de règles aux deux bouts du même tour.](assets/figure-pipeline.fr.svg)
 
 **1 — Filtrer les sorties d'outils entrantes.** Un message `role: "tool"` est
 du texte que le monde vient de tendre à l'agent. Il est filtré et marqué avant
@@ -1038,7 +1044,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1115 tests, `ruff` propre | ✅ |
+| 1133 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |
@@ -1117,6 +1123,8 @@ ai-bunker implémente délibérément le moins de choses possible :
   de vision glouton coûte le modèle de code 80B, et le modèle d'image glouton
   le coûte aussi — `ai-bunker sizing --image auto` imprime cet arbitrage au
   lieu de le faire en silence.
+  ![Secondes par image en fonction de la bande passante mémoire, pour cinq machines exécutant le même modèle texte-vers-image : 24,8 s sur un MacBook Pro M2 Max, 12,1 sur un Mac Studio M3 Ultra, 7,4 sur une RTX PRO 5000 72 Go, 5,5 sur une RTX PRO 6000 96 Go et 3,0 sur une H100. Deux sont en rouge : les images y coûtent aussi le codeur 80B.](assets/figure-trade.fr.svg)
+
   Ce qui reste ici, c'est l'arithmétique : le helper choisit **quel** modèle,
   et `sizing.py` calcule le plafond de bande passante, la géométrie du cache
   clé-valeur et le nombre de personnes. Sur un poste de travail, il peut aussi
