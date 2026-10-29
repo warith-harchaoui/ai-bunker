@@ -265,6 +265,12 @@ class Plan:
     #: figures this dataclass exists to carry -- ``max_context`` and tokens --
     #: say nothing about it, and the one that does had nowhere to go.
     seconds_per_image: float | None = None
+    #: Whether ``diffusers`` is to swap the pipeline's components through the
+    #: accelerator one at a time. A separate fact from :attr:`quant` and it
+    #: used to be written into it -- the column said ``offload`` where a
+    #: weight format belongs, so a reader could learn how the pipeline is held
+    #: or what it is stored in, never both.
+    offload: bool = False
 
 
 @dataclass
@@ -443,10 +449,17 @@ def size_machine(
             Plan(
                 with_image,
                 "image",
-                str(detail.get("dtype") or ("offload" if detail.get("offload") else "fp16")),
+                # What the provider's catalogue declares, or nothing. The
+                # fallback here used to be the literal `fp16`, which is right
+                # for four of the five image models the helper carries and
+                # wrong for `flux1-schnell` -- the 43 GB bf16 pipeline only a
+                # large card is ever offered, which is to say the one case
+                # where the column was read with any interest.
+                str(detail.get("dtype") or ""),
                 round(footprint, 1),
                 0,
                 seconds_per_image=detail.get("seconds_per_image"),
+                offload=bool(detail.get("offload")),
             )
         )
         resident += footprint

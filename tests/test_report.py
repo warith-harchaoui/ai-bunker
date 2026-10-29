@@ -309,3 +309,36 @@ def test_the_image_slot_is_reported_in_the_unit_a_person_waits_in():
     assert picture.model_id in text
     # And its weights are in the total, not alongside it.
     assert sizing.resident_weights_gib >= picture.weights_gib
+
+
+def test_the_image_row_states_the_weight_format_the_provider_declares(stub_helper):
+    """Two facts, two columns, and they used to share one.
+
+    The quantization column was assembled as
+    ``detail.get("dtype") or ("offload" if detail.get("offload") else "fp16")``
+    -- three failures in one expression. `detail` never carried a dtype, so
+    the first operand was dead; the second answered a question about *where*
+    the weights are while they work in a column about *what* they are stored
+    in; and the fallback asserted `fp16` for every model, which is true of
+    four of the provider's five and false of the large bf16 pipeline that a
+    big card is the only machine ever offered.
+
+    Driven by the provider double, because the published helper has no image
+    picker and a test that only runs on the one machine with an unpublished
+    one installed is not a test of this.
+    """
+    from ai_bunker.sizing import size_machine
+
+    sizing = size_machine(accelerator="h100-80", with_image="big")
+    picture = next(p for p in sizing.plan if p.role == "image")
+    assert picture.quant == "bf16", "the entry says bf16; nothing may assume fp16"
+    assert picture.offload is False
+    assert "bf16" in render(sizing, show_command=False)
+
+    # Offloading is now said in words beside the timing, where it does not
+    # have to displace the weight format to be visible.
+    stub_helper.plans[0]["offload"] = True
+    swapped = size_machine(accelerator="h100-80", with_image="big")
+    held = next(p for p in swapped.plan if p.role == "image")
+    assert held.offload and held.quant == "bf16", "both facts survive together"
+    assert "offloaded" in render(swapped, show_command=False)

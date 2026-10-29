@@ -205,7 +205,7 @@ One pleasant check does fall out: the slope implies roughly 160 KiB of KV read
 per context token at nominal bandwidth, which is within noise of the geometry
 `kv_gib()` computes for models of this shape.
 
-Reproduce it with `python scripts/bench_context.py` (see §5).
+Reproduce it with `python scripts/bench_context.py` (see §6).
 
 ### If it is not enough: Mac Studio M3 Ultra 96 GB — ~$5,600
 
@@ -292,12 +292,101 @@ Either way it is the measurable argument for everything else in this repository.
 
 ---
 
-## 5. Reproducing this
+## 5. If you also want pictures
+
+The sizing above plans three models: a coder, a vision-language model and an
+embedder. There is a fourth slot — a **text-to-image** model behind
+`POST /v1/images/generations` — and it is the only one that is **off unless
+you ask for it**, because its memory comes out of the coder's and this is a
+gateway for coding agents.
+
+```bash
+ai-bunker sizing --accelerator mac-studio-m3-ultra-96 --image auto
+```
+
+### What it costs, per machine
+
+Same command, with and without `--image auto`. Nothing else changes.
+
+| Machine | Coder without / with pictures | Sessions | People carried | Seconds an image |
+|---|---|---:|---:|---:|
+| MacBook Pro M2 Max 96 GB · 400 GB/s | Qwen3-Coder-Next → unchanged | 5 → 5 | 22 → 22 | **24.8** |
+| Mac Studio M3 Ultra 96 GB · 819 GB/s | Qwen3-Coder-Next → unchanged | 23 → 8 | 135 → 39 | **12.1** |
+| RTX PRO 5000 Blackwell 72 GB · 1,344 GB/s | Qwen3-Coder-Next → **Devstral 24B** | 16 → 2 | 89 → 7 | **7.4** |
+| H100 80 GB · 3,350 GB/s | Qwen3-Coder-Next → **Devstral 24B** | 27 → 5 | 162 → 22 | **3.0** |
+| RTX PRO 6000 Blackwell 96 GB · 1,792 GB/s | Qwen3-Coder-Next → unchanged | 47 → 13 | 302 → 70 | **5.5** |
+
+Every machine chooses the same picture model — Stable Diffusion 3.5 Medium,
+fp16, 26.4 GiB resident, 28 denoising steps at 1024×1024 — so the columns are
+comparable, and three things fall out of them.
+
+**Below 92 GiB the picture changes the coder.** 26 GiB is most of what a 72 or
+80 GiB card has left after the vision model, so the 45 GiB mixture-of-experts
+coder stops fitting and the plan drops to the dense 24B. On the H100 that is
+224 tok/s single-stream becoming 79, and 162 people carried becoming 22 — a
+decision worth making on purpose rather than discovering later from a slower
+agent. Above 92 GiB the coder survives and only concurrency pays.
+
+![Seconds per image against memory bandwidth for the five machines in the table
+above, all running the same text-to-image model: 24.8 s at 400 GB/s falling to
+3.0 s at 3,350. Two points are marked red, where asking for pictures also costs
+the 80B coder.](../assets/figure-trade.svg)
+
+**The picture is bandwidth-bound, exactly like decode.** Same model, same
+steps, same resolution: 3 seconds on an H100 and 24.8 on the laptop, in the
+same ratio as their memory bandwidth. §0's one fact is not about language
+models, it is about reading weights out of memory, and a denoising loop reads
+its weights 28 times per picture.
+
+**On the machine this document recommends buying, a picture takes 12 seconds.**
+That is batch work. It is fine for a thumbnail an agent requests and comes back
+to; it is not fine for anything a person sits and waits for. If pictures are
+the point rather than a convenience, the honest conclusion is that this sizing
+answers a different question.
+
+### The one opinion added to the provider's answer
+
+The catalogue, the component footprints and the timings are
+**best-engine-ai-helper**'s, not this repository's — `catalog/serving.yaml`
+records what a vLLM deployment needs, and none of those columns mean anything
+to a denoising loop. The provider's own `imagine_pick` takes the best picture
+model that runs, which on a large card is FLUX.1-schnell: 88 on its image
+benchmark against Stable Diffusion 3.5 Medium's 82, for 40.3 GiB of bf16
+weights against 26.4.
+
+ai-bunker takes the leaner one. Six benchmark points are not worth fourteen
+gibibytes here, because those fourteen gibibytes are the coder's — which is
+§1's argument that spare memory should buy a better model, applied to a slot
+that is not the model it should be bought for. The rule is one-directional: it
+will not trade a usable pipeline for an unusable one to save memory, because a
+picture endpoint nobody can wait for is not a saving.
+
+### What you need installed
+
+The picker arrives in **best-engine-ai-helper 1.10**. 1.9.0 is the newest on
+the package index at the time of writing, and with it the slot declines by
+name rather than guessing a footprint:
+
+```
+image: the slot was requested and is being left out. best-engine-ai-helper
+1.9.0 has no text-to-image picker, which arrives in 1.10. Upgrade the provider
+(pip install -U 'best-engine-ai-helper>=1.10') or plan without the slot; every
+other slot is unaffected.
+```
+
+Every other slot is unaffected, and the rest of the report is unchanged. A
+plan that quietly subtracted a footprint nobody could work out would be worse
+than a plan that says it has no pictures.
+
+---
+
+## 6. Reproducing this
 
 ```bash
 ai-bunker recommend --team 2 --model qwen3-coder-next --vision qwen3-vl-8b
 ai-bunker recommend --team 2                          # the dense, safe plan
 ai-bunker sizing --accelerator mac-studio-m3-ultra-96 --model qwen3-coder-next
+ai-bunker sizing --accelerator mac-studio-m3-ultra-96 --image auto   # §5's table
 ai-bunker compare                                     # every machine, one line
 ai-bunker catalog                                     # the facts, with provenance
 ai-bunker detect                                      # this machine
@@ -328,7 +417,7 @@ The assumptions that move the answer most:
 --simultaneity 1.0      # both of you, always, at the same time
 ```
 
-## 6. Sources
+## 7. Sources
 
 Prices and specifications surveyed 2026-10-19. The GPU market moved roughly 80%
 in eighteen months; re-survey before buying.

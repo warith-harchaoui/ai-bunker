@@ -52,46 +52,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[api,mcp,dev]"
 
-      # A guard, not a workaround, and it replaces one.
-      #
-      # This lane used to pre-install the processor-only build of torch from
-      # PyTorch's own index, with a comment claiming the line was "a no-op
-      # while the published helper has no torch in its base dependencies". It
-      # was not a no-op: `pip install torch` installs torch whether or not
-      # anything wants it -- and no published best-engine-ai-helper has ever
-      # asked for it. 1.7.0 through 1.9.0 declare click, langdetect, os-helper,
-      # psutil, pyyaml, requests, fastapi, uvicorn, fastapi-mcp and mcp, with
-      # torch and friends behind extras this lane does not install. Nothing in
-      # `ai_bunker/`, `tests/` or `scripts/` names torch either. So every leg
-      # downloaded a 196-megabyte wheel and spent twenty-one seconds unpacking
-      # it, for nothing. Measured without it: 1,102 pass, 8 skip.
-      #
-      # The reason behind the old line still stands, so it is kept as a check
-      # rather than as a download. ai-bunker is a proxy that never loads a
-      # model; torch has no business here. It is one `pyproject.toml` edit away
-      # in the helper, and the Linux torch wheel on the package index is the
-      # build for NVIDIA's Compute Unified Device Architecture -- gigabytes of
-      # nvidia-* payload for a runner with no graphics processor. This fails
-      # the day that happens, loudly, naming the two ways out, because which
-      # one to take is a decision somebody should make rather than a lane that
-      # silently grows by gigabytes.
+      # A guard, not a workaround, and it replaces one. The whole argument --
+      # why a proxy must not carry torch, and why the old pre-install line was
+      # downloading 196 megabytes per leg to prove it -- is in the script's own
+      # docstring, where it is readable without opening a workflow file.
       - name: No deep-learning stack
-        run: |
-          python - <<'PY'
-          import importlib.util
-          import sys
-
-          heavy = [n for n in ("torch", "transformers", "diffusers") if importlib.util.find_spec(n)]
-          if heavy:
-              sys.exit(
-                  f"{', '.join(heavy)} was pulled into this lane. Nothing here loads a "
-                  "model, so either drop the dependency that asks for it, or "
-                  "pre-install the CPU build first:\n"
-                  "  pip install --index-url https://download.pytorch.org/whl/cpu torch\n"
-                  "(--index-url, not --extra-index-url: with two indexes offering the "
-                  "same version, which one pip picks is not a documented guarantee.)"
-              )
-          PY
+        run: python scripts/no_heavy_stack.py
 
       - name: Tests
         run: pytest -q
@@ -121,6 +87,15 @@ jobs:
       - name: Format
         run: ruff format --check .
 
+      # `py.typed` ships in the wheel, which tells every downstream project
+      # that runs a type checker that these annotations are maintained. The
+      # marker shipped for months against twenty-five errors and no step --
+      # a claim with no gate, which is the one thing this repository does not
+      # allow itself anywhere else. Configuration, including the three
+      # stub-less upstreams it skips by name, is in `pyproject.toml`.
+      - name: Type check
+        run: mypy
+
       # The rules ship with their own examples, so the rule set is itself
       # under test. A regular expression that silently stops matching is a
       # guardrail that silently disappears, and this is what catches it.
@@ -146,3 +121,37 @@ jobs:
       # unreachable upstream in CI is a warning rather than a failure.
       - name: Doctor
         run: ai-bunker doctor --config config/gateway.example.yaml
+
+      # The text-to-image slot, against the provider rather than against a
+      # stub -- and last, so every step above it runs on the helper a user
+      # gets from the package index.
+      #
+      # The slot is delegated whole: `imagine_rank` sizes a diffusion pipeline
+      # per component and returns seconds per image, and this project adds the
+      # gigabyte-to-gibibyte conversion, the anti-greed rule and four
+      # refusals on top. The stub tests cover that layer everywhere, including
+      # here -- but a stub is a theory about somebody else's function, and
+      # until now nothing in this lane tested the theory. `imagine_rank` and
+      # `imagine_pick` are not in any published best-engine-ai-helper (1.9.0
+      # is the newest, and it predates them), so the contract is checked
+      # against the branch the next release comes from.
+      #
+      # Two whole modules rather than `-k image`: the tests that skip without
+      # a picker are not all named for one -- the anti-greed rule and the
+      # borrowed-bandwidth rule are not -- and the language slots go through
+      # the same provider, so running them against its development head costs
+      # seconds and catches the same class of drift.
+      #
+      # What this buys: a change to the provider's plan shape turns this step
+      # red here, in a pull request, rather than in a user's terminal. What it
+      # costs: a clone of a pure-Python package -- no new dependency, the
+      # helper's requirements are already installed above -- and a lane that
+      # can go red for an upstream reason. Both are deliberate. Delete these
+      # two steps the day `pyproject.toml` can floor the helper at a published
+      # version that carries the picker.
+      - name: Text-to-image contract
+        run: |
+          pip install --upgrade \
+            "best-engine-ai-helper @ git+https://github.com/warith-harchaoui/best-engine-ai-helper@main"
+          python scripts/no_heavy_stack.py
+          pytest tests/test_engine.py tests/test_report.py

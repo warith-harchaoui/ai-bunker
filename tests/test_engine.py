@@ -28,6 +28,7 @@ import pytest
 from ai_bunker.engine import (
     ASK,
     GIB_PER_GB,
+    IMAGE_PICKER_SINCE,
     LEAN_TOLERANCE,
     OVERHEAD_GIB,
     ROLE_KINDS,
@@ -521,92 +522,9 @@ def test_every_slot_is_reported_on_the_axis_it_was_ranked_on(helper):
 # ---------------------------------------------------------------------------
 
 
-def _plan(catalog_id: str, score: float, resident_gb: float, **over):
-    """One plan in the shape `imagine_rank` actually returns.
-
-    The defaults are copied from a live run against the helper's own
-    catalogue rather than invented, so a stub that drifts from the real
-    contract is a stub that fails the live tests below first.
-    """
-    plan = {
-        "catalog_id": catalog_id,
-        "model": f"stub-org/{catalog_id}",
-        "score": score,
-        "resident_gb": resident_gb,
-        "fits": True,
-        "usable": True,
-        "steps": 28,
-        "size": "1024x1024",
-        "seconds_per_image": 3.0,
-        "offload": False,
-        "blockers": [],
-    }
-    plan.update(over)
-    return plan
-
-
-@pytest.fixture
-def stub_helper(monkeypatch):
-    """A helper that answers the image questions, whatever the installed one
-    offers.
-
-    `_choose_image` imports `best_engine_ai_helper` inside the function, so
-    replacing the entry in `sys.modules` is enough and no import order
-    matters. The plan list is mutable: a test reshapes it to pose its own
-    question, which is the only way to reach the refusals -- the real
-    catalogue has no model that fails to fit a large card.
-    """
-    import sys
-    import types
-
-    module = types.ModuleType("best_engine_ai_helper")
-    module.plans = [
-        _plan("big", score=88, resident_gb=43.3, steps=4, seconds_per_image=2.0),
-        _plan("lean", score=82, resident_gb=28.3),
-        _plan("tiny", score=58, resident_gb=2.9, size="512x512", seconds_per_image=0.3),
-    ]
-    module.asked = []
-    module.entries = [{"id": p["catalog_id"], "kind": "image"} for p in module.plans] + [
-        {"id": "a-language-model", "kind": "llm"}
-    ]
-
-    def load_catalog():
-        return list(module.entries)
-
-    def imagine_rank(entries, *, budget_gb, bandwidth_gbs=None, **_kw):
-        offered = {str(e.get("id")) for e in entries}
-        module.asked.append({"ids": offered, "budget_gb": budget_gb, "bandwidth": bandwidth_gbs})
-        return [p for p in module.plans if p["catalog_id"] in offered]
-
-    def imagine_pick(plans):
-        # The helper's own rule: the best that runs, with no opinion about
-        # what it costs. The opinion is `LEAN_TOLERANCE`, and it is ours.
-        runnable = [p for p in plans if p.get("fits")]
-        return max(runnable, key=lambda p: p["score"]) if runnable else None
-
-    def rank(_hw, catalogue, _kind, *, application="code", **_kw):
-        # The language slots go through the same stub, or replacing the module
-        # would quietly drop the whole plan to the fallback path and the
-        # budget assertions below would be measuring that instead.
-        scored = [e for e in catalogue if (e.get("benchmarks") or {}).get(application) is not None]
-        return sorted(scored, key=lambda e: -float(e["benchmarks"][application]))
-
-    def parse_task(task):
-        return {
-            "application": "vision" if "vision-language" in task else "code",
-            "vlm_application": "vision",
-            "kinds": ["vlm"] if "vision-language" in task else ["llm"],
-        }
-
-    module.load_catalog = load_catalog
-    module.imagine_rank = imagine_rank
-    module.imagine_pick = imagine_pick
-    module.rank = rank
-    module.parse_task = parse_task
-    module.available_memory = lambda: {"vram_gb": 64.0}
-    module.compute_profile = lambda: {"bandwidth_gbs": 900.0}
-    monkeypatch.setitem(sys.modules, "best_engine_ai_helper", module)
-    return module
+# `stub_helper` and `image_plan` are in `tests/conftest.py`: the provider
+# double is used by `test_report.py` too, and a second copy of somebody
+# else's contract is a second copy to let drift.
 
 
 def test_what_the_image_slot_adds_to_the_helpers_answer(stub_helper):
@@ -645,6 +563,7 @@ def test_what_the_image_slot_adds_to_the_helpers_answer(stub_helper):
     assert choice.budget_gb == pytest.approx((80 - OVERHEAD_GIB) / GIB_PER_GB, abs=0.05)
     assert choice.detail["seconds_per_image"] == 3.0
     assert choice.detail["steps"] == 28 and choice.detail["size"] == "1024x1024"
+    assert choice.detail["dtype"] == "fp16"
     assert choice.warnings == []
 
     passed_over = {r["id"]: r for r in choice.rejected}
@@ -656,10 +575,21 @@ def test_what_the_image_slot_adds_to_the_helpers_answer(stub_helper):
     # And the tolerance is a tolerance rather than a floor: with the lean
     # model out of reach of it, the best is taken after all.
     stub_helper.plans[1]["score"] = 88 - LEAN_TOLERANCE - 1
-    assert choose("image", vram_gib=80, bandwidth_gbs=3350.0).model_id == "big"
+    greedy = choose("image", vram_gib=80, bandwidth_gbs=3350.0)
+    assert greedy.model_id == "big"
+
+    # **The weight format**, looked up rather than assumed. `imagine_rank`
+    # answers in footprints and seconds and carries no dtype; the entry it
+    # ranked does. The row downstream used to print a hardcoded `fp16`, which
+    # is right for four of the provider's five image models and wrong for the
+    # large bf16 pipeline -- the only one a big card is ever offered, and so
+    # the only case where anybody was reading the column with interest.
+    assert greedy.detail["dtype"] == "bf16"
 
 
-def test_the_anti_greed_rule_will_not_trade_down_to_a_model_nobody_can_wait_for(stub_helper):
+def test_the_anti_greed_rule_will_not_trade_down_to_a_model_nobody_can_wait_for(
+    stub_helper, image_plan
+):
     """The rule saves memory so the coder can have it. It used to do that by
     taking the leanest candidate that *fits*, which is not the same question
     as the leanest that *runs usefully*: offered a 3-second pipeline at 43 GB
@@ -674,8 +604,8 @@ def test_the_anti_greed_rule_will_not_trade_down_to_a_model_nobody_can_wait_for(
     still says what is wrong with what it picked.
     """
     stub_helper.plans[:] = [
-        _plan("good", score=88, resident_gb=43.3, seconds_per_image=3.0),
-        _plan(
+        image_plan("good", score=88, resident_gb=43.3, seconds_per_image=3.0),
+        image_plan(
             "cheap_but_slow",
             score=82,
             resident_gb=28.3,
@@ -719,11 +649,24 @@ def test_the_image_slot_declines_rather_than_guesses(stub_helper, monkeypatch):
     import types
 
     nothing = types.ModuleType("best_engine_ai_helper")  # no imagine_* at all
+    nothing.__version__ = "1.9.0"
     monkeypatch.setitem(sys.modules, "best_engine_ai_helper", nothing)
     old = choose("image", vram_gib=96)
     assert old.model_id == "" and old.asked is False
-    assert "predates the image picker" in old.reason
+    # Actionable, which the first version of this message was not: it named
+    # `imagine_rank` and `imagine_pick`, two symbols in somebody else's
+    # module, and nobody installs a symbol. What a reader can act on is the
+    # version they have, the version that answers, and the command between.
+    assert "1.9.0" in old.reason, "the version they have"
+    assert IMAGE_PICKER_SINCE in old.reason, "the version that answers"
+    assert "pip install -U" in old.reason, "the command between the two"
     assert old.warnings and "left out" in old.warnings[0]
+
+    # And a provider too old to say how old it is still gets a sentence that
+    # parses. `__version__` is a convention, not a guarantee.
+    del nothing.__version__
+    mute = choose("image", vram_gib=96)
+    assert "this best-engine-ai-helper has no text-to-image picker" in mute.reason
     monkeypatch.setitem(sys.modules, "best_engine_ai_helper", stub_helper)
 
     # A model the caller named that the helper's catalogue does not carry. The
@@ -764,7 +707,7 @@ def test_the_image_slot_declines_rather_than_guesses(stub_helper, monkeypatch):
     assert "on fire" in broken.reason, "the cause belongs in the message"
 
 
-def test_an_image_model_that_fits_but_cannot_be_used_is_reported(stub_helper):
+def test_an_image_model_that_fits_but_cannot_be_used_is_reported(stub_helper, image_plan):
     """`fits` and `usable` are different questions, and the gap between them
     is the one an operator needs told.
 
@@ -779,7 +722,7 @@ def test_an_image_model_that_fits_but_cannot_be_used_is_reported(stub_helper):
     second is a crash this test exists to keep fixed.
     """
     stub_helper.plans[:] = [
-        _plan(
+        image_plan(
             "slow",
             score=90,
             resident_gb=20.0,
@@ -830,6 +773,23 @@ def test_the_image_slot_spends_from_the_running_budget_before_the_coder_does(stu
     assert picture.weights_gib and picture.weights_gib > 0
     assert coder.budget_gb is not None and alone.budget_gb is not None
     assert coder.budget_gb < alone.budget_gb, "the picture was planned as though free"
+
+    # And the sentence published beside it describes that ordering instead of
+    # contradicting it. It read "left after the language models" for as long
+    # as it was a constant -- while the coder, which is the language model a
+    # reader would think of first, had not been placed yet.
+    assert "before the coder is placed" in picture.reason
+    assert "after the language models" not in picture.reason
+
+    full = resolve_plan(vram_gib=96, with_image=ASK)
+    served = next(c for c in full.choices if c.role == "image")
+    assert "left by the embedder and the vision model" in served.reason
+
+    # Asked about a bare machine there is nobody to have been left by, and
+    # the clause has to drop rather than name slots that were never settled.
+    bare = choose("image", vram_gib=96)
+    assert "left by" not in bare.reason and "before the coder" not in bare.reason
+    assert "GB free (" in bare.reason
 
 
 def test_the_image_slot_is_answered_entirely_out_of_the_helpers_catalogue(helper, catalog):

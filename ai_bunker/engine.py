@@ -112,6 +112,7 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -432,6 +433,28 @@ def _fallback(
 #: the only kind of rounding error worth naming a constant for.
 GIB_PER_GB = 1 / 1.073741824
 
+#: The first best-engine-ai-helper that can answer this slot at all. Named as
+#: a version because that is the thing a reader can act on: `imagine_rank` and
+#: `imagine_pick` are Python symbols, and nobody installs a symbol.
+IMAGE_PICKER_SINCE = "1.10"
+
+
+def _budget_clause(spent_on: Sequence[str], coder_follows: bool) -> str:
+    """Where the picture slot's budget came from, in words.
+
+    Worth a function because the sentence was wrong for as long as it was a
+    constant. It read "left after the language models", and the coder is
+    settled **last** -- `resolve_plan` orders embedder, vision, image, then
+    code, so at the moment the picture is sized the only language models
+    resident are the small two, and the coder is fitted into what the picture
+    leaves. The report said the opposite of what happened, in the one sentence
+    an operator reads to understand the trade.
+    """
+    names = {"embed": "the embedder", "vision": "the vision model"}
+    listed = [names[r] for r in spent_on if r in names]
+    head = "left by " + " and ".join(listed) if listed else "free"
+    return f"{head}, before the coder is placed" if coder_follows else head
+
 
 def _image_entries(be: Any) -> list[dict[str, Any]]:
     """The helper's own text-to-image catalogue.
@@ -469,6 +492,8 @@ def _choose_image(
     bandwidth_gbs: float | None,
     lean: bool,
     only: str | None = None,
+    spent_on: Sequence[str] = (),
+    coder_follows: bool = False,
 ) -> Choice:
     """Ask the helper which text-to-image model this machine should serve.
 
@@ -484,6 +509,10 @@ def _choose_image(
     runs, which on an 80 GiB card is a 43 GiB pipeline -- and this deployment's
     first job is to serve a coding agent, so a slot that halves the coder's
     budget to buy a few points of image quality has the priority backwards.
+
+    ``spent_on`` and ``coder_follows`` carry no arithmetic -- ``vram_gib`` is
+    already the remainder -- and exist so the sentence published alongside the
+    choice can say which budget it was. See :func:`_budget_clause`.
     """
     try:
         import best_engine_ai_helper as be  # lazy: keeps `import ai_bunker` cheap
@@ -495,15 +524,25 @@ def _choose_image(
 
     missing = [n for n in ("load_catalog", "imagine_rank", "imagine_pick") if not hasattr(be, n)]
     if missing:
+        # Named as a version and a command, not as the two symbols that are
+        # absent: `imagine_rank` is a fact about somebody else's module and
+        # there is nothing a reader can do with it. The installed version is
+        # quoted because "upgrade it" is useless advice to somebody who
+        # already has.
+        installed = str(getattr(be, "__version__", "") or "")
+        which = f"best-engine-ai-helper {installed}" if installed else "this best-engine-ai-helper"
         return _no_image(
-            f"the installed best-engine-ai-helper offers no {' or '.join(missing)}; it "
-            "predates the image picker."
+            f"{which} has no text-to-image picker, which arrives in {IMAGE_PICKER_SINCE}. "
+            f"Upgrade the provider (pip install -U "
+            f"'best-engine-ai-helper>={IMAGE_PICKER_SINCE}') or plan without the slot; every "
+            "other slot is unaffected."
         )
 
     # In gigabytes, because that is the unit the helper answers in. `vram_gib`
     # is already net of whatever the earlier slots spent -- `resolve_plan`
     # hands over what is left, not what the card holds.
     room_gb = None if vram_gib is None else max(float(vram_gib) - OVERHEAD_GIB, 0.0) / GIB_PER_GB
+    budget = _budget_clause(spent_on, coder_follows)
     try:
         entries = _image_entries(be)
         if only:
@@ -544,10 +583,7 @@ def _choose_image(
             if smallest
             else ""
         )
-        return _no_image(
-            f"No text-to-image model fits the {room_gb:.0f} GB left once the language models "
-            f"are resident.{short}"
-        )
+        return _no_image(f"No text-to-image model fits the {room_gb:.0f} GB {budget}.{short}")
 
     def points(plan: dict[str, Any]) -> float:
         return float(plan.get("score") or 0.0)
@@ -573,14 +609,27 @@ def _choose_image(
 
     resident_gib = float(best.get("resident_gb") or 0.0) * GIB_PER_GB
     seconds = best.get("seconds_per_image")
+    # The weight format, carried from the catalogue entry because the *plan*
+    # has no column for it: `imagine_rank` answers in footprints and seconds,
+    # and the dtype is a property of the entry it was ranked from. Without
+    # this the report invented one -- it printed `fp16` for every model, which
+    # four of the helper's five are and `flux1-schnell`, at bf16, is not.
+    dtype = next(
+        (
+            str(e.get("dtype"))
+            for e in entries
+            if str(e.get("id")) == str(best.get("catalog_id")) and e.get("dtype")
+        ),
+        "",
+    )
     return Choice(
         role="image",
         model_id=str(best.get("catalog_id") or best.get("model") or ""),
         asked=True,
         reason=(
             f"best-engine-ai-helper chose {best.get('catalog_id')} among "
-            f"{len(plans)} text-to-image model(s) for the {room_gb:.0f} GB left after the "
-            f"language models (image benchmark {points(best):g}, {resident_gib:.0f} GiB "
+            f"{len(plans)} text-to-image model(s) for the {room_gb:.0f} GB {budget} "
+            f"(image benchmark {points(best):g}, {resident_gib:.0f} GiB "
             f"resident, {best.get('steps')} denoising steps at {best.get('size')}"
             + (f", about {seconds:g} s an image)." if seconds else ").")
         ),
@@ -593,6 +642,10 @@ def _choose_image(
             "size": best.get("size"),
             "steps": best.get("steps"),
             "seconds_per_image": seconds,
+            # Empty when the entry declares none. The report prints what it is
+            # told and says nothing when it is told nothing, which is the only
+            # honest behaviour for a column about somebody else's weights.
+            "dtype": dtype,
             # True when `diffusers` is to swap the components through the
             # accelerator one at a time. It is what makes a pipeline fit a card
             # that cannot hold it whole, and it is slower, so it is reported
@@ -1051,6 +1104,10 @@ def resolve_plan(
     cat = catalog or load_catalog()
     made: list[Choice] = []
     remaining = None if vram_gib is None else float(vram_gib)
+    #: Roles already resident when the next slot is sized, in the order they
+    #: were settled. Read by the image slot alone, and only to describe its
+    #: own budget correctly.
+    resident: list[str] = []
 
     def spend(gib: float) -> None:
         nonlocal remaining
@@ -1076,20 +1133,28 @@ def resolve_plan(
                 bandwidth_gbs=bandwidth_gbs,
                 lean=True,
                 only=None if value == ASK else value,
+                spent_on=tuple(resident),
+                # Always: `resolve_plan` refuses a plan with no code model, so
+                # there is always a coder after the picture, taking what the
+                # picture leaves.
+                coder_follows=True,
             )
             made.append(choice)
             if not choice.model_id:
                 return None
             spend(float(choice.weights_gib or 0.0))
+            resident.append(role)
             return choice.model_id
         if value != ASK:
             # A named model still consumes budget, or the slots that follow
             # would be sized as though it were free.
             spend_catalogue(value)
+            resident.append(role)
             return value
         choice = choose(role, vram_gib=remaining, catalog=cat)
         made.append(choice)
         spend_catalogue(choice.model_id)
+        resident.append(role)
         return choice.model_id
 
     # Cheapest first; the coder gets the remainder. See the docstring.

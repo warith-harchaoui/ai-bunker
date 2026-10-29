@@ -14,6 +14,7 @@ Warith Harchaoui
 from __future__ import annotations
 
 import textwrap
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from ai_bunker.sizing import Assumptions, Sizing, load_catalog, serve_command
@@ -55,6 +56,13 @@ def render(sizing: Sizing, *, show_command: bool = True) -> str:
         # one figure the rest of this report has no column for.
         if p.seconds_per_image:
             line += f"   ~{p.seconds_per_image:g} s an image"
+        # Said here rather than in the quantization column, which is about
+        # what the weights are stored in. Offloading is about where they are
+        # while they work: `diffusers` moving components through the
+        # accelerator one at a time makes a pipeline fit a card that cannot
+        # hold it whole, and it is slower, so it is reported.
+        if p.offload:
+            line += ", offloaded" if p.seconds_per_image else "   offloaded"
         w(line)
     w(f"    {'':<7} {'weights total':<24} {'':<6} {sizing.resident_weights_gib:>6.1f} GiB")
     w(f"    {'':<7} {'overhead':<24} {'':<6} {a['vram_overhead_gib']:>6.1f} GiB")
@@ -182,7 +190,7 @@ def render_choices(choices: list[dict]) -> list[str]:
     return out
 
 
-def render_comparison(sizings: list[Sizing], *, prices: dict[str, float] | None = None) -> str:
+def render_comparison(sizings: list[Sizing], *, prices: Mapping[str, float] | None = None) -> str:
     """One line per machine, for choosing between them."""
     out: list[str] = []
     w = out.append
