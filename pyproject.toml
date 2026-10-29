@@ -38,7 +38,7 @@ mcp = ["fastapi-mcp>=0.1"]
 # characters-per-token ratio and SAYS SO rather than pretending to be exact.
 tokenizers = ["tokenizers>=0.15"]
 serve = ["vllm>=0.28"]
-dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11", "httpx>=0.27"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11", "httpx>=0.27", "types-PyYAML>=6"]
 all = ["ai-bunker[api,mcp,tokenizers,dev]"]
 
 [project.scripts]
@@ -98,8 +98,20 @@ files = ["ai_bunker"]
 #   os-helper, best-engine-ai-helper  -- the suite's own packages, typed
 #                                        in source but not yet marked
 #   fastapi-mcp                       -- third party, installed, unmarked
+#   tokenizers                        -- an optional extra: absent from the
+#                                        lane on purpose, because the point of
+#                                        the extra is that the package works
+#                                        without it
+#
+# `types-PyYAML` is NOT in this list and must not be: stubs exist for PyYAML,
+# so the honest fix was to install them. They are in `[dev]`.
 [[tool.mypy.overrides]]
-module = ["os_helper.*", "best_engine_ai_helper.*", "fastapi_mcp.*"]
+module = [
+  "os_helper.*",
+  "best_engine_ai_helper.*",
+  "fastapi_mcp.*",
+  "tokenizers.*",
+]
 ignore_missing_imports = true
 
 [tool.coverage.run]

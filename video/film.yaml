@@ -1,0 +1,105 @@
+# ai-bunker — the launch film, as a file a reviewer can diff.
+#
+# The film's closing line is "every number in this film is in the repository,
+# and a test fails when one of them drifts". This is what makes that true
+# rather than charming. `make-film verify video/film.yaml --root .` reads each
+# claim out of the file that decides it; exit 1 means the film is lying.
+#
+# Two claims were corrected before the first render by writing this file:
+#   - "thirteen hundred tests" was 1,140;
+#   - "972 tokens, three percent" is a real measurement that moves whenever
+#     the charter is edited, so the film states the claim that is *gated*
+#     ("under 5% of the window") instead of the one that is merely true today.
+#
+# That is the whole argument for the spec existing: it caught two drifts
+# before a single frame was drawn.
+
+name: ai-bunker-launch
+
+claims:
+  - text: "40,433 tokens"
+    value: "40,433 tokens"
+    source: { path: README.md, method: literal, selector: "40,433 tokens" }
+
+  - text: "a server configured for 32,768"
+    value: "32,768"
+    source: { path: README.md, method: literal, selector: "32,768" }
+
+  - text: "the gap measured 55%"
+    value: "The gap was 55%."
+    source: { path: README.md, method: literal, selector: "The gap was 55%." }
+
+  - text: "59 agent skills cost 17,754 tokens"
+    value: "17,754 tokens"
+    source: { path: README.md, method: literal, selector: "17,754 tokens" }
+
+  - text: "eight tokens a turn"
+    value: "8 tokens per turn"
+    source: { path: README.md, method: literal, selector: "8 tokens per turn" }
+
+  - text: "the charter and the index cost under five percent of the window"
+    value: "and the index cost under 5% of the window"
+    source:
+      path: README.md
+      method: literal
+      selector: "and the index cost under 5% of the window"
+
+  # The count in the film, read from the line `scripts/sync_counts.py` writes
+  # and `tests/test_site.py` gates against what pytest actually collects. Three
+  # links, and the film is the last one.
+  - text: "1,140 tests"
+    value: "1140 tests, `ruff` clean"
+    source:
+      path: README.md
+      method: literal
+      selector: "1140 tests, `ruff` clean"
+
+  - text: "BSD-3-Clause"
+    value: "BSD-3-Clause"
+    source: { path: pyproject.toml, method: literal, selector: "BSD-3-Clause" }
+
+  # Four stages, counted in the generator that draws them rather than in the
+  # prose that describes them: the figure and the film then cannot disagree.
+  - text: "a turn crosses the gateway four times"
+    value: 4
+    source:
+      path: scripts/make_figures.py
+      method: regex_count
+      selector: '\("0[1-9]", "(?:orange|blue)", \d+,'
+
+  - text: "the coder drops to devstral-small-2-24b"
+    value: "devstral-small-2-24b"
+    source:
+      path: scripts/make_figures.py
+      method: literal
+      selector: "devstral-small-2-24b"
+
+  - text: "deraison.ai/ai-helpers"
+    value: "https://deraison.ai/ai-helpers"
+    source:
+      path: pyproject.toml
+      method: literal
+      selector: "https://deraison.ai/ai-helpers"
+
+  - text: "github.com/warith-harchaoui/ai-bunker"
+    value: "https://github.com/warith-harchaoui/ai-bunker"
+    source:
+      path: pyproject.toml
+      method: literal
+      selector: "https://github.com/warith-harchaoui/ai-bunker"
+
+assets:
+  - rel: assets/figure-path.svg
+    provenance: derived
+    why: "written by scripts/make_figures.py; `--check` fails if it drifts"
+  - rel: assets/figure-budget.svg
+    provenance: derived
+    why: "written by scripts/make_figures.py; `--check` fails if it drifts"
+  - rel: assets/figure-pipeline.svg
+    provenance: derived
+    why: "written by scripts/make_figures.py; `--check` fails if it drifts"
+  - rel: assets/figure-plan.svg
+    provenance: derived
+    why: "written by scripts/make_figures.py; `--check` fails if it drifts"
+  - rel: assets/logo-dark.png
+    provenance: tracked

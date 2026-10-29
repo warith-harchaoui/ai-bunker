@@ -18,11 +18,11 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
 import pytest
-import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
@@ -30,6 +30,15 @@ WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 
 @pytest.fixture(scope="module")
 def manifest() -> dict:
+    """`pyproject.toml`, parsed.
+
+    `tomllib` is standard library from 3.11 and this package supports 3.10, so
+    the fixture skips there rather than adding `tomli` as a dependency for one
+    test file. Nothing asserted below can differ by interpreter -- a manifest
+    is a manifest -- and the lane's `gate` job runs on 3.13, so the checks are
+    made once where they can be made.
+    """
+    tomllib = pytest.importorskip("tomllib", reason="tomllib is stdlib from 3.11")
     return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 
@@ -73,8 +82,23 @@ def test_mypy_is_configured_to_check_this_package_and_name_what_it_skips(manifes
         "name the module in [[tool.mypy.overrides]] instead"
     )
 
+    # Named one by one, and the list is short on purpose: each entry is a
+    # package that genuinely ships no types, and `tokenizers` is here because
+    # it is an *optional extra* -- absent from the lane by design, since the
+    # whole point of the extra is that the package works without it.
     silenced = {m for o in cfg["overrides"] for m in o["module"]}
-    assert silenced == {"os_helper.*", "best_engine_ai_helper.*", "fastapi_mcp.*"}
+    assert silenced == {
+        "os_helper.*",
+        "best_engine_ai_helper.*",
+        "fastapi_mcp.*",
+        "tokenizers.*",
+    }
+
+    # And the counter-example, which is what keeps the list from growing by
+    # habit: stubs exist for PyYAML, so the answer was to install them rather
+    # than to silence four modules. A silence that a real answer could replace
+    # is a silence that should not be here.
+    assert not any("yaml" in m for m in silenced), "types-PyYAML exists; install it"
 
 
 #: Every `[dev]` tool, and the command in `ci.yml` that runs it. A tool with
@@ -93,6 +117,10 @@ DEV_TOOLS = {
     # Not a gate: `httpx` is what `starlette`'s TestClient drives the gateway
     # with, so it is a test dependency rather than a tool with a verdict.
     "httpx": None,
+    # Not a gate either: stubs for PyYAML, so that `mypy` can check the four
+    # modules that import it instead of being told to ignore them. A silence
+    # that can be replaced by a real answer should be.
+    "types-PyYAML": None,
 }
 
 
@@ -136,13 +164,19 @@ def test_the_coverage_floor_is_declared_and_defended(manifest):
 
 
 def test_mypy_is_clean_on_this_tree():
-    """The gate, run here as well as in the lane.
+    """The gate, for a developer who has not run the lane.
 
-    Skipped rather than failed when `mypy` is not installed: it is a `[dev]`
-    extra, and a developer who installed the package without the extra is not
-    looking at a defect. In the lane the extra is always present, so the step
-    there is unconditional and this is the second pair of eyes.
+    Skipped in continuous integration, and that is the point rather than an
+    evasion: the `gate` job runs `mypy` once, and this test runs inside the
+    suite, which runs on two interpreters. Leaving it on would pay three times
+    for an answer `python_version = "3.10"` pins identical -- which is the
+    same argument the workflow already makes for every check below the suite.
+
+    Skipped too when `mypy` is absent: it is a `[dev]` extra, and a developer
+    who installed the package without the extra is not looking at a defect.
     """
+    if os.environ.get("CI"):
+        pytest.skip("the gate job runs mypy once; see the docstring")
     mypy_api = pytest.importorskip("mypy.api", reason="mypy is a [dev] extra")
     out, err, status = mypy_api.run(["--config-file", str(ROOT / "pyproject.toml")])
     assert status == 0, f"mypy is not clean:\n{out}{err}"

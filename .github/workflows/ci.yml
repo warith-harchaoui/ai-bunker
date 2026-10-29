@@ -59,14 +59,18 @@ jobs:
       - name: No deep-learning stack
         run: python scripts/no_heavy_stack.py
 
-      # Coverage runs on one interpreter rather than both: the figure cannot
-      # differ by Python version for a pure-Python package, and paying twice
-      # for one answer is what the matrix trim above exists to stop. The floor
-      # is in `pyproject.toml`, where `coverage` reads it whoever invokes it.
+      # One run, two answers. Coverage was a second step here for exactly one
+      # commit, and a second step means a second full suite: the lane paid
+      # twice to learn one number. `--cov` on the leg that already runs is
+      # free, and only on 3.13 because the figure cannot differ by interpreter
+      # for a pure-Python package -- the same argument as the matrix trim
+      # above. The floor lives in `pyproject.toml`, where `coverage` reads it
+      # whoever invokes it, rather than in a flag one `-p` can remove.
       - name: Tests
+        if: matrix.python-version != '3.13'
         run: pytest -q
 
-      - name: Coverage
+      - name: Tests with coverage
         if: matrix.python-version == '3.13'
         run: pytest -q --cov --cov-report=term
 

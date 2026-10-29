@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      /* The figures' dark palette, copied from `scripts/make_figures.py` so the
+         film and the README are the same brand rather than two attempts at it.
+         Every one of these clears 8:1 against the page. */
+      :root {
+        --ground: #0d1117;
+        --ink: #e8e8ea;
+        --muted: #92929a;
+        --blue: #3c9bff;
+        --orange: #ffa52b;
+        --red: #ff5349;
+        --green: #35d94e;
+        --paper: #ffffff;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--ground);
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        background: var(--ground);
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink);
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0 150px;
+      }
+      .scene.mid {
+        align-items: center;
+        text-align: center;
+      }
+
+      .kicker {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        color: var(--blue);
+        margin-bottom: 36px;
+      }
+      .huge {
+        font-size: 104px;
+        font-weight: 700;
+        line-height: 1.08;
+        letter-spacing: -0.035em;
+      }
+      .big {
+        font-size: 74px;
+        font-weight: 700;
+        line-height: 1.12;
+        letter-spacing: -0.03em;
+      }
+      .say {
+        font-size: 46px;
+        font-weight: 400;
+        line-height: 1.38;
+        max-width: 1480px;
+        color: var(--ink);
+      }
+      .say em {
+        font-style: normal;
+        font-weight: 700;
+        color: var(--blue);
+      }
+      .say s {
+        text-decoration: none;
+        color: var(--muted);
+      }
+      .note {
+        font-size: 30px;
+        color: var(--muted);
+        margin-top: 44px;
+      }
+
+      /* Beat 1 — the overflow, drawn rather than described. */
+      .meter {
+        margin-top: 60px;
+        width: 1480px;
+        height: 74px;
+        position: relative;
+      }
+      .meter .holds {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 810px;
+        border: 3px solid var(--muted);
+        border-radius: 10px;
+      }
+      .meter .sent {
+        position: absolute;
+        left: 0;
+        top: 10px;
+        bottom: 10px;
+        width: 1000px;
+        background: var(--red);
+        opacity: 0.55;
+        border-radius: 8px;
+        transform-origin: left center;
+      }
+      .meter .tag {
+        position: absolute;
+        top: 90px;
+        font-size: 28px;
+        color: var(--muted);
+      }
+
+      /* Beats 3 and 4 — bars and a table built here rather than imported,
+         because the thing that has to land is the motion: a floor crossing a
+         line, and a verdict arriving last. */
+      .bar {
+        position: relative;
+        width: 1480px;
+        height: 62px;
+        margin-top: 22px;
+        display: flex;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .bar span {
+        display: block;
+        height: 100%;
+        transform-origin: left center;
+      }
+      .barlabel {
+        font-size: 28px;
+        color: var(--muted);
+        margin-top: 52px;
+      }
+      .trigger {
+        position: absolute;
+        top: -24px;
+        bottom: -24px;
+        width: 3px;
+        background: var(--muted);
+      }
+      .ledger {
+        margin-top: 48px;
+        width: 1480px;
+        font-size: 34px;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        padding: 13px 0;
+        color: var(--muted);
+        border-bottom: 1px solid rgba(146, 146, 154, 0.25);
+      }
+      .row b {
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .row .own {
+        color: var(--orange);
+        font-size: 26px;
+        letter-spacing: 0.12em;
+      }
+      .row .own.mine {
+        color: var(--blue);
+      }
+      .verdict {
+        margin-top: 40px;
+        font-size: 44px;
+        font-weight: 700;
+        color: var(--red);
+        letter-spacing: -0.01em;
+      }
+
+      /* Beat 5 — the four stages, two lanes, in the order they happen. */
+      .lane {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        color: var(--muted);
+        margin: 26px 0 14px;
+      }
+      .stage {
+        width: 1480px;
+        padding: 22px 32px;
+        border-radius: 14px;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: baseline;
+        gap: 28px;
+        background: rgba(255, 165, 43, 0.12);
+      }
+      .stage.engine {
+        background: rgba(60, 155, 255, 0.12);
+      }
+      .stage i {
+        font-style: normal;
+        font-weight: 700;
+        font-size: 26px;
+        letter-spacing: 0.1em;
+        color: var(--orange);
+      }
+      .stage.engine i {
+        color: var(--blue);
+      }
+      .stage u {
+        text-decoration: none;
+        font-size: 38px;
+        font-weight: 700;
+      }
+      .stage small {
+        font-size: 28px;
+        color: var(--muted);
+      }
+
+      /* Beats 2 and 6 — the README's own figures, on paper.
+         They answer `prefers-color-scheme` and an <img> does not inherit the
+         page's, so they are given the light surface they were designed for
+         rather than a dark one they would fail against. */
+      .paper {
+        background: var(--paper);
+        border-radius: 20px;
+        padding: 34px 40px;
+        width: 1560px;
+      }
+      .paper img {
+        display: block;
+        width: 100%;
+      }
+
+      /* Beat 7 — the ask. */
+      .cta {
+        display: flex;
+        flex-direction: column;
+        gap: 34px;
+        align-items: center;
+      }
+      .cta div {
+        font-size: 56px;
+        font-weight: 700;
+      }
+      .cta div span {
+        color: var(--muted);
+        font-weight: 400;
+        font-size: 40px;
+        margin-right: 22px;
+      }
+      .cta .star {
+        color: var(--orange);
+      }
+      #mark {
+        width: 150px;
+        margin-bottom: 44px;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="101"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- 1 — opening punchline -->
+      <section class="scene mid clip" data-start="0" data-duration="9.4" data-track-index="0">
+        <h1 class="huge" id="s1a">An agent that estimates its own context</h1>
+        <h1 class="huge" id="s1b" style="color: var(--blue)">is a bank that estimates your balance.</h1>
+        <div class="meter" id="s1m">
+          <div class="holds"></div>
+          <div class="sent" id="s1s"></div>
+          <div class="tag" style="left: 0">40,433 tokens sent</div>
+          <div class="tag" style="left: 700px">32,768 held</div>
+        </div>
+      </section>
+
+      <!-- 2 — what -->
+      <section class="scene clip" data-start="9.4" data-duration="10" data-track-index="0">
+        <div class="kicker" id="s2k">WHAT IT IS</div>
+        <div class="say" id="s2t">
+          A serving layer between your coding agent and <em>your own</em> graphics card. It speaks
+          OpenAI, so every client you already use works unchanged — and nothing leaves the network.
+        </div>
+        <div class="paper" id="s2f" style="margin-top: 44px">
+          <img src="assets/figure-path.svg" alt="Four positions on one path" />
+        </div>
+      </section>
+
+      <!-- 3 — problem -->
+      <section class="scene clip" data-start="19.4" data-duration="16.6" data-track-index="0">
+        <div class="kicker" id="s3k">THE PROBLEM</div>
+        <div class="say" id="s3t">
+          The client was not lying. It was <em>estimating</em>. Fifty-nine agent skills cost
+          <em>17,754 tokens</em> — and the floor crossed the line where compaction fires.
+        </div>
+        <div class="bar" id="s3b">
+          <span id="s3o" style="background: var(--orange); opacity: 0.6; width: 1324px"></span>
+          <span id="s3u" style="background: var(--blue); opacity: 0.6; width: 72px"></span>
+          <span id="s3r" style="background: var(--red); opacity: 0.6; width: 84px"></span>
+          <div class="trigger" id="s3g" style="left: 1138px"></div>
+        </div>
+        <div class="barlabel" id="s3l">
+          Compaction fires at 20,000. Build, compact, build — eight tokens a turn, and the harness
+          never said a word.
+        </div>
+      </section>
+
+      <!-- 4 — solution -->
+      <section class="scene clip" data-start="36" data-duration="14" data-track-index="0">
+        <div class="kicker" id="s4k">THE ANSWER</div>
+        <div class="big" id="s4t">Count where the tokenizer is.</div>
+        <div class="ledger">
+          <div class="row s4r"><b>agent skills (59)</b><span><span class="own">CLIENT</span> 17,754</span></div>
+          <div class="row s4r"><b>tool schemas (7)</b><span><span class="own">CLIENT</span> 3,164</span></div>
+          <div class="row s4r"><b>charter</b><span><span class="own mine">AI-BUNKER</span> 905</span></div>
+          <div class="row s4r"><b>knowledge index</b><span><span class="own mine">AI-BUNKER</span> 353</span></div>
+        </div>
+        <div class="verdict" id="s4v">VERDICT&nbsp;&nbsp;UNUSABLE — and it is the exit code, not a warning.</div>
+      </section>
+
+      <!-- 5 — secret sauce -->
+      <section class="scene clip" data-start="50" data-duration="18" data-track-index="0">
+        <div class="kicker" id="s5k">THE ORDER IS THE POINT</div>
+        <div class="lane s5e">ON THE WAY IN</div>
+        <div class="stage s5s"><i>01</i><u>Screen inbound tool results</u><small>secrets out, injections marked</small></div>
+        <div class="stage engine s5s"><i>02</i><u>Inject the charter</u><small>first system block, byte-stable</small></div>
+        <div class="stage engine s5s"><i>03</i><u>Measure and enforce the budget</u><small>the engine's own tokenizer</small></div>
+        <div class="lane s5e">ON THE WAY BACK</div>
+        <div class="stage s5s"><i>04</i><u>Screen outbound tool calls</u><small>the command has not run yet</small></div>
+      </section>
+
+      <!-- 6 — best example -->
+      <section class="scene clip" data-start="68" data-duration="15.6" data-track-index="0">
+        <div class="kicker" id="s6k">ONE H100, EVERY SLOT FILLED</div>
+        <div class="paper" id="s6f">
+          <img src="assets/figure-plan.svg" alt="Where an 80 GiB card goes" />
+        </div>
+        <div class="note" id="s6t">
+          Ask for pictures and the coder drops to the dense 24B. Printed before you deploy it — and
+          the guardrails themselves cost under 5% of the window.
+        </div>
+      </section>
+
+      <!-- 7 — call to action -->
+      <section class="scene mid clip" data-start="83.6" data-duration="9.4" data-track-index="0">
+        <img id="mark" src="assets/logo-dark.png" alt="ai-bunker" />
+        <div class="cta">
+          <div id="s7a"><span>read it</span>deraison.ai/ai-helpers</div>
+          <div id="s7b"><span>star it</span><span class="star">★</span>github.com/warith-harchaoui/ai-bunker</div>
+          <div id="s7c" style="font-size: 30px; font-weight: 400; color: var(--muted)">
+            BSD-3-Clause · one author · 1,140 tests
+          </div>
+        </div>
+      </section>
+
+      <!-- 8 — closing punchline -->
+      <section class="scene mid clip" data-start="93" data-duration="8" data-track-index="0">
+        <div class="say" id="s8a" style="color: var(--muted); max-width: 1300px">
+          Every number in this film is in the repository, and a test fails when one of them drifts.
+        </div>
+        <h1 class="huge" id="s8b" style="margin-top: 60px">Count. Don't estimate.</h1>
+      </section>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const rise = { opacity: 0, y: 44 };
+      const set = { opacity: 1, y: 0, ease: "power3.out" };
+
+      // 1 — the two lines, then the overflow running past the wall it was
+      // told it fitted inside.
+      tl.fromTo("#s1a", rise, { ...set, duration: 0.7 }, 0.3);
+      tl.fromTo("#s1b", rise, { ...set, duration: 0.7 }, 0.9);
+      tl.fromTo("#s1m", { opacity: 0 }, { opacity: 1, duration: 0.5 }, 2.4);
+      tl.fromTo("#s1s", { scaleX: 0 }, { scaleX: 1, duration: 1.5, ease: "power2.inOut" }, 3.0);
+      tl.to("#s1s", { opacity: 0.85, duration: 0.3 }, 4.5);
+
+      // 2 — claim, then the evidence under it.
+      tl.fromTo("#s2k", rise, { ...set, duration: 0.5 }, 9.7);
+      tl.fromTo("#s2t", rise, { ...set, duration: 0.7 }, 10.0);
+      tl.fromTo("#s2f", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 10.8);
+
+      // 3 — the bar grows and crosses the trigger. The red segment is the
+      // part past the line, so it arrives last and on its own.
+      tl.fromTo("#s3k", rise, { ...set, duration: 0.5 }, 19.7);
+      tl.fromTo("#s3t", rise, { ...set, duration: 0.7 }, 20.0);
+      tl.fromTo("#s3g", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 21.2);
+      tl.fromTo("#s3o", { scaleX: 0 }, { scaleX: 1, duration: 1.6, ease: "power2.out" }, 21.6);
+      tl.fromTo("#s3u", { scaleX: 0 }, { scaleX: 1, duration: 0.3 }, 23.2);
+      tl.fromTo("#s3r", { scaleX: 0 }, { scaleX: 1, duration: 0.5 }, 23.5);
+      tl.fromTo("#s3l", { opacity: 0 }, { opacity: 1, duration: 0.6 }, 24.4);
+
+      // 4 — the ledger arrives a row at a time, because attribution is the
+      // argument; the verdict lands after the reader has seen who owes what.
+      tl.fromTo("#s4k", rise, { ...set, duration: 0.5 }, 36.3);
+      tl.fromTo("#s4t", rise, { ...set, duration: 0.7 }, 36.6);
+      tl.fromTo(".s4r", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.45, stagger: 0.35, ease: "power2.out" }, 37.6);
+      tl.fromTo("#s4v", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 39.6);
+
+      // 5 — one stage at a time, in the order a turn meets them.
+      tl.fromTo("#s5k", rise, { ...set, duration: 0.5 }, 50.3);
+      tl.fromTo(".s5e", { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 3.6 }, 50.9);
+      tl.fromTo(".s5s", { opacity: 0, x: -36 }, { opacity: 1, x: 0, duration: 0.5, stagger: 1.5, ease: "power2.out" }, 51.2);
+
+      // 6 — the figure, then the price it prints.
+      tl.fromTo("#s6k", rise, { ...set, duration: 0.5 }, 68.3);
+      tl.fromTo("#s6f", { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 68.7);
+      tl.fromTo("#s6t", { opacity: 0 }, { opacity: 1, duration: 0.7 }, 71.5);
+
+      // 7 — the ask, unhurried.
+      tl.fromTo("#mark", { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.7, ease: "power3.out" }, 83.9);
+      tl.fromTo("#s7a", rise, { ...set, duration: 0.6 }, 84.5);
+      tl.fromTo("#s7b", rise, { ...set, duration: 0.6 }, 85.1);
+      tl.fromTo("#s7c", { opacity: 0 }, { opacity: 1, duration: 0.6 }, 86.0);
+
+      // 8 — the claim, then the two words that depend on it.
+      tl.fromTo("#s8a", { opacity: 0 }, { opacity: 1, duration: 0.8 }, 93.4);
+      tl.fromTo("#s8b", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 95.2);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
