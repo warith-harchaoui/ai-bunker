@@ -1,0 +1,16 @@
+Couche de service,Rien ne quitte le réseau,Filtre ce que l'agent lit,Filtre les déclarations d'outils,Refuse ce que l'agent exécute,Isole l'exécution des outils,Compte le budget côté serveur,Sert les standards d'équipe,Règles livrées avec tests,Tout client OpenAI,Largeur de fournisseurs
+ai-bunker,5,5,5,5,1,5,5,5,5,2
+LiteLLM,5,1,1,1,1,2,1,1,5,5
+Bifrost,5,4,3,3,1,2,1,1,5,4
+Portkey,2,4,1,1,1,2,2,2,5,5
+Kong AI Gateway,4,3,1,1,1,1,1,2,4,4
+agentgateway,5,3,3,4,2,2,1,2,5,4
+Envoy AI Gateway,5,3,3,3,1,3,1,2,5,4
+NeMo Guardrails,4,4,1,2,1,1,3,3,2,3
+Guardrails AI,4,4,1,1,1,1,2,4,2,3
+LLM Guard,4,5,1,1,1,1,1,3,2,2
+agent-scan (ex mcp-scan),3,3,5,2,1,1,1,3,1,1
+ToolHive,5,2,3,4,5,1,2,2,1,1
+Docker MCP Gateway,5,2,2,4,5,1,1,1,1,1
+Open Policy Agent,5,2,2,3,1,1,2,5,1,1
+Configuration côté client,5,2,1,3,1,1,3,1,1,2

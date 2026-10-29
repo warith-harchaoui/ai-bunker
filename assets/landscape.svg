@@ -1,79 +1,301 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1224" height="946" viewBox="0 0 1224 946" role="img" aria-labelledby="sp-title sp-desc" font-family="Roboto, -apple-system, Helvetica, Arial, sans-serif"><title id="sp-title">Serving layers in the Quadrant</title><desc id="sp-desc">A 2D positioning map of 13 serving layers, Resourceful to Vigilant on the horizontal axis, Secure to Disciplined on the vertical axis.</desc><style>.sp-dot{cursor:pointer}.sp-dot:hover circle,.sp-dot:focus circle{stroke-width:2.4}.sp-dot:hover,.sp-dot:focus{filter:brightness(1.08);outline:none}</style><line x1="229.5" y1="484.0" x2="1038.0" y2="484.0" stroke="#C7C7CC" stroke-width="1.2" stroke-dasharray="2,4"/><line x1="612.0" y1="863.0" x2="612.0" y2="105.0" stroke="#C7C7CC" stroke-width="1.2" stroke-dasharray="2,4"/><text data-pole="right" x="1164.0" y="492.8" font-size="25" font-style="italic" fill="#6E6E73" text-anchor="end">Vigilant</text><text data-pole="left" x="60.0" y="492.8" font-size="25" font-style="italic" fill="#6E6E73" text-anchor="start">Resourceful</text><text data-pole="top" x="612.0" y="64.8" font-size="25" font-style="italic" fill="#6E6E73" text-anchor="middle">Disciplined</text><text data-pole="bottom" x="612.0" y="918.0" font-size="25" font-style="italic" fill="#6E6E73" text-anchor="middle">Secure</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: ai-bunker
-role: best
-axis1: 2.29
-axis2: 2.47"><circle cx="912.0" cy="259.0" r="8.31" fill="#FF3B30" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: ai-bunker
-role: best
-axis1: 2.29
-axis2: 2.47</title></g><text x="924.5" y="264.6" font-size="16" fill="#1C1C1E" text-anchor="start">ai-bunker</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: LiteLLM
-role: worst
-axis1: -1.85
-axis2: 0.43"><circle cx="369.5" cy="444.4" r="8.31" fill="#A52A2A" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: LiteLLM
-role: worst
-axis1: -1.85
-axis2: 0.43</title></g><text x="357.0" y="450.0" font-size="16" fill="#1C1C1E" text-anchor="end">LiteLLM</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Bifrost
-role: competitor
-axis1: -0.19
-axis2: 1.38"><circle cx="587.7" cy="358.6" r="8.31" fill="#2B9D6C" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Bifrost
-role: competitor
-axis1: -0.19
-axis2: 1.38</title></g><text x="600.2" y="364.2" font-size="16" fill="#1C1C1E" text-anchor="start">Bifrost</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Portkey
-role: top
-axis1: -2.29
-axis2: 2.47"><circle cx="312.0" cy="259.0" r="8.31" fill="#AF52DE" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Portkey
-role: top
-axis1: -2.29
-axis2: 2.47</title></g><text x="324.5" y="264.6" font-size="16" fill="#1C1C1E" text-anchor="start">Portkey</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Kong AI Gateway
-role: competitor
-axis1: -1.80
-axis2: 0.62"><circle cx="376.1" cy="427.1" r="8.31" fill="#BF82CD" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Kong AI Gateway
-role: competitor
-axis1: -1.80
-axis2: 0.62</title></g><text x="363.6" y="420.2" font-size="16" fill="#1C1C1E" text-anchor="end">Kong AI Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: NeMo Guardrails
-role: competitor
-axis1: -0.14
-axis2: 0.98"><circle cx="593.3" cy="394.5" r="8.31" fill="#00BBC3" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: NeMo Guardrails
-role: competitor
-axis1: -0.14
-axis2: 0.98</title></g><text x="605.8" y="400.1" font-size="16" fill="#1C1C1E" text-anchor="start">NeMo Guardrails</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Guardrails AI
-role: competitor
-axis1: -0.65
-axis2: 0.93"><circle cx="527.1" cy="399.6" r="8.31" fill="#3F9EDA" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Guardrails AI
-role: competitor
-axis1: -0.65
-axis2: 0.93</title></g><text x="514.6" y="405.2" font-size="16" fill="#1C1C1E" text-anchor="end">Guardrails AI</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: LLM Guard
-role: competitor
-axis1: -0.81
-axis2: 0.61"><circle cx="505.6" cy="428.4" r="8.31" fill="#7F84D8" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: LLM Guard
-role: competitor
-axis1: -0.81
-axis2: 0.61</title></g><text x="518.1" y="434.0" font-size="16" fill="#1C1C1E" text-anchor="start">LLM Guard</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: agent-scan (ex mcp-scan)
-role: competitor
-axis1: 0.72
-axis2: 0.03"><circle cx="706.1" cy="481.1" r="8.31" fill="#B2C868" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: agent-scan (ex mcp-scan)
-role: competitor
-axis1: 0.72
-axis2: 0.03</title></g><text x="718.6" y="474.2" font-size="16" fill="#1C1C1E" text-anchor="start">agent-scan (ex mcp-scan)</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: ToolHive
-role: right
-axis1: 2.29
-axis2: -1.91"><circle cx="912.0" cy="658.2" r="8.31" fill="#007AFF" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: ToolHive
-role: right
-axis1: 2.29
-axis2: -1.91</title></g><text x="924.5" y="663.8" font-size="16" fill="#1C1C1E" text-anchor="start">ToolHive</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Docker MCP Gateway
-role: competitor
-axis1: 1.55
-axis2: -2.47"><circle cx="814.1" cy="709.0" r="8.31" fill="#F591B1" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Docker MCP Gateway
-role: competitor
-axis1: 1.55
-axis2: -2.47</title></g><text x="826.6" y="714.6" font-size="16" fill="#1C1C1E" text-anchor="start">Docker MCP Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Open Policy Agent
-role: competitor
-axis1: 1.55
-axis2: -0.34"><circle cx="814.3" cy="515.3" r="8.31" fill="#D6A345" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Open Policy Agent
-role: competitor
-axis1: 1.55
-axis2: -0.34</title></g><text x="826.8" y="520.9" font-size="16" fill="#1C1C1E" text-anchor="start">Open Policy Agent</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Client-side harness config
-role: competitor
-axis1: 0.57
-axis2: -0.72"><circle cx="686.6" cy="549.6" r="8.31" fill="#FFA785" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Client-side harness config
-role: competitor
-axis1: 0.57
-axis2: -0.72</title></g><text x="699.1" y="555.2" font-size="16" fill="#1C1C1E" text-anchor="start">Client-side harness config</text><text x="612.0" y="26" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">Serving layers in the Quadrant</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1224" height="946" viewBox="0 0 1224 946" role="img" aria-labelledby="sp-title sp-desc" font-family="Roboto, -apple-system, Helvetica, Arial, sans-serif"><title id="sp-title">Serving layers in the Quadrant</title><desc id="sp-desc">A 2D positioning map of 15 serving layers, Resourceful to Vigilant on the horizontal axis, Protected to Disciplined on the vertical axis.</desc><style>.sp-dot{cursor:pointer}.sp-dot:hover circle,.sp-dot:focus circle{stroke-width:2.4}.sp-dot:hover,.sp-dot:focus{filter:brightness(1.08);outline:none}</style><line x1="223.1" y1="484.0" x2="1042.6" y2="484.0" stroke="#C7C7CC" stroke-width="1.2" stroke-dasharray="2,4"/><line x1="612.0" y1="864.0" x2="612.0" y2="104.0" stroke="#C7C7CC" stroke-width="1.2" stroke-dasharray="2,4"/><text data-pole="right" x="1164.0" y="492.4" font-size="24" font-style="italic" fill="#6E6E73" text-anchor="end">Vigilant</text><text data-pole="left" x="60.0" y="492.4" font-size="24" font-style="italic" fill="#6E6E73" text-anchor="start">Resourceful</text><text data-pole="top" x="612.0" y="65.0" font-size="24" font-style="italic" fill="#6E6E73" text-anchor="middle">Disciplined</text><text data-pole="bottom" x="612.0" y="917.2" font-size="24" font-style="italic" fill="#6E6E73" text-anchor="middle">Protected</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: ai-bunker
+Nothing leaves the network: 5
+Screens what the agent reads: 5
+Screens the tool declarations: 5
+Refuses what the agent runs: 5
+Isolates tool execution: 1
+Counts the budget server-side: 5
+Serves team standards: 5
+Rules ship with tests: 5
+Any OpenAI client: 5
+Provider breadth: 2"><circle cx="912.0" cy="259.0" r="8.12" fill="#FF3B30" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: ai-bunker
+Nothing leaves the network: 5
+Screens what the agent reads: 5
+Screens the tool declarations: 5
+Refuses what the agent runs: 5
+Isolates tool execution: 1
+Counts the budget server-side: 5
+Serves team standards: 5
+Rules ship with tests: 5
+Any OpenAI client: 5
+Provider breadth: 2</title></g><text x="924.5" y="264.6" font-size="16" fill="#1C1C1E" text-anchor="start">ai-bunker</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: LiteLLM
+Nothing leaves the network: 5
+Screens what the agent reads: 1
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 2
+Serves team standards: 1
+Rules ship with tests: 1
+Any OpenAI client: 5
+Provider breadth: 5"><circle cx="383.3" cy="434.1" r="8.12" fill="#A52A2A" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: LiteLLM
+Nothing leaves the network: 5
+Screens what the agent reads: 1
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 2
+Serves team standards: 1
+Rules ship with tests: 1
+Any OpenAI client: 5
+Provider breadth: 5</title></g><text x="395.8" y="439.7" font-size="16" fill="#1C1C1E" text-anchor="start">LiteLLM</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Bifrost
+Nothing leaves the network: 5
+Screens what the agent reads: 4
+Screens the tool declarations: 3
+Refuses what the agent runs: 3
+Isolates tool execution: 1
+Counts the budget server-side: 2
+Serves team standards: 1
+Rules ship with tests: 1
+Any OpenAI client: 5
+Provider breadth: 4"><circle cx="594.0" cy="333.7" r="8.12" fill="#009C9F" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Bifrost
+Nothing leaves the network: 5
+Screens what the agent reads: 4
+Screens the tool declarations: 3
+Refuses what the agent runs: 3
+Isolates tool execution: 1
+Counts the budget server-side: 2
+Serves team standards: 1
+Rules ship with tests: 1
+Any OpenAI client: 5
+Provider breadth: 4</title></g><text x="606.5" y="339.3" font-size="16" fill="#1C1C1E" text-anchor="start">Bifrost</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Portkey
+Nothing leaves the network: 2
+Screens what the agent reads: 4
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 2
+Serves team standards: 2
+Rules ship with tests: 2
+Any OpenAI client: 5
+Provider breadth: 5"><circle cx="312.0" cy="259.0" r="8.12" fill="#AF52DE" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Portkey
+Nothing leaves the network: 2
+Screens what the agent reads: 4
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 2
+Serves team standards: 2
+Rules ship with tests: 2
+Any OpenAI client: 5
+Provider breadth: 5</title></g><text x="324.5" y="264.6" font-size="16" fill="#1C1C1E" text-anchor="start">Portkey</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Kong AI Gateway
+Nothing leaves the network: 4
+Screens what the agent reads: 3
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 1
+Rules ship with tests: 2
+Any OpenAI client: 4
+Provider breadth: 4"><circle cx="381.2" cy="423.0" r="8.12" fill="#C781C6" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Kong AI Gateway
+Nothing leaves the network: 4
+Screens what the agent reads: 3
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 1
+Rules ship with tests: 2
+Any OpenAI client: 4
+Provider breadth: 4</title></g><text x="368.7" y="428.6" font-size="16" fill="#1C1C1E" text-anchor="end">Kong AI Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: agentgateway
+Nothing leaves the network: 5
+Screens what the agent reads: 3
+Screens the tool declarations: 3
+Refuses what the agent runs: 4
+Isolates tool execution: 2
+Counts the budget server-side: 2
+Serves team standards: 1
+Rules ship with tests: 2
+Any OpenAI client: 5
+Provider breadth: 4"><circle cx="688.1" cy="377.1" r="8.12" fill="#7DA852" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: agentgateway
+Nothing leaves the network: 5
+Screens what the agent reads: 3
+Screens the tool declarations: 3
+Refuses what the agent runs: 4
+Isolates tool execution: 2
+Counts the budget server-side: 2
+Serves team standards: 1
+Rules ship with tests: 2
+Any OpenAI client: 5
+Provider breadth: 4</title></g><text x="700.6" y="382.7" font-size="16" fill="#1C1C1E" text-anchor="start">agentgateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Envoy AI Gateway
+Nothing leaves the network: 5
+Screens what the agent reads: 3
+Screens the tool declarations: 3
+Refuses what the agent runs: 3
+Isolates tool execution: 1
+Counts the budget server-side: 3
+Serves team standards: 1
+Rules ship with tests: 2
+Any OpenAI client: 5
+Provider breadth: 4"><circle cx="643.7" cy="308.7" r="8.12" fill="#51C395" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Envoy AI Gateway
+Nothing leaves the network: 5
+Screens what the agent reads: 3
+Screens the tool declarations: 3
+Refuses what the agent runs: 3
+Isolates tool execution: 1
+Counts the budget server-side: 3
+Serves team standards: 1
+Rules ship with tests: 2
+Any OpenAI client: 5
+Provider breadth: 4</title></g><text x="656.2" y="314.3" font-size="16" fill="#1C1C1E" text-anchor="start">Envoy AI Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: NeMo Guardrails
+Nothing leaves the network: 4
+Screens what the agent reads: 4
+Screens the tool declarations: 1
+Refuses what the agent runs: 2
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 3
+Rules ship with tests: 3
+Any OpenAI client: 2
+Provider breadth: 3"><circle cx="582.3" cy="395.2" r="8.12" fill="#39B3E3" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: NeMo Guardrails
+Nothing leaves the network: 4
+Screens what the agent reads: 4
+Screens the tool declarations: 1
+Refuses what the agent runs: 2
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 3
+Rules ship with tests: 3
+Any OpenAI client: 2
+Provider breadth: 3</title></g><text x="560.2" y="378.7" font-size="16" fill="#1C1C1E" text-anchor="end">NeMo Guardrails</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Guardrails AI
+Nothing leaves the network: 4
+Screens what the agent reads: 4
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 2
+Rules ship with tests: 4
+Any OpenAI client: 2
+Provider breadth: 3"><circle cx="519.0" cy="400.4" r="8.12" fill="#6791DE" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Guardrails AI
+Nothing leaves the network: 4
+Screens what the agent reads: 4
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 2
+Rules ship with tests: 4
+Any OpenAI client: 2
+Provider breadth: 3</title></g><text x="506.5" y="406.0" font-size="16" fill="#1C1C1E" text-anchor="end">Guardrails AI</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: LLM Guard
+Nothing leaves the network: 4
+Screens what the agent reads: 5
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 1
+Rules ship with tests: 3
+Any OpenAI client: 2
+Provider breadth: 2"><circle cx="496.7" cy="425.8" r="8.12" fill="#917CD0" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: LLM Guard
+Nothing leaves the network: 4
+Screens what the agent reads: 5
+Screens the tool declarations: 1
+Refuses what the agent runs: 1
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 1
+Rules ship with tests: 3
+Any OpenAI client: 2
+Provider breadth: 2</title></g><text x="509.2" y="431.4" font-size="16" fill="#1C1C1E" text-anchor="start">LLM Guard</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: agent-scan (ex mcp-scan)
+Nothing leaves the network: 3
+Screens what the agent reads: 3
+Screens the tool declarations: 5
+Refuses what the agent runs: 2
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 1
+Rules ship with tests: 3
+Any OpenAI client: 1
+Provider breadth: 1"><circle cx="696.1" cy="476.2" r="8.12" fill="#D3BE58" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: agent-scan (ex mcp-scan)
+Nothing leaves the network: 3
+Screens what the agent reads: 3
+Screens the tool declarations: 5
+Refuses what the agent runs: 2
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 1
+Rules ship with tests: 3
+Any OpenAI client: 1
+Provider breadth: 1</title></g><text x="708.6" y="469.3" font-size="16" fill="#1C1C1E" text-anchor="start">agent-scan (ex mcp-scan)</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: ToolHive
+Nothing leaves the network: 5
+Screens what the agent reads: 2
+Screens the tool declarations: 3
+Refuses what the agent runs: 4
+Isolates tool execution: 5
+Counts the budget server-side: 1
+Serves team standards: 2
+Rules ship with tests: 2
+Any OpenAI client: 1
+Provider breadth: 1"><circle cx="912.0" cy="659.0" r="8.12" fill="#007AFF" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: ToolHive
+Nothing leaves the network: 5
+Screens what the agent reads: 2
+Screens the tool declarations: 3
+Refuses what the agent runs: 4
+Isolates tool execution: 5
+Counts the budget server-side: 1
+Serves team standards: 2
+Rules ship with tests: 2
+Any OpenAI client: 1
+Provider breadth: 1</title></g><text x="924.5" y="664.6" font-size="16" fill="#1C1C1E" text-anchor="start">ToolHive</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Docker MCP Gateway
+Nothing leaves the network: 5
+Screens what the agent reads: 2
+Screens the tool declarations: 2
+Refuses what the agent runs: 4
+Isolates tool execution: 5
+Counts the budget server-side: 1
+Serves team standards: 1
+Rules ship with tests: 1
+Any OpenAI client: 1
+Provider breadth: 1"><circle cx="816.7" cy="709.0" r="8.12" fill="#F894B4" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Docker MCP Gateway
+Nothing leaves the network: 5
+Screens what the agent reads: 2
+Screens the tool declarations: 2
+Refuses what the agent runs: 4
+Isolates tool execution: 5
+Counts the budget server-side: 1
+Serves team standards: 1
+Rules ship with tests: 1
+Any OpenAI client: 1
+Provider breadth: 1</title></g><text x="829.2" y="714.6" font-size="16" fill="#1C1C1E" text-anchor="start">Docker MCP Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Open Policy Agent
+Nothing leaves the network: 5
+Screens what the agent reads: 2
+Screens the tool declarations: 2
+Refuses what the agent runs: 3
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 2
+Rules ship with tests: 5
+Any OpenAI client: 1
+Provider breadth: 1"><circle cx="802.1" cy="513.5" r="8.12" fill="#E7A054" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Open Policy Agent
+Nothing leaves the network: 5
+Screens what the agent reads: 2
+Screens the tool declarations: 2
+Refuses what the agent runs: 3
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 2
+Rules ship with tests: 5
+Any OpenAI client: 1
+Provider breadth: 1</title></g><text x="814.6" y="519.1" font-size="16" fill="#1C1C1E" text-anchor="start">Open Policy Agent</text><g class="sp-dot" tabindex="0" role="img" aria-label="Serving layers: Client-side harness config
+Nothing leaves the network: 5
+Screens what the agent reads: 2
+Screens the tool declarations: 1
+Refuses what the agent runs: 3
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 3
+Rules ship with tests: 1
+Any OpenAI client: 1
+Provider breadth: 2"><circle cx="676.1" cy="549.3" r="8.12" fill="#FFA590" stroke="white" stroke-width="1" opacity="0.95"/><title>Serving layers: Client-side harness config
+Nothing leaves the network: 5
+Screens what the agent reads: 2
+Screens the tool declarations: 1
+Refuses what the agent runs: 3
+Isolates tool execution: 1
+Counts the budget server-side: 1
+Serves team standards: 3
+Rules ship with tests: 1
+Any OpenAI client: 1
+Provider breadth: 2</title></g><text x="688.6" y="554.9" font-size="16" fill="#1C1C1E" text-anchor="start">Client-side harness config</text><text x="612.0" y="26" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">Serving layers in the Quadrant</text></svg>

@@ -111,6 +111,10 @@ TERMS: dict[str, dict[str, list[str]]] = {
         "en": ["content delivery network"],
         "fr": ["réseau de diffusion de contenu"],
     },
+    "CEL": {
+        "en": ["Common Expression Language"],
+        "fr": ["Common Expression Language"],
+    },
     "CI": {"en": ["continuous integration"], "fr": ["intégration continue"]},
     "CLI": {
         "en": ["command-line interface"],
@@ -224,7 +228,10 @@ NAMES = {
     "DGX",
     "EXAMPLES",
     "EXEMPLES",
+    "FLUX",  # a model's name, from the provider's catalogue; not an abbreviation
     "HyperText",
+    "YARA",  # a rule-format name, recursive and never expanded by its own project
+    "gRPC",  # Google's remote procedure call framework; the g is not an initial
     "GB10",
     "GitHub",
     "Grace",

@@ -17,7 +17,7 @@ pour intelligence artificielle, un **LLM** est un grand modèle de langue — le
 modèle devant lequel se tiennent tous les outils cités ici — et **MCP** est le Model
 Context Protocol, la norme par laquelle un agent découvre et appelle des outils.
 
-Relevé le 19/10/2026, re-relevé le 20/10/2026.
+Relevé le 19/10/2026, re-relevé les 20/10/2026 et 29/10/2026.
 
 ## En un coup d'œil
 
@@ -29,6 +29,8 @@ Relevé le 19/10/2026, re-relevé le 20/10/2026.
 | Bifrost | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | Portkey | ⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | Kong AI Gateway | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| agentgateway | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| Envoy AI Gateway | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | NeMo Guardrails | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
 | Guardrails AI | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
 | LLM Guard | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
@@ -44,16 +46,27 @@ Relevé le 19/10/2026, re-relevé le 20/10/2026.
 <!-- FIGURE:START -->
 Représentation en deux dimensions du tableau ci-dessus, par analyse en composantes
 principales (ACP) (voir [`standpoint`](https://github.com/warith-harchaoui/standpoint)).
+La carte est tracée depuis `assets/paysage.csv`, qui est ce même tableau en chiffres —
+et en français : jusqu'ici cette page montrait la carte anglaise, avec des axes et des
+critères qu'aucun lecteur francophone n'avait demandés. `tests/test_landscape.py`
+échoue si le tableau et le fichier de chiffres cessent de s'accorder.
 
-![Carte de positionnement](https://raw.githubusercontent.com/warith-harchaoui/ai-bunker/main/assets/landscape.png)
+![Carte de positionnement](https://raw.githubusercontent.com/warith-harchaoui/ai-bunker/main/assets/paysage.png)
 
 À lire comme une forme, pas comme un classement. Les axes se lisent **Horizontal —
-Ressource ↔ Vigilance** et **Vertical — Sécurité ↔ Discipline**, et ce ne sont pas des
-étiquettes fixes : ce sont ce en quoi les critères se décomposent, donc ajouter les deux
-colonnes ci-dessus les a fait tourner. Ensemble ils portent environ 60 % du tableau.
+Ouverture ↔ Rigueur** et **Vertical — Sécurité ↔ Adaptabilité**, et ce ne sont pas des
+étiquettes fixes : ce sont ce en quoi les critères se décomposent, donc chaque ligne
+ajoutée les fait tourner. Ensemble ils portent 58 % du tableau — 29,5 % et 28,2 %, ce
+qu'il vaut mieux dire franchement : deux axes qui expliquent un peu plus de la moitié
+de dix colonnes sont une esquisse du terrain, pas une mesure. Les 42 % qu'ils laissent
+tomber sont la raison d'être de la prose ci-dessous.
 <!-- FIGURE:END -->
 
 ## Ce que la carte montre vraiment
+
+![Un tour qui traverse de gauche à droite quatre boîtes — un agent de code, la position de passerelle, un moteur d'inférence et les serveurs d'outils — avec sous chacune les outils qui s'y tiennent : configuration côté client et bibliothèques de garde-fous chez l'agent ; LiteLLM, Kong, Portkey, Bifrost, agentgateway, l'Envoy AI Gateway et ai-bunker à la passerelle ; ToolHive, la Docker MCP Gateway et agent-scan autour des serveurs d'outils. Rien ne se tient au moteur d'inférence.](assets/figure-path.fr.svg)
+
+La carte ci-dessus place un outil selon ses notes ; celle-ci le place selon l'endroit où il se tient, que les notes ne peuvent pas montrer. Deux outils séparés d'un centimètre dans le nuage peuvent se trouver de part et d'autre du moteur d'inférence.
 
 Trois grappes, et un coin vide.
 
@@ -86,17 +99,37 @@ teste des politiques mieux que tout le reste ici, et n'est pas sur le trajet de 
 requête. Une configuration de harnais client est sur le trajet, et c'est un fichier sur
 un portable.
 
-**Le haut à droite est peu peuplé, et moins vide qu'avant.** La combinaison sur laquelle
-ce projet se tient — la position de la passerelle (chaque requête, chaque client, sans
-échappatoire), plus l'inspection du moteur de règles, plus un budget que le serveur
-compte — n'est toujours assemblée nulle part ailleurs dans un seul processus. Mais le
-domaine a bougé pendant qu'on écrivait, et la version honnête de l'affirmation est plus
-étroite qu'en 2025 : les budgets de jetons à la passerelle sont désormais un motif
-décrit, avec des limites de contexte par route et de la limitation de débit par budget
-dans plusieurs produits. Ce qui reste distinctif, c'est *quel* comptage est utilisé et
-*à quoi* il sert — le tokeniseur du moteur de service lui-même plutôt qu'une estimation,
-le plancher détaillé **par propriétaire**, et un refus qui nomme le composant
-responsable. C'est une affirmation sur la couverture, pas sur la qualité.
+**Au milieu en haut — les passerelles natives pour agents, et elles sont neuves.**
+`agentgateway` et l'Envoy AI Gateway n'étaient pas dans ce tableau il y a dix jours et
+c'est le changement le plus important qu'il ait connu. Ce sont deux proxys sur le
+trajet de la requête, tous deux auto-hébergeables devant un moteur local, tous deux
+porteurs d'une politique d'outils MCP, et tous deux comptent des jetons. Ils se placent
+entre la grappe du routage et le coin de ce projet — exactement là où le terrain se
+déplace.
+
+**Le haut à droite est peu peuplé, et plus vide qu'il n'y paraît.** La combinaison sur
+laquelle ce projet se tient — la position de la passerelle (chaque requête, chaque
+client, sans échappatoire), plus l'inspection du moteur de règles, plus un budget que
+le serveur compte — n'est toujours assemblée nulle part ailleurs dans un seul
+processus. Mais l'écart s'est resserré deux fois ce mois-ci, et la version honnête de
+l'affirmation se resserre avec lui.
+
+Deux distinctions survivent, et deux seulement. La première est **quel comptage, et
+pour quoi**. Les budgets de jetons à la passerelle sont désormais une fonctionnalité
+ordinaire : `agentgateway` fait du jeton-par-minute, l'Envoy AI Gateway de la
+limitation de débit sensible aux jetons avec attribution des coûts par équipe. Ceux-là
+comptent une **dépense**, contre un quota, pour maîtriser une facture. Celui-ci compte
+la **fenêtre de contexte** — le plancher qu'une session paie avant que quiconque parle,
+mesuré par le tokeniseur du moteur de service lui-même, détaillé **par propriétaire**,
+et refusé quand ce qui reste ne peut pas tenir une conversation. Une passerelle qui
+vous limite à 10 000 jetons par minute n'a rien dit sur la question de savoir si votre
+prochaine requête tient.
+
+La seconde est **la charte**. La documentation d'`agentgateway` dit explicitement qu'il
+ne modifie jamais une invite, et c'est une position raisonnable pour un proxy dont le
+métier est le transport. C'est l'inverse de celui-ci. Un standard qui n'arrive que
+lorsque le client pense à l'envoyer n'est pas un standard, et le seul endroit d'où il
+peut arriver sans la coopération du client, c'est derrière l'endpoint.
 
 ## Positionnement
 
@@ -151,6 +184,18 @@ et aucun moyen d'utiliser le modèle sans elle.
 - **Débit : Bifrost.** Écrit en Go précisément pour sortir de sous le verrou global de
   l'interpréteur Python, avec du cache sémantique. Ici c'est du Python sur le trajet de
   la requête, et c'est dit.
+- **Comptabilité à l'admission : `go-llmflow/gateway`, et là c'est un trou.** Son
+  travail sur les budgets réserve le coût **pire cas** d'une requête avant de
+  l'admettre, puis régularise après — parce que compter après la réponse laisse des
+  requêtes concurrentes se mesurer toutes au même chiffre et dépasser ensemble :
+  3,3× la limite sous concurrence là-bas, contre 0,03 % avec réservation. Ce projet
+  filtre et mesure une requête, puis l'admet ; `max_tokens` n'entre pas du tout dans
+  le plafond, donc une requête admise juste sous la ligne peut produire un tour
+  au-dessus. C'est la même arithmétique, et elle n'est pas encore écrite ici.
+- **Gouvernance : `agentgateway`.** C'est un projet de la Linux Foundation, avec un
+  foyer institutionnel pour la couche passerelle. Ceci est le dépôt d'un seul auteur.
+  Pour quiconque doit répondre à un achat qui demande à qui appartient la chose,
+  c'est la réponse, et ce n'est pas celle-ci.
 - **Maturité.** C'est un `0.2.0-alpha` à côté de projets qui ont des années de
   production.
 
@@ -179,6 +224,22 @@ Rien de tout cela n'a été inventé ici, et le dire ne coûte rien.
   projet n'avait pas prise ; elle l'est désormais : `tool.contract_changed`, en deux
   niveaux. Ce qui leur reste en propre, c'est de savoir de quel serveur vient un outil,
   ce qu'une requête au format OpenAI ne dit pas.
+- **`go-llmflow/gateway` : réserver, puis régulariser.** Le motif ci-dessus, nommé ici
+  parce que c'est la meilleure idée de ce relevé que ce projet **n'a pas** prise. Une
+  barrière qui vérifie puis admet est une barrière que deux requêtes concurrentes
+  franchissent ensemble. Consignée dans `.private/ASSESSMENTS.md` comme le travail du
+  tour suivant, plutôt que revendiquée ici comme une fonctionnalité.
+- **Envoy AI Gateway : l'attribution vaut aussi pour l'argent.** L'attribution des
+  coûts par équipe, c'est l'argument du plancher-par-propriétaire pointé vers la
+  facture au lieu de la fenêtre. Les deux sont la même phrase — un nombre que personne
+  ne peut décomposer est un nombre que personne ne peut réduire — et la voir arriver
+  indépendamment dans un second produit est la meilleure preuve qu'elle est juste.
+- **Le MCP Scanner de Cisco : des règles YARA pour les métadonnées d'outils.** Un
+  format de règles avec dix ans d'outillage derrière lui, pointé vers les descriptions
+  d'outils. Les règles de ce projet sont des expressions régulières versionnées avec
+  leurs propres `examples:` ; un format de règles partagé et portable vaut strictement
+  mieux qu'un format privé, et cela mérite d'être dit même si rien n'en a encore été
+  repris.
 - **Le cours 5-Day AI Agents de Google, Jour 4.** Il nomme deux techniques
   d'obscurcissement contre lesquelles ce projet ne s'était jamais testé. Trois sondes sur
   six passaient devant toutes les règles, et deux devant un `BLOCKER`. La valeur était la
@@ -266,6 +327,49 @@ MCP.
 La réserve pertinente ici, c'est l'étagement : les garde-fous de sûreté du contenu sont
 une fonction entreprise, là où Portkey livre les équivalents dans sa passerelle
 open-source. Sur le débit, elle est simplement devant tout ce qui est écrit en Python.
+
+### agentgateway
+
+Le proxy Rust de Solo.io, donné à la Linux Foundation et quatrième projet de l'Agentic
+AI Foundation depuis juin 2026 — la première fois que la couche passerelle elle-même
+reçoit une gouvernance institutionnelle, ce qui compte davantage que n'importe quelle
+fonctionnalité isolée. Un seul plan de données pour le trafic HyperText Transfer Protocol (HTTP), gRPC,
+MCP, Agent2Agent (A2A) et LLM, donc les moitiés « agent » et « non-agent » d'un réseau
+s'exploitent avec les mêmes motifs. Clés d'interface de programmation (API) virtuelles
+par consommateur, contrôle d'accès par rôle au
+niveau de l'outil, limites anti-*denial-of-wallet*, comptabilité en jetons par minute
+plutôt qu'en requêtes par minute, bascule sur état de santé, OpenTelemetry d'origine.
+
+C'est ce qui ressemble le plus, dans ce tableau, à la position de ce projet, et les
+deux diffèrent sur exactement deux points. Sa comptabilité de jetons **règle après la
+réponse**, en lisant l'usage renvoyé par le modèle — un quota de dépense, pas une
+vérification que la requête suivante tient. Et il ne touche pas aux invites, par choix
+et par documentation. C'est le bon arbitrage pour un proxy de transport, et c'est
+pourquoi une charte ne peut pas y vivre.
+
+Si la question est « une seule porte d'entrée gouvernée pour chaque protocole qu'un
+agent parle », c'est la réponse, et ce projet ne la concurrence pas. Mettez
+`ai-bunker` derrière.
+
+### Envoy AI Gateway
+
+Envoy et la Gateway API de Kubernetes, étendus par un routage conscient des LLM ;
+rebaptisé Agent Router. Version 1.0 en juin 2026 : seize fournisseurs derrière une
+surface compatible OpenAI, traduction entre fournisseurs, bascule de fournisseur,
+limitation de débit sensible aux jetons, et une passerelle MCP dont l'autorisation par
+outil s'écrit en Common Expression Language (CEL).
+
+Deux choses méritent d'être prises au sérieux. **L'attribution des coûts par équipe**
+est le même réflexe que le plancher-par-propriétaire de ce projet — un nombre que
+personne ne peut décomposer est un nombre que personne ne peut réduire — appliqué à la
+dépense plutôt qu'au contexte. Et **CEL pour l'autorisation par outil** est un vrai
+langage de politique sur le trajet de la requête : plus qu'une expression régulière ne
+sait exprimer, moins que Rego ; la comparaison qui compte est avec Open Policy Agent
+ci-dessus, pas avec ce projet.
+
+Le prix, c'est le modèle de configuration d'Envoy, long à apprendre quand on n'est pas
+déjà dans cet écosystème, et une pile qui suppose Kubernetes. Pour un poste de travail
+et une carte graphique, cela fait beaucoup de machinerie.
 
 ### agent-scan (anciennement mcp-scan)
 

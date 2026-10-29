@@ -16,7 +16,7 @@ is artificial intelligence, an **LLM** is a large language model — the kind of
 every tool here stands in front of — and **MCP** is the Model Context Protocol, the
 standard by which an agent discovers and calls tools.
 
-Surveyed 2026-10-19, re-surveyed 2026-10-20.
+Surveyed 2026-10-19, re-surveyed 2026-10-20 and 2026-10-29.
 
 ## At a glance
 
@@ -28,6 +28,8 @@ Surveyed 2026-10-19, re-surveyed 2026-10-20.
 | Bifrost | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | Portkey | ⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | Kong AI Gateway | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| agentgateway | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| Envoy AI Gateway | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | NeMo Guardrails | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
 | Guardrails AI | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
 | LLM Guard | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
@@ -43,16 +45,24 @@ Surveyed 2026-10-19, re-surveyed 2026-10-20.
 <!-- FIGURE:START -->
 A two-dimensional representation of the table above, by principal component
 analysis (PCA) (see [`standpoint`](https://github.com/warith-harchaoui/standpoint)).
+The map is drawn from `assets/landscape.csv`, which is the same table rendered as
+numbers; `tests/test_landscape.py` fails if the two stop agreeing.
 
 ![Positioning map](https://raw.githubusercontent.com/warith-harchaoui/ai-bunker/main/assets/landscape.png)
 
 Read it as a shape, not a scoreboard. The axes read **Horizontal — Resourceful ↔
-Vigilant** and **Vertical — Secure ↔ Disciplined**, and they are not fixed labels: they
-are what the criteria decompose into, so adding the two columns above rotated them.
-Together they carry about 60% of the table.
+Vigilant** and **Vertical — Protected ↔ Disciplined**, and they are not fixed labels:
+they are what the criteria decompose into, so every row added rotates them. Together
+they carry 58% of the table — 29.5% and 28.2%, which is worth saying plainly: two
+axes explaining a little over half of ten columns is a sketch of the field, not a
+measurement of it. The 42% they drop is why the prose below exists.
 <!-- FIGURE:END -->
 
 ## What the map actually shows
+
+![A turn travelling left to right through four boxes — a coding agent, the gateway position, a serving engine and the tool servers — with the tools that stand at each listed underneath: client-side configuration and guardrail libraries at the agent; LiteLLM, Kong, Portkey, Bifrost, agentgateway, the Envoy AI Gateway and ai-bunker at the gateway; ToolHive, the Docker MCP Gateway and agent-scan around the tool servers. Nothing stands at the serving engine.](assets/figure-path.svg)
+
+The map above places a tool by how it scores; this one places it by where it stands, which the scoring cannot show. Two tools a centimetre apart in the scatter can sit on opposite sides of the serving engine.
 
 Three clusters, and an empty corner.
 
@@ -84,16 +94,33 @@ the *conversation*.
 policy better than anything here, and is not in the request path at all. A client-side
 harness config is in the path and is a file on a laptop.
 
-**Top right is thinly populated, and less empty than it was.** The combination this
+**Upper middle — the agent-native gateways, and they are new.** `agentgateway` and
+the Envoy AI Gateway did not exist in this table ten days ago and they are the most
+important change in it. Both are proxies in the request path, both are self-hostable
+in front of a local engine, both carry MCP tool policy, and both count tokens. They
+sit between the routing cluster and this project's corner, which is exactly where the
+field is moving.
+
+**Top right is thinly populated, and emptier than it looks.** The combination this
 project stands on — the gateway's position (every request, every client, no opt-out)
 plus the rule engine's inspection plus a budget the server counts — is still not
-assembled anywhere else in one process. But the field moved while this was being
-written, and the honest version of the claim is narrower than it was in 2025: token
-budgets at the gateway are now a described pattern, with per-route context limits and
-token-budget rate limiting appearing in several products. What remains distinctive is
-*which* count is used and *what* it is for — the serving engine's own tokenizer rather
-than an estimate, the floor itemised **by owner**, and a refusal that names the
-component responsible. That is a claim about coverage, not about quality.
+assembled anywhere else in one process. But the gap narrowed twice this month, and
+the honest version of the claim is narrower with it.
+
+Two distinctions survive, and only two. The first is **which count, and what for**.
+Token budgets at the gateway are now an ordinary feature: `agentgateway` does
+tokens-per-minute, the Envoy AI Gateway does token-aware rate limiting with per-team
+cost attribution. Those count *spend*, against a quota, to control a bill. This
+counts the **context window** — the floor a session pays before anyone speaks,
+measured with the serving engine's own tokenizer, itemised **by owner**, and refused
+when what is left cannot hold a conversation. A gateway that rate-limits you at
+10,000 tokens a minute has said nothing about whether your next request fits.
+
+The second is **the charter**. `agentgateway`'s own documentation is explicit that it
+never modifies a prompt, and that is a reasonable position for a proxy whose job is
+transport. It is the opposite of this one. A standard that only arrives when the
+client remembers to send it is not a standard, and the only place it can arrive
+without the client's cooperation is behind the endpoint.
 
 ## Positioning
 
@@ -147,6 +174,18 @@ believes.
 - **Throughput: Bifrost.** Written in Go specifically to get out from under Python's
   global interpreter lock, with semantic caching. This is Python in the request path,
   and honest about it.
+- **Admission accounting: `go-llmflow/gateway`, and this one is a hole.** Its budget
+  work reserves a request's **worst-case** cost before admitting it and settles
+  afterwards, because counting after the response lets concurrent requests all check
+  against the same figure and overshoot together — measured there at 3.3× the limit
+  under concurrency against 0.03% with holds. This project screens and measures a
+  request, then admits it; `max_tokens` does not enter the ceiling check at all, so a
+  request admitted just under the line can produce a turn that is over it. The
+  arithmetic is the same arithmetic and it is not implemented here yet.
+- **Governance: `agentgateway`.** It is a Linux Foundation project with an
+  institutional home for the gateway layer. This is one author's repository. For
+  anyone whose procurement asks who owns the thing, that is the answer and it is not
+  this one.
 - **Maturity.** This is `0.2.0-alpha` next to projects with years of production use.
 
 ## Ideas taken from the field
@@ -172,6 +211,21 @@ None of this was invented here, and saying so costs nothing.
   named here as the best idea in this survey that this project had not taken, and it is
   taken now: `tool.contract_changed`, in two tiers. What is still theirs alone is
   knowing which server a tool came from, which an OpenAI-shaped request does not say.
+- **`go-llmflow/gateway`: reserve, then settle.** The pattern above, named here
+  because it is the best idea in this survey that this project has **not** taken. A
+  gate that checks and then admits is a gate that two concurrent requests walk
+  through together. Recorded in `.private/ASSESSMENTS.md` as the next round's work
+  rather than claimed here as a feature.
+- **Envoy AI Gateway: attribution applies to money too.** Per-team cost attribution
+  is the floor-by-owner argument pointed at the invoice instead of the window. The
+  two are the same sentence — a number nobody can decompose is a number nobody can
+  reduce — and seeing it arrive independently in a second product is the best
+  evidence the argument is right.
+- **Cisco's MCP Scanner: YARA rules for tool metadata.** A rule format with a decade
+  of tooling behind it, pointed at tool descriptions. This project's rules are
+  versioned regular expressions with their own `examples:`; a shared, portable rule
+  format is strictly better than a private one, and that is worth saying even though
+  nothing has been taken from it yet.
 - **Google's 5-Day AI Agents course, Day 4.** Named two obfuscation techniques this
   project had never tested itself against. Three of six probes walked past every rule,
   and two walked past a `BLOCKER`. The value was the checklist, not the knowledge: the
@@ -252,6 +306,45 @@ secret detection, model-as-judge and MCP guardrail rules.
 The relevant caveat for this comparison is tiering: the content-safety guardrails are an
 enterprise feature, where Portkey ships comparable ones in its open-source gateway. On
 throughput it is simply ahead of anything written in Python.
+
+### agentgateway
+
+Solo.io's Rust proxy, donated to the Linux Foundation and the fourth project under the
+Agentic AI Foundation as of June 2026 — the first time the gateway layer itself got an
+institutional governance home, which matters more than any single feature. One data
+plane for HyperText Transfer Protocol (HTTP), gRPC, MCP, Agent2Agent (A2A) and LLM
+traffic, so the agent and non-agent halves of a network are run with one set of
+patterns. Virtual application programming interface (API) keys per consumer, tool-level
+role-based access control, denial-of-wallet limits, tokens-per-minute accounting rather
+than request-rate limits, health-based failover, OpenTelemetry out of the box.
+
+It is the closest thing in this table to this project's position, and the two differ on
+exactly two things. Its token accounting **settles after the response**, by reading
+usage off the model's reply — a quota for spend, not a check that the next request
+fits. And it does not touch prompts, by design and by documentation. That is the right
+call for a transport-layer proxy and it is why a charter cannot live there.
+
+If the job is "one governed front door for every protocol an agent speaks", this is the
+answer and this project is not competing with it. Put `ai-bunker` behind it.
+
+### Envoy AI Gateway
+
+Envoy and the Kubernetes Gateway API, extended with LLM-aware routing; renamed Agent
+Router. Version 1.0 in June 2026: sixteen providers behind one OpenAI-compatible
+surface, cross-provider translation, provider fallback, token-aware rate limiting, and
+an MCP gateway with per-tool authorization expressed in the Common Expression Language
+(CEL).
+
+Two things here are worth taking seriously. **Per-team cost attribution** is the same
+instinct as this project's floor-by-owner — a number nobody can decompose is a number
+nobody can reduce — applied to spend rather than to context. And **CEL for per-tool
+authorization** is a real policy language in the request path, which is more than a
+regular expression can express and less than Rego; the comparison that matters is with
+Open Policy Agent below, not with this project.
+
+The cost is the Envoy configuration model, which is a large thing to learn if you are
+not already in that ecosystem, and the whole stack assumes Kubernetes. For one
+workstation with one graphics card, that is a great deal of machinery.
 
 ### agent-scan (formerly mcp-scan)
 

@@ -1,0 +1,301 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1224" height="946" viewBox="0 0 1224 946" role="img" aria-labelledby="sp-title sp-desc" font-family="Roboto, -apple-system, Helvetica, Arial, sans-serif"><title id="sp-title">Couche de services dans le quadrant</title><desc id="sp-desc">A 2D positioning map of 15 couche de services, Ouverture to Rigueur on the horizontal axis, Sécurité to Adaptabilité on the vertical axis.</desc><style>.sp-dot{cursor:pointer}.sp-dot:hover circle,.sp-dot:focus circle{stroke-width:2.4}.sp-dot:hover,.sp-dot:focus{filter:brightness(1.08);outline:none}</style><line x1="195.3" y1="484.0" x2="1056.6" y2="484.0" stroke="#C7C7CC" stroke-width="1.2" stroke-dasharray="2,4"/><line x1="612.0" y1="864.0" x2="612.0" y2="104.0" stroke="#C7C7CC" stroke-width="1.2" stroke-dasharray="2,4"/><text data-pole="right" x="1164.0" y="492.4" font-size="24" font-style="italic" fill="#6E6E73" text-anchor="end">Rigueur</text><text data-pole="left" x="60.0" y="492.4" font-size="24" font-style="italic" fill="#6E6E73" text-anchor="start">Ouverture</text><text data-pole="top" x="612.0" y="65.0" font-size="24" font-style="italic" fill="#6E6E73" text-anchor="middle">Adaptabilité</text><text data-pole="bottom" x="612.0" y="917.2" font-size="24" font-style="italic" fill="#6E6E73" text-anchor="middle">Sécurité</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: ai-bunker
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 5
+Filtre les déclarations d'outils: 5
+Refuse ce que l'agent exécute: 5
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 5
+Sert les standards d'équipe: 5
+Règles livrées avec tests: 5
+Tout client OpenAI: 5
+Largeur de fournisseurs: 2"><circle cx="912.0" cy="259.0" r="8.12" fill="#FF3B30" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: ai-bunker
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 5
+Filtre les déclarations d'outils: 5
+Refuse ce que l'agent exécute: 5
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 5
+Sert les standards d'équipe: 5
+Règles livrées avec tests: 5
+Tout client OpenAI: 5
+Largeur de fournisseurs: 2</title></g><text x="924.5" y="264.6" font-size="16" fill="#1C1C1E" text-anchor="start">ai-bunker</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: LiteLLM
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 1
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 2
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 1
+Tout client OpenAI: 5
+Largeur de fournisseurs: 5"><circle cx="383.3" cy="434.1" r="8.12" fill="#A52A2A" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: LiteLLM
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 1
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 2
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 1
+Tout client OpenAI: 5
+Largeur de fournisseurs: 5</title></g><text x="395.8" y="439.7" font-size="16" fill="#1C1C1E" text-anchor="start">LiteLLM</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: Bifrost
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 4
+Filtre les déclarations d'outils: 3
+Refuse ce que l'agent exécute: 3
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 2
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 1
+Tout client OpenAI: 5
+Largeur de fournisseurs: 4"><circle cx="594.0" cy="333.7" r="8.12" fill="#009C9F" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: Bifrost
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 4
+Filtre les déclarations d'outils: 3
+Refuse ce que l'agent exécute: 3
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 2
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 1
+Tout client OpenAI: 5
+Largeur de fournisseurs: 4</title></g><text x="606.5" y="339.3" font-size="16" fill="#1C1C1E" text-anchor="start">Bifrost</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: Portkey
+Rien ne quitte le réseau: 2
+Filtre ce que l'agent lit: 4
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 2
+Sert les standards d'équipe: 2
+Règles livrées avec tests: 2
+Tout client OpenAI: 5
+Largeur de fournisseurs: 5"><circle cx="312.0" cy="259.0" r="8.12" fill="#AF52DE" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: Portkey
+Rien ne quitte le réseau: 2
+Filtre ce que l'agent lit: 4
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 2
+Sert les standards d'équipe: 2
+Règles livrées avec tests: 2
+Tout client OpenAI: 5
+Largeur de fournisseurs: 5</title></g><text x="324.5" y="264.6" font-size="16" fill="#1C1C1E" text-anchor="start">Portkey</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: Kong AI Gateway
+Rien ne quitte le réseau: 4
+Filtre ce que l'agent lit: 3
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 2
+Tout client OpenAI: 4
+Largeur de fournisseurs: 4"><circle cx="381.2" cy="423.0" r="8.12" fill="#C781C6" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: Kong AI Gateway
+Rien ne quitte le réseau: 4
+Filtre ce que l'agent lit: 3
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 2
+Tout client OpenAI: 4
+Largeur de fournisseurs: 4</title></g><text x="368.7" y="428.6" font-size="16" fill="#1C1C1E" text-anchor="end">Kong AI Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: agentgateway
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 3
+Filtre les déclarations d'outils: 3
+Refuse ce que l'agent exécute: 4
+Isole l'exécution des outils: 2
+Compte le budget côté serveur: 2
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 2
+Tout client OpenAI: 5
+Largeur de fournisseurs: 4"><circle cx="688.1" cy="377.1" r="8.12" fill="#7DA852" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: agentgateway
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 3
+Filtre les déclarations d'outils: 3
+Refuse ce que l'agent exécute: 4
+Isole l'exécution des outils: 2
+Compte le budget côté serveur: 2
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 2
+Tout client OpenAI: 5
+Largeur de fournisseurs: 4</title></g><text x="700.6" y="382.7" font-size="16" fill="#1C1C1E" text-anchor="start">agentgateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: Envoy AI Gateway
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 3
+Filtre les déclarations d'outils: 3
+Refuse ce que l'agent exécute: 3
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 3
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 2
+Tout client OpenAI: 5
+Largeur de fournisseurs: 4"><circle cx="643.7" cy="308.7" r="8.12" fill="#51C395" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: Envoy AI Gateway
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 3
+Filtre les déclarations d'outils: 3
+Refuse ce que l'agent exécute: 3
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 3
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 2
+Tout client OpenAI: 5
+Largeur de fournisseurs: 4</title></g><text x="656.2" y="314.3" font-size="16" fill="#1C1C1E" text-anchor="start">Envoy AI Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: NeMo Guardrails
+Rien ne quitte le réseau: 4
+Filtre ce que l'agent lit: 4
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 2
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 3
+Règles livrées avec tests: 3
+Tout client OpenAI: 2
+Largeur de fournisseurs: 3"><circle cx="582.3" cy="395.2" r="8.12" fill="#39B3E3" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: NeMo Guardrails
+Rien ne quitte le réseau: 4
+Filtre ce que l'agent lit: 4
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 2
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 3
+Règles livrées avec tests: 3
+Tout client OpenAI: 2
+Largeur de fournisseurs: 3</title></g><text x="560.2" y="378.7" font-size="16" fill="#1C1C1E" text-anchor="end">NeMo Guardrails</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: Guardrails AI
+Rien ne quitte le réseau: 4
+Filtre ce que l'agent lit: 4
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 2
+Règles livrées avec tests: 4
+Tout client OpenAI: 2
+Largeur de fournisseurs: 3"><circle cx="519.0" cy="400.4" r="8.12" fill="#6791DE" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: Guardrails AI
+Rien ne quitte le réseau: 4
+Filtre ce que l'agent lit: 4
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 2
+Règles livrées avec tests: 4
+Tout client OpenAI: 2
+Largeur de fournisseurs: 3</title></g><text x="506.5" y="406.0" font-size="16" fill="#1C1C1E" text-anchor="end">Guardrails AI</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: LLM Guard
+Rien ne quitte le réseau: 4
+Filtre ce que l'agent lit: 5
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 3
+Tout client OpenAI: 2
+Largeur de fournisseurs: 2"><circle cx="496.7" cy="425.8" r="8.12" fill="#917CD0" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: LLM Guard
+Rien ne quitte le réseau: 4
+Filtre ce que l'agent lit: 5
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 1
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 3
+Tout client OpenAI: 2
+Largeur de fournisseurs: 2</title></g><text x="509.2" y="431.4" font-size="16" fill="#1C1C1E" text-anchor="start">LLM Guard</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: agent-scan (ex mcp-scan)
+Rien ne quitte le réseau: 3
+Filtre ce que l'agent lit: 3
+Filtre les déclarations d'outils: 5
+Refuse ce que l'agent exécute: 2
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 3
+Tout client OpenAI: 1
+Largeur de fournisseurs: 1"><circle cx="696.1" cy="476.2" r="8.12" fill="#D3BE58" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: agent-scan (ex mcp-scan)
+Rien ne quitte le réseau: 3
+Filtre ce que l'agent lit: 3
+Filtre les déclarations d'outils: 5
+Refuse ce que l'agent exécute: 2
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 3
+Tout client OpenAI: 1
+Largeur de fournisseurs: 1</title></g><text x="708.6" y="469.3" font-size="16" fill="#1C1C1E" text-anchor="start">agent-scan (ex mcp-scan)</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: ToolHive
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 2
+Filtre les déclarations d'outils: 3
+Refuse ce que l'agent exécute: 4
+Isole l'exécution des outils: 5
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 2
+Règles livrées avec tests: 2
+Tout client OpenAI: 1
+Largeur de fournisseurs: 1"><circle cx="912.0" cy="659.0" r="8.12" fill="#007AFF" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: ToolHive
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 2
+Filtre les déclarations d'outils: 3
+Refuse ce que l'agent exécute: 4
+Isole l'exécution des outils: 5
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 2
+Règles livrées avec tests: 2
+Tout client OpenAI: 1
+Largeur de fournisseurs: 1</title></g><text x="924.5" y="664.6" font-size="16" fill="#1C1C1E" text-anchor="start">ToolHive</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: Docker MCP Gateway
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 2
+Filtre les déclarations d'outils: 2
+Refuse ce que l'agent exécute: 4
+Isole l'exécution des outils: 5
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 1
+Tout client OpenAI: 1
+Largeur de fournisseurs: 1"><circle cx="816.7" cy="709.0" r="8.12" fill="#F894B4" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: Docker MCP Gateway
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 2
+Filtre les déclarations d'outils: 2
+Refuse ce que l'agent exécute: 4
+Isole l'exécution des outils: 5
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 1
+Règles livrées avec tests: 1
+Tout client OpenAI: 1
+Largeur de fournisseurs: 1</title></g><text x="829.2" y="714.6" font-size="16" fill="#1C1C1E" text-anchor="start">Docker MCP Gateway</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: Open Policy Agent
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 2
+Filtre les déclarations d'outils: 2
+Refuse ce que l'agent exécute: 3
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 2
+Règles livrées avec tests: 5
+Tout client OpenAI: 1
+Largeur de fournisseurs: 1"><circle cx="802.1" cy="513.5" r="8.12" fill="#E7A054" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: Open Policy Agent
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 2
+Filtre les déclarations d'outils: 2
+Refuse ce que l'agent exécute: 3
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 2
+Règles livrées avec tests: 5
+Tout client OpenAI: 1
+Largeur de fournisseurs: 1</title></g><text x="814.6" y="519.1" font-size="16" fill="#1C1C1E" text-anchor="start">Open Policy Agent</text><g class="sp-dot" tabindex="0" role="img" aria-label="Couche de services: Configuration côté client
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 2
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 3
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 3
+Règles livrées avec tests: 1
+Tout client OpenAI: 1
+Largeur de fournisseurs: 2"><circle cx="676.1" cy="549.3" r="8.12" fill="#FFA590" stroke="white" stroke-width="1" opacity="0.95"/><title>Couche de services: Configuration côté client
+Rien ne quitte le réseau: 5
+Filtre ce que l'agent lit: 2
+Filtre les déclarations d'outils: 1
+Refuse ce que l'agent exécute: 3
+Isole l'exécution des outils: 1
+Compte le budget côté serveur: 1
+Sert les standards d'équipe: 3
+Règles livrées avec tests: 1
+Tout client OpenAI: 1
+Largeur de fournisseurs: 2</title></g><text x="688.6" y="554.9" font-size="16" fill="#1C1C1E" text-anchor="start">Configuration côté client</text><text x="612.0" y="26" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">Couche de services dans le quadrant</text></svg>
