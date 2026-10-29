@@ -394,8 +394,8 @@ def _pins_from_json(text: str) -> dict[str, str]:
         for path, body in packages.items():
             if not path.startswith("node_modules/") or not isinstance(body, dict):
                 continue
-            version = body.get("version")
-            if isinstance(version, str) and (pinned := _pinned(version)):
+            declared = body.get("version")
+            if isinstance(declared, str) and (pinned := _pinned(declared)):
                 out[_normalise(path.split("node_modules/")[-1])] = pinned
     return out
 

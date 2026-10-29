@@ -82,6 +82,26 @@ ignore = ["E501"]
 "ai_bunker/tools.py" = ["RUF001", "RUF002", "RUF003"]
 "tests/test_tools.py" = ["RUF001", "RUF002", "RUF003"]
 
+[tool.mypy]
+# `py.typed` ships in `package-data`, which is a promise to every downstream
+# project that runs a type checker that the annotations here are meant to be
+# believed. A promise with no gate behind it is the thing this repository
+# refuses everywhere else, so `mypy` runs in CI beside `ruff`, and
+# `tests/test_site.py` fails if the marker ever ships without the step.
+python_version = "3.10"
+files = ["ai_bunker"]
+
+# Three upstreams ship no stubs and no `py.typed`. Silenced by name rather
+# than with `ignore_missing_imports = true`, so a fourth untyped dependency
+# arriving is a failure to look at rather than a silence to inherit:
+#
+#   os-helper, best-engine-ai-helper  -- the suite's own packages, typed
+#                                        in source but not yet marked
+#   fastapi-mcp                       -- third party, installed, unmarked
+[[tool.mypy.overrides]]
+module = ["os_helper.*", "best_engine_ai_helper.*", "fastapi_mcp.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Third-party pytest plugins installed in the ambient environment are loaded

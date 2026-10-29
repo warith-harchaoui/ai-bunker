@@ -169,11 +169,11 @@ def _public_key(jwk: dict[str, Any]):
         )
         return numbers.public_key()
     if kty == "RSA":
-        numbers = rsa.RSAPublicNumbers(
+        rsa_numbers = rsa.RSAPublicNumbers(
             int.from_bytes(_b64(jwk["e"]), "big"),
             int.from_bytes(_b64(jwk["n"]), "big"),
         )
-        return numbers.public_key()
+        return rsa_numbers.public_key()
     if kty == "OKP" and jwk.get("crv") == "Ed25519":
         return ed25519.Ed25519PublicKey.from_public_bytes(_b64(jwk["x"]))
     raise ValueError(f"unsupported key type {kty!r}")

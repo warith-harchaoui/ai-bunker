@@ -332,7 +332,12 @@ def declared_tools(request: dict[str, Any]) -> list[Tool]:
     for position, entry in enumerate(entries):
         if not isinstance(entry, dict):
             continue
-        body = entry.get("function") if isinstance(entry.get("function"), dict) else entry
+        # Bound once rather than looked up twice. Two `.get("function")` calls
+        # are one guard and one unguarded read as far as a type checker is
+        # concerned, and it was right to say so: the narrowing has to happen
+        # on the value, not on a second call that happens to return it.
+        function = entry.get("function")
+        body = function if isinstance(function, dict) else entry
         name = body.get("name")
         if not isinstance(name, str) or not name:
             continue
@@ -544,9 +549,9 @@ def screen(
             # A tool another rule already withheld must not be named twice:
             # the agent is told which capabilities it lost, and a list that
             # repeats one reads as though two different tools went missing.
-            already = {t.index for t in withheld}
+            seen = {t.index for t in withheld}
             deviating = {c.name for c in changes if c.approved}
-            withheld += [t for t in tools if t.name in deviating and t.index not in already]
+            withheld += [t for t in tools if t.name in deviating and t.index not in seen]
 
     if not withheld and not rewritten:
         return request, list(violations.values()), []
