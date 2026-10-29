@@ -183,7 +183,13 @@ et aucun moyen d'utiliser le modèle sans elle.
   signaler une paire en collision et ne peut pas dire laquelle est l'imposteur.
 - **Débit : Bifrost.** Écrit en Go précisément pour sortir de sous le verrou global de
   l'interpréteur Python, avec du cache sémantique. Ici c'est du Python sur le trajet de
-  la requête, et c'est dit.
+  la requête — et cela se disait sans chiffre, ce qui n'est pas de la franchise mais du
+  silence. `scripts/measure_overhead.py` le mesure : sur un Apple M2 Max, le pipeline
+  entrant coûte **0,3 ms** pour un tour nu, **1,7 ms** pour un tour déclarant douze
+  outils, et **56 ms (95ᵉ centile 95 ms)** pour un tour portant un résultat d'outil de
+  40 kilooctets. Le filtrage croît avec ce qui arrive, et c'est la raison d'être du
+  plafond de requête. Face à un modèle qui met des secondes à répondre, les deux
+  premiers disparaissent ; le troisième non, et un proxy en Go ne le paierait pas.
 - **Comptabilité à l'admission : `go-llmflow/gateway`, et là c'est un trou.** Son
   travail sur les budgets réserve le coût **pire cas** d'une requête avant de
   l'admettre, puis régularise après — parce que compter après la réponse laisse des

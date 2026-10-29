@@ -488,6 +488,20 @@ def apply_inbound(
     }
     if min_working is not None:
         budget_kwargs["min_working"] = min_working
+
+    # What this client actually asked to generate, rather than the 4,096 that
+    # was `measure_request`'s default and that nothing here ever overrode. A
+    # request declaring `max_tokens` is a request declaring its own worst
+    # case, and it is the only part of a turn's cost that is knowable before
+    # the turn runs -- so it is the one part worth reserving against.
+    #
+    # Absent or unreadable leaves the default standing: a client that declares
+    # nothing has told us nothing, and inventing a bound for it would be the
+    # estimate this project refuses.
+    declared_output = request.get("max_tokens") or request.get("max_completion_tokens")
+    if isinstance(declared_output, int) and declared_output > 0:
+        budget_kwargs["max_output"] = declared_output
+
     budget = measure_request(prepared, **budget_kwargs)
 
     fingerprint = charter.fingerprint[:16] if charter.pages or charter.operating_rules else ""

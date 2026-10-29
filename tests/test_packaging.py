@@ -77,6 +77,64 @@ def test_mypy_is_configured_to_check_this_package_and_name_what_it_skips(manifes
     assert silenced == {"os_helper.*", "best_engine_ai_helper.*", "fastapi_mcp.*"}
 
 
+#: Every `[dev]` tool, and the command in `ci.yml` that runs it. A tool with
+#: no entry here is a failure, not an omission: twice now this repository has
+#: declared a quality tool, never run it, and found out rounds later --
+#: `mypy` against twenty-five errors and a `py.typed` marker, then
+#: `pytest-cov` against a figure nobody had measured.
+#:
+#: A value of `None` is the honest escape for a tool that is a library rather
+#: than a gate, and it has to be argued for in the comment beside it.
+DEV_TOOLS = {
+    "pytest": "pytest",
+    "pytest-cov": "--cov",
+    "ruff": "ruff check",
+    "mypy": "mypy",
+    # Not a gate: `httpx` is what `starlette`'s TestClient drives the gateway
+    # with, so it is a test dependency rather than a tool with a verdict.
+    "httpx": None,
+}
+
+
+def test_every_declared_quality_tool_is_actually_run_in_the_lane(manifest):
+    """The class, not the instance.
+
+    `mypy` was declared and never run. So was `pytest-cov`. Both were found by
+    reading `pyproject.toml` and noticing a name the workflow never mentions,
+    which is a thing a test can do every time instead of a person doing it
+    twice a year.
+
+    Matched on the command rather than on a step name: a `name:` is prose and
+    can be reworded, while the string on a `run:` line is what fails a build.
+    """
+    declared = {
+        re.split(r"[><=\[]", spec)[0].strip()
+        for spec in manifest["project"]["optional-dependencies"]["dev"]
+    }
+    assert declared == set(DEV_TOOLS), (
+        f"a [dev] entry changed; decide whether it is a gate: {declared ^ set(DEV_TOOLS)}"
+    )
+
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    runs = "\n".join(re.findall(r"^\s+run:.*(?:\n\s{8,}.*)*", workflow, re.M))
+    for tool, command in DEV_TOOLS.items():
+        if command is None:
+            continue
+        assert command in runs, f"{tool} is declared in [dev] and nothing in ci.yml runs it"
+
+
+def test_the_coverage_floor_is_declared_and_defended(manifest):
+    """A floor that lives in a workflow argument is a floor one `-p` removes.
+
+    It is in `pyproject.toml`, where `coverage` reads it whoever invokes it --
+    the lane, a pre-commit hook, or somebody typing `pytest --cov` on a
+    laptop. Asserted to exist and to be a real bar rather than a zero that
+    makes the step green.
+    """
+    floor = manifest["tool"]["coverage"]["report"]["fail_under"]
+    assert floor >= 85, f"a {floor}% floor does not defend anything"
+
+
 def test_mypy_is_clean_on_this_tree():
     """The gate, run here as well as in the lane.
 

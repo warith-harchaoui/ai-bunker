@@ -102,6 +102,34 @@ files = ["ai_bunker"]
 module = ["os_helper.*", "best_engine_ai_helper.*", "fastapi_mcp.*"]
 ignore_missing_imports = true
 
+[tool.coverage.run]
+# The shipped package, and only it. `scripts/` was in this list for one
+# commit and the reasoning was better than the result: six of those files are
+# gates, and a gate whose own code is untested can pass by being broken. But
+# the directory also holds developer tools that cannot run in a suite --
+# `bench_context.py` needs a live engine, `verify_deployment.py` needs a
+# deployment -- and counting them at 0% dropped the total four points and
+# would have had the floor defending a number that says nothing about
+# `ai_bunker`. The gates are covered through their own tests
+# (`test_figures.py`, `test_claims.py`, `test_acronyms.py`); the floor below
+# is about the wheel, which is what `py.typed` makes a promise about.
+source = ["ai_bunker"]
+
+[tool.coverage.report]
+# Measured at 92.09% when the gate was added, over 5,523 statements -- which
+# is `ai_bunker` plus the handful of `scripts/` modules the suite imports by
+# path to test them. `source` above drops the scripts nothing imports; it
+# cannot drop the ones that are imported, and it should not: those are the
+# gates, and they are being exercised.
+#
+# The floor is set a little under that rather than at it: a floor equal to the
+# measurement turns every honest refactor into a red build, and a floor that
+# cannot be cleared without gaming it is a floor people delete. Raise it when
+# the number rises; never lower it to make a branch pass.
+fail_under = 90
+show_missing = true
+skip_covered = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Third-party pytest plugins installed in the ambient environment are loaded

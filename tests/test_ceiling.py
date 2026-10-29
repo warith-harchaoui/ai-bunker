@@ -350,3 +350,66 @@ def test_the_ceiling_reaches_embeddings(gateway):
     error = response.json()["error"]
     assert error["code"] == "request_too_large"
     assert error["ceiling"] == CEILING
+
+
+# ---------------------------------------------------------------------------
+# The other half of the ceiling: what the model is about to write.
+# ---------------------------------------------------------------------------
+
+
+def test_the_budget_is_measured_against_the_output_this_client_asked_for():
+    """A request declaring `max_tokens` declares its own worst case.
+
+    The ceiling above bounds what *arrives*. It says nothing about what the
+    engine is about to append, and that half was measured against
+    `measure_request`'s 4,096 default because nothing on the request path ever
+    overrode it: a client asking for 32,000 tokens back and a client asking
+    for 256 were judged identically.
+
+    They are not identical. The output is the only part of a turn's cost that
+    is knowable before the turn runs, which makes it the one part worth
+    reserving against -- the reserve-before-admit shape that `LANDSCAPE.md`
+    records as taken from `go-llmflow/gateway`.
+    """
+    body = {
+        "model": "m",
+        "messages": [{"role": "user", "content": "hello"}],
+        "max_tokens": 64,
+    }
+    modest = apply_inbound(body, **_kwargs())
+    greedy = apply_inbound({**body, "max_tokens": SERVED * 2}, **_kwargs())
+
+    assert modest.budget is not None and greedy.budget is not None
+    assert modest.budget.max_output == 64, "the client's own figure, not a default"
+    assert greedy.budget.max_output == SERVED * 2
+
+    # And it reaches the verdict, which is what `--gate` and the gateway's 413
+    # are computed from. A number that is recorded and never acted on is the
+    # state this parameter was in before.
+    assert greedy.budget.verdict == "unusable"
+    assert any("cannot produce one turn" in w for w in greedy.budget.warnings)
+    assert modest.budget.verdict != "unusable"
+
+
+def test_a_client_that_declares_no_output_is_not_given_an_invented_one():
+    """Absent means absent.
+
+    `max_completion_tokens` is the newer spelling and is read as well, because
+    a client using the current field name should not be judged as though it
+    had asked for nothing. But a request carrying neither has told the gateway
+    nothing about its worst case, and inventing a bound for it would be the
+    estimate this project exists to refuse -- so the documented default stands
+    and is reported as the default it is.
+    """
+    body = {"model": "m", "messages": [{"role": "user", "content": "hello"}]}
+    silent = apply_inbound(body, **_kwargs())
+    newer = apply_inbound({**body, "max_completion_tokens": 128}, **_kwargs())
+
+    assert silent.budget is not None and newer.budget is not None
+    assert silent.budget.max_output == 4096, "the documented default, unchanged"
+    assert newer.budget.max_output == 128, "the current spelling is read too"
+
+    # Nonsense is not a declaration either.
+    for junk in (0, -1, "lots", None):
+        got = apply_inbound({**body, "max_tokens": junk}, **_kwargs())
+        assert got.budget is not None and got.budget.max_output == 4096, junk

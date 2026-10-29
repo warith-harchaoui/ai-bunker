@@ -652,6 +652,43 @@ def measure_request(
             "session that loops and never answers."
         )
 
+    # `max_output` was a parameter, a field, a docstring entry and a CLI flag,
+    # and it appeared in no arithmetic at all: a deployment could ask for
+    # 32,000 tokens of output on a 26,000-token window and every figure, every
+    # warning and the exit code came back identical. These two checks are what
+    # the name always implied.
+    #
+    # Deliberately NOT `working -= max_output`. The compaction margin already
+    # absorbs a reply -- 26,000 declared less a 6,000 margin triggers at
+    # 20,000, and a 4,096-token answer from 19,999 lands at 24,095, inside the
+    # window -- so charging the conversation for it would double-count and
+    # make every published figure wrong. The invariant is that the margin can
+    # hold one reply, not that the conversation pays for one.
+    if compaction_reserve and max_output > compaction_reserve:
+        warnings.append(
+            f"One reply can be {max_output:,} tokens and the compaction margin "
+            f"is {compaction_reserve:,}. Compaction fires at {starts_at:,}, so a "
+            f"single answer from just under that trigger reaches "
+            f"{starts_at + max_output:,} -- past the declared context "
+            f"({declared:,}), after the one mechanism that could have reduced it "
+            "has already run. Raise the margin to at least the output, or lower "
+            "the output."
+        )
+
+    # The admission bound, and it costs one addition: with an empty
+    # conversation and nothing else resident, can this session produce a
+    # single turn? A floor plus one reply that does not fit the served context
+    # is a request the engine will refuse mid-generation, as a context-length
+    # error nobody can act on -- which is the failure this module exists to
+    # turn into a named refusal before anything is forwarded.
+    if floor + max_output > served_context:
+        warnings.append(
+            f"The floor ({floor:,}) plus one reply ({max_output:,}) is "
+            f"{floor + max_output:,} tokens, and this engine serves "
+            f"{served_context:,}. This session cannot produce one turn even "
+            "with an empty conversation."
+        )
+
     if working < min_working:
         biggest = max(items, key=lambda i: i.tokens, default=None)
         blame = ""
@@ -682,7 +719,7 @@ def measure_request(
         )
 
     verdict: Literal["ok", "tight", "unusable"]
-    if working < min_working:
+    if working < min_working or floor + max_output > served_context:
         verdict = "unusable"
     elif working < min_working * 3:
         verdict = "tight"

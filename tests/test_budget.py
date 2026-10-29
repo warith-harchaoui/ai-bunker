@@ -432,7 +432,13 @@ def test_the_working_space_arithmetic_is_the_one_documented(counter):
 
 
 def test_max_output_does_not_reduce_conversation_space(counter):
-    """It is covered by the declared-vs-served gap; subtracting it twice was a bug."""
+    """It is covered by the declared-vs-served gap; subtracting it twice was a bug.
+
+    Still true, and worth keeping true: the compaction margin already absorbs
+    a reply. What changed is that `max_output` stopped being inert in every
+    other respect -- see the two tests below, which are the arithmetic this
+    one was mistaken for.
+    """
     small = measure_request(
         _request("prompt"), counter=counter, served_context=131072, max_output=1024
     )
@@ -440,6 +446,74 @@ def test_max_output_does_not_reduce_conversation_space(counter):
         _request("prompt"), counter=counter, served_context=131072, max_output=32768
     )
     assert small.working_tokens == large.working_tokens
+
+
+def test_a_margin_that_cannot_hold_one_reply_is_reported(counter):
+    """The state nothing downstream recovers from.
+
+    Compaction is the one mechanism that can reduce a conversation. If a
+    single reply is larger than the margin held back for it, an answer
+    produced from just under the trigger lands past the declared context
+    *after* compaction has already run -- so the thing that would have fixed
+    it has had its turn and there is no second one.
+
+    Both directions are asserted. A margin that comfortably holds a reply must
+    stay silent, because a warning that fires on a healthy deployment is a
+    warning its operator learns to scroll past.
+    """
+    tight = measure_request(
+        _request("prompt"),
+        counter=counter,
+        served_context=131072,
+        declared_context=104000,
+        compaction_reserve=2000,
+        max_output=8192,
+    )
+    assert any("compaction margin" in w for w in tight.warnings)
+
+    roomy = measure_request(
+        _request("prompt"),
+        counter=counter,
+        served_context=131072,
+        declared_context=104000,
+        compaction_reserve=16000,
+        max_output=8192,
+    )
+    assert not any("compaction margin" in w for w in roomy.warnings)
+
+
+def test_a_floor_plus_one_reply_that_cannot_fit_is_unusable_before_it_is_sent(counter):
+    """The admission bound, and it costs one addition.
+
+    With an empty conversation and nothing else resident, can this session
+    produce a single turn? If the floor plus one reply exceeds what the engine
+    serves, it cannot -- and the engine would say so mid-generation, as a
+    context-length error naming nothing anyone can act on. That is exactly the
+    failure this module exists to turn into a refusal that names a component,
+    and `max_output` was the parameter for it while taking part in no
+    arithmetic at all.
+
+    The verdict is asserted, not only the warning: a message that does not
+    reach the exit code is a message `--gate` cannot act on.
+    """
+    doomed = measure_request(
+        _request("prompt " * 200),
+        counter=counter,
+        served_context=4096,
+        max_output=4096,
+    )
+    assert doomed.verdict == "unusable"
+    assert any("cannot produce one turn" in w for w in doomed.warnings)
+
+    # The same floor and the same engine, asking for less back.
+    fits = measure_request(
+        _request("prompt " * 200),
+        counter=counter,
+        served_context=4096,
+        max_output=256,
+        min_working=100,
+    )
+    assert not any("cannot produce one turn" in w for w in fits.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -683,3 +757,58 @@ def test_a_stalled_tokenizer_is_abandoned_quickly():
     assert counter.backend == "ratio"
     # Generous against the measured 10.3s, strict against the 240s it was.
     assert elapsed < PROBE_TIMEOUT * 6, f"took {elapsed:.1f}s to give up"
+
+
+# ---------------------------------------------------------------------------
+# What this project costs, which is the one figure it used to leave blank.
+# ---------------------------------------------------------------------------
+
+
+def _overhead():
+    import importlib.util
+
+    root = Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "measure_overhead", root / "scripts" / "measure_overhead.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_gateway_can_state_its_own_overhead():
+    """`LANDSCAPE.md` said "Python in the request path, and honest about it".
+
+    Honest, and unquantified -- a proxy that cannot state its own overhead is
+    asking to be trusted rather than read, which is the posture this
+    repository exists to refuse. Two measurement scripts already existed and
+    both measured the *model*.
+
+    What is asserted here is the **shape**, never a duration. A millisecond
+    figure is a property of the machine the suite happens to run on, and a
+    test that asserts one is a test that goes red on a slow continuous
+    integration runner for no defect at all. The claim worth defending is that
+    screening scales with what arrives -- which is exactly why the request
+    ceiling exists, and is the thing that would break silently if a rule
+    started reading a body it used to skip.
+    """
+    module = _overhead()
+    rows = [module.measure(name, body, 3) for name, body in module.SHAPES.items()]
+    assert len(rows) == 3
+
+    sizes = [r["characters_in"] for r in rows]
+    assert sizes == sorted(sizes), "the shapes are ordered smallest first"
+
+    bare, _tools, big = rows
+    assert big["median_ms"] > bare["median_ms"], (
+        "screening a 40 kB tool result must cost more than screening nothing; "
+        "if it does not, the ceiling is bounding a cost nothing incurs"
+    )
+
+    # The token half, which is the one that is rent rather than a wait. The
+    # same claim `test_our_own_guardrails_are_cheap` makes from the other
+    # side, measured here against a stated served context so the percentage
+    # means something.
+    for row in rows:
+        assert row["tokens_added"] > 0, "the charter is injected, so it costs something"
+        assert row["share_of_context"] < 5.0, "under 5% of the window, as README claims"
