@@ -35,11 +35,13 @@ markup for rules through words, labels on labels and text off the canvas.
 Both need the width of a string, and that width is **bounded, not computed**:
 the figures declare a font *stack*, so the same label is not the same width on
 two readers' machines. The bounds come from
-``assets/font-advances.json`` — every character's narrowest and widest advance
-across the faces a renderer could pick, written by
-``scripts/measure_advances.py`` — and the two ends are used in opposite
-directions, widest for collisions and narrowest for overflow, so that neither
-can invent a finding.
+``assets/font-metrics.json`` — every character's narrowest and widest advance
+and how far its ink reaches above and below the baseline, across the faces a
+renderer could pick, written by ``scripts/measure_type.py``. The two width
+ends are used in opposite directions, widest for collisions and narrowest for
+overflow, so that neither can invent a finding; the ink extents are used
+outward in both, because a rule inside that band strikes the word on
+*somebody's* machine.
 
     python scripts/audit_figures.py
 
@@ -279,10 +281,25 @@ def audit_assets(scheme: str, quiet: bool = False) -> list[str]:
 # question, whether the colours carry meaning, or whether the story is the
 # right one. Those need eyes. This is the part that does not.
 
-#: Roboto's vertical metrics as fractions of the font size: how far a capital
-#: reaches above the baseline, and a descender below it. From the font's own
-#: `capHeight` (1456/2048) and `descender` (512/2048), rounded outward.
-CAP_HEIGHT = 0.72
+#: How far ink falls below the baseline, as a fraction of the font size. From
+#: Roboto's own `descender` (512/2048), rounded outward — and it survives the
+#: round that deleted its twin because it is a bound that holds: not one of
+#: the 201 measured characters descends past it in any of the four faces.
+#:
+#: Its twin did not. `CAP_HEIGHT = 0.72` stood here and was used as the top of
+#: every label's ink, and **147 of the 201 measured characters reach above
+#: it** — including every capital letter, since a plain `E` already tops out
+#: at 0.729. An accented capital is the extreme: `É` reaches 0.927 em and `Å`
+#: 0.950, a quarter of an em over the line the audit drew, and the French half
+#: of every figure is built from them — `UN MODÈLE D'IMAGE`, `SYSTÈMES
+#: MÉMOIRE`. A rule three pixels above such a heading was not a near miss; it
+#: was outside a band that stopped below the accents, so nothing looked at it.
+#:
+#: Which is the same defect as the one the previous round fixed in the
+#: horizontal direction, left standing in the vertical one, and found by
+#: asking the question that round ended on: a bound is only a bound if it
+#: points outward for *every* character, not for the character somebody had
+#: in mind. The tops now come from `assets/font-metrics.json`, per character.
 DESCENDER = 0.26
 
 #: How far a rule has to stay outside that ink band before it stops reading as
@@ -291,8 +308,8 @@ DESCENDER = 0.26
 #: defect wearing a different name.
 CLEARANCE = 2.0
 
-#: Per-character advance widths, in em, read out of the fonts the figures ask
-#: for by `scripts/measure_advances.py` and committed beside them.
+#: Per-character type metrics, in em, read out of the fonts the figures ask
+#: for by `scripts/measure_type.py` and committed beside them.
 #:
 #: This replaced one number for every character — 0.457 em, with 0.55 and 0.43
 #: used as the two ends. That band was measured and it was honest, and it was
@@ -309,15 +326,14 @@ CLEARANCE = 2.0
 #: gives, and the two ends are still used in opposite directions: the
 #: **widest** for collisions, so an overlap cannot be missed, the
 #: **narrowest** for overflow, so one cannot be invented.
-ADVANCES = json.loads((ROOT / "assets" / "font-advances.json").read_text(encoding="utf-8"))
+METRICS = json.loads((ROOT / "assets" / "font-metrics.json").read_text(encoding="utf-8"))
 
 #: Keyed "400"/"600"/"700" — the weights the figures' own stylesheet declares.
-PER_WEIGHT: dict[str, dict[str, list[float]]] = ADVANCES["advances"]
+PER_WEIGHT: dict[str, dict[str, list[float]]] = METRICS["metrics"]
 
-#: Used only for a character the table does not carry, so that the bound stays
-#: a bound while the gap is reported rather than absorbed. See `_text_width`.
-WIDEST = max(pair[1] for chars in PER_WEIGHT.values() for pair in chars.values())
-NARROWEST = min(pair[0] for chars in PER_WEIGHT.values() for pair in chars.values())
+#: Each entry is `[narrowest advance, widest advance, highest ink above the
+#: baseline, deepest ink below it]`, in em.
+ADVANCE_LOW, ADVANCE_HIGH, INK_TOP, INK_BOTTOM = 0, 1, 2, 3
 
 #: Characters a `<text>` may contain that the advance model does not describe.
 #: An ampersand entity is five characters of markup and one of ink, and left
@@ -384,7 +400,13 @@ def _type_of(classes: str, rules: dict[str, dict[str, float]]) -> tuple[float, i
 
 
 def _unmeasured(content: str, weight: int) -> set[str]:
-    """Characters of `content` the advance table has no width for."""
+    """Characters of `content` the metrics table has no measurement for.
+
+    A weight the table has never been measured at makes every character of the
+    label unmeasured, which is the right answer: a class that starts declaring
+    `font-weight: 800` has to be measured before anything here can be said
+    about it.
+    """
     table = PER_WEIGHT.get(str(weight), {})
     return {char for char in _plain(content) if char not in table}
 
@@ -406,22 +428,37 @@ def _text_width(content: str, size: float, weight: int, tracking: float, widest:
     implementations disagree about that last one and a bound must not depend
     on which is right.
 
-    A character the table does not carry is given the widest or narrowest
-    advance in the whole table, so the result stays a genuine bound rather
-    than an average quietly standing in for a measurement. `audit_geometry`
-    reports it separately, which is the half that gets it fixed.
+    Every character must be in the table. There is no fallback, and the
+    previous round's was wrong: it gave an unmeasured character the widest
+    advance in the table and called the result "still a bound", which it is
+    not — nothing says an unmeasured character is narrower than the widest
+    measured one, and a glyph wider than 1 em is ordinary. `audit_geometry`
+    checks `_unmeasured` first and skips the label, the way it already skips
+    rotated text, because a finding computed from an invented width is a
+    finding about a label nobody measured.
     """
-    table = PER_WEIGHT.get(str(weight), {})
+    table = PER_WEIGHT[str(weight)]
     plain = _plain(content)
-    total = 0.0
-    for char in plain:
-        pair = table.get(char)
-        if pair is None:
-            total += WIDEST if widest else NARROWEST
-        else:
-            total += pair[1] if widest else pair[0]
+    end = ADVANCE_HIGH if widest else ADVANCE_LOW
+    total = sum(table[char][end] for char in plain)
     spaced = len(plain) if widest else max(len(plain) - 1, 0)
     return size * (total + spaced * tracking)
+
+
+def _ink(content: str, size: float, weight: int) -> tuple[float, float]:
+    """How far a label's ink reaches above and below its baseline, in user
+    units.
+
+    The tallest character sets the top and the deepest sets the bottom, which
+    is what a band around a line of type is. One number for every string --
+    `capHeight` -- was the bug this replaced: `E` and `É` are not the same
+    height, and a figure captioned in French is mostly the second kind.
+    """
+    table = PER_WEIGHT[str(weight)]
+    plain = _plain(content)
+    above = max((table[char][INK_TOP] for char in plain), default=0.0)
+    below = max((table[char][INK_BOTTOM] for char in plain), default=DESCENDER)
+    return size * above, size * below
 
 
 def _rules(d: str) -> tuple[list[tuple[float, float, float]], list[tuple[float, float, float]]]:
@@ -517,18 +554,24 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
     _, _, view_w, view_h = (float(v) for v in root.get("viewBox", "0 0 0 0").split())
 
     findings = []
-    for content, x, y, size, weight, tracking, anchor in labels:
+    measurable = []
+    for label in labels:
+        content, _, _, _, weight, _, _ = label
         missing = _unmeasured(content, weight)
         if missing:
             shown = " ".join(sorted(repr(c) for c in missing))
             findings.append(
                 f"{path.name}: {content[:30]!r} contains {shown}, which "
-                f"assets/font-advances.json has no width for at weight {weight} — "
-                f"run scripts/measure_advances.py"
+                f"assets/font-metrics.json has no measurement for at weight {weight} — "
+                f"run scripts/measure_type.py"
             )
+            continue
+        measurable.append(label)
 
-        top = y - CAP_HEIGHT * size - CLEARANCE
-        bottom = y + DESCENDER * size + CLEARANCE
+    for content, x, y, size, weight, tracking, anchor in measurable:
+        above, below = _ink(content, size, weight)
+        top = y - above - CLEARANCE
+        bottom = y + below + CLEARANCE
         wide = _span(x, _text_width(content, size, weight, tracking, True), anchor)
         for rule_y, rule_from, rule_to in rules:
             if top <= rule_y <= bottom and rule_from < wide[1] and rule_to > wide[0]:
@@ -560,9 +603,10 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
     # is used here, as for the canvas -- a reported overlap has to be one that
     # is certainly there, not one an estimate could have invented.
     boxes = []
-    for content, x, y, size, weight, tracking, anchor in labels:
+    for content, x, y, size, weight, tracking, anchor in measurable:
         span = _span(x, _text_width(content, size, weight, tracking, False), anchor)
-        boxes.append((content, y - CAP_HEIGHT * size, y + DESCENDER * size, *span))
+        above, below = _ink(content, size, weight)
+        boxes.append((content, y - above, y + below, *span))
     for i, (one, top1, bottom1, from1, to1) in enumerate(boxes):
         for two, top2, bottom2, from2, to2 in boxes[i + 1 :]:
             if top1 < bottom2 and top2 < bottom1 and from1 < to2 and from2 < to1:

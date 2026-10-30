@@ -290,18 +290,18 @@ def _audit():
 def test_the_advance_table_describes_the_font_stack_the_figures_ask_for():
     """The drift guard that needs no fonts.
 
-    `scripts/measure_advances.py` reads the widths out of Roboto, Helvetica
-    Neue, Helvetica and Arial, which means it needs those fonts and
-    `fontTools` — neither of which the lane has, and neither of which it
-    should. What it writes is committed, and this is what keeps the committed
-    file describing the right fonts: the table records the stack it measured,
-    and the day `make_figures.FONT` names a different one, this fails and says
-    to re-measure.
+    `scripts/measure_type.py` reads the metrics out of Roboto, Helvetica Neue,
+    Helvetica and Arial, which means it needs those fonts and `fontTools` —
+    neither of which the lane has, and neither of which it should. What it
+    writes is committed, and this is what keeps the committed file describing
+    the right fonts: the table records the stack it measured, and the day
+    `make_figures.FONT` names a different one, this fails and says to
+    re-measure.
     """
     figures = _figures()
-    table = _audit().ADVANCES
+    table = _audit().METRICS
     assert table["font_stack"] == figures.FONT, (
-        "the figures changed font stack; run scripts/measure_advances.py"
+        "the figures changed font stack; run scripts/measure_type.py"
     )
     assert table["faces"], "a table measured from no faces bounds nothing"
 
@@ -379,10 +379,16 @@ def test_the_width_model_knows_an_l_from_a_w():
     wide = audit._text_width("WWWWWWWW", 12.0, 400, 0.0, True)
     assert wide > 3 * narrow
 
-    # And the bound is still a bound in both directions, for every character.
+    # And every entry is well formed, in both directions, for every weight.
     for weight, chars in audit.PER_WEIGHT.items():
-        for char, (low, high) in chars.items():
-            assert 0 < low <= high <= 1.1, f"{char!r} at weight {weight} measures {low}..{high}"
+        for char, (low, high, top, bottom) in chars.items():
+            where = f"{char!r} at weight {weight}"
+            # 1.2 em rather than 1.0: DejaVu Sans is a wide face and its
+            # bold `W` advances 1.103. A ceiling tight enough to exclude a
+            # real measurement is a ceiling that gets raised by whoever it
+            # stops, so it is set where an *implausible* number would be.
+            assert 0 < low <= high <= 1.2, f"{where} advances {low}..{high}"
+            assert 0 <= top <= 1.2 and 0 <= bottom <= 0.5, f"{where} inks {top}/{bottom}"
 
 
 def test_the_audit_catches_a_rule_under_a_letter_spaced_heading(tmp_path):
@@ -435,3 +441,108 @@ def test_the_audit_catches_a_rule_under_a_letter_spaced_heading(tmp_path):
     # The figure stays clean when the rule really is past the label, which is
     # what keeps the test above from passing for the wrong reason.
     assert audit.audit_geometry(figure(40 + tracked + 5), quiet=True) == []
+
+
+# ---------------------------------------------------------------------------
+# And the vertical half, which had the same defect a round longer.
+# ---------------------------------------------------------------------------
+
+
+def test_an_accented_capital_is_taller_than_a_capital():
+    """The measurement the old vertical model did not have.
+
+    `CAP_HEIGHT = 0.72` was the top of every label's ink, taken from Roboto's
+    `capHeight` and rounded outward. It is the right number for `E` and the
+    wrong one for `É`, and a figure captioned in French is mostly the second
+    kind.
+    """
+    audit = _audit()
+    table = audit.PER_WEIGHT["400"]
+    # The relationship, not the number: the exact cap height moves whenever a
+    # face joins the measured set, and an assertion pinned to one face's
+    # value fails for a correct reason, which is the worst kind of red.
+    assert table["É"][audit.INK_TOP] > table["E"][audit.INK_TOP] + 0.15
+    assert table["É"][audit.INK_TOP] > 0.9
+    assert table["E"][audit.INK_TOP] > 0.72, "even a plain capital clears the old CAP_HEIGHT"
+
+    # Not a French problem, and that is the part worth knowing: more than half
+    # the measured alphabet reaches above the line the audit used to draw.
+    over = [c for c, v in table.items() if v[audit.INK_TOP] > 0.72]
+    assert len(over) > 100
+    assert {"É", "À", "l", "(", "j"} <= set(over)
+
+    # The other side survived the round because it is a bound that holds:
+    # nothing in the table descends past the declared 0.26.
+    assert max(v[audit.INK_BOTTOM] for v in table.values()) <= audit.DESCENDER
+
+
+def test_the_ink_band_is_the_tallest_character_not_an_average():
+    audit = _audit()
+    plain_above, plain_below = audit._ink("MODELE", 13.0, 600)
+    accented_above, accented_below = audit._ink("MODÈLE", 13.0, 600)
+    assert accented_above > plain_above
+    assert accented_below == plain_below
+
+    # A descender sets the bottom and leaves the top alone.
+    assert audit._ink("op", 13.0, 400)[1] > audit._ink("oo", 13.0, 400)[1]
+    assert audit._ink("op", 13.0, 400)[0] == audit._ink("oo", 13.0, 400)[0]
+
+
+def test_the_audit_catches_a_rule_above_an_accented_capital(tmp_path):
+    """The specimen `CAP_HEIGHT` could not see.
+
+    A heading at 13px, a dashed rule through the accents of `MODÈLE`. The old
+    band stopped at `y - 0.72 x 13 - 2` = 8px above the baseline; the ink
+    reaches `0.927 x 13` = 12px. A rule at 10px above the baseline runs
+    through the accent and sat outside the band entirely.
+    """
+    audit = _audit()
+
+    def figure(rule_y: float) -> pathlib.Path:
+        path = tmp_path / f"accent-{rule_y:g}.svg"
+        path.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
+            "<style>text { font-size: 12px; }"
+            " .h { font-size: 13px; font-weight: 600; letter-spacing: .08em; }</style>"
+            f'<path class="dash" d="M20 {rule_y:g} H380"/>'
+            '<text class="h" x="40" y="100">UN MODÈLE</text></svg>',
+            encoding="utf-8",
+        )
+        return path
+
+    old_band_top = 100 - 0.72 * 13 - audit.CLEARANCE
+    above, _ = audit._ink("UN MODÈLE", 13.0, 600)
+    new_band_top = 100 - above - audit.CLEARANCE
+    assert new_band_top < old_band_top, (new_band_top, old_band_top)
+
+    struck = (old_band_top + new_band_top) / 2
+    assert any("crosses" in f for f in audit.audit_geometry(figure(struck), quiet=True))
+
+    # And still clean when the rule really is clear of the accents, which is
+    # what stops the assertion above from passing for the wrong reason.
+    assert audit.audit_geometry(figure(new_band_top - 1), quiet=True) == []
+
+
+def test_a_label_the_table_cannot_measure_is_reported_and_not_guessed(tmp_path):
+    """The previous round's fallback was wrong and said so confidently.
+
+    An unmeasured character used to be given the widest advance in the whole
+    table, described as keeping the result "a bound". It does not: nothing
+    says an unmeasured character is narrower than the widest measured one, and
+    a glyph wider than one em is ordinary. So the label is reported and
+    skipped — the way rotated text already is — and no geometry finding is
+    computed from a width nobody measured.
+    """
+    audit = _audit()
+    path = tmp_path / "exotic.svg"
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
+        "<style>text { font-size: 12px; }</style>"
+        '<path class="dash" d="M20 100 H380"/>'
+        '<text x="40" y="100">漢字</text></svg>',
+        encoding="utf-8",
+    )
+    findings = audit.audit_geometry(path, quiet=True)
+    assert len(findings) == 1
+    assert "no measurement for" in findings[0]
+    assert "crosses" not in findings[0]

@@ -114,7 +114,7 @@ And two measurements that write a committed file rather than returning a
 verdict, so they are run when their input changes rather than on every push:
 
 ```bash
-python3 scripts/measure_advances.py    # per-character text widths, from the fonts
+python3 scripts/measure_type.py        # per-character text metrics, from the fonts
 python3 scripts/measure_ratio.py       # the characters-per-token floor, from the tokenizers
 ```
 

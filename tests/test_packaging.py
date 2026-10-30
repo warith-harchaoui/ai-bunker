@@ -198,10 +198,10 @@ SCRIPT_RUNNERS = {
     # it, which is exactly the mistake the shape check above exists to catch,
     # made by the person adding the shape check.
     "measure_ratio.py": None,
-    # `measure_advances.py` reads per-character widths out of Roboto,
-    # Helvetica Neue, Helvetica and Arial, so it needs `fontTools` and those
-    # four fonts. A lane has none of them and should not: what it writes,
-    # `assets/font-advances.json`, is committed, and that is what
+    # `measure_type.py` reads per-character widths and ink extents out of
+    # Roboto, Helvetica Neue, Helvetica and Arial, so it needs `fontTools` and
+    # those four fonts. A lane has none of them and should not: what it
+    # writes, `assets/font-metrics.json`, is committed, and that is what
     # `audit_figures.py` reads.
     #
     # The drift this leaves is closed without the fonts.
@@ -210,7 +210,7 @@ SCRIPT_RUNNERS = {
     # changing the stack turns the suite red and says to re-measure; and the
     # audit reports any character in a committed figure that the table has no
     # width for, rather than falling back to an average.
-    "measure_advances.py": None,
+    "measure_type.py": None,
 }
 
 

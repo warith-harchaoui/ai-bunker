@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Measure how wide each character actually is, for the fonts the figures ask for.
+Measure how wide and how tall each character actually is, in the fonts the
+figures ask for.
 
 Why
 ---
@@ -20,6 +21,19 @@ So the widths are read from the fonts themselves — `hmtx` divided by
 one glyph at a time, which is why this finishes in a second where rendering
 each character separately did not.
 
+And the heights, for the same reason and after the same mistake. The audit
+took the top of a label's ink to be `capHeight`, one number for every string:
+0.72 em, from Roboto, rounded outward. An accented capital does not stop at
+the cap height. `É` reaches **0.907** em in Roboto, 0.915 in Helvetica, 0.896
+in Arial — nearly a fifth of an em above the line the audit drew — and the
+French half of every figure is full of them: `UN MODÈLE D'IMAGE`, `SYSTÈMES
+MÉMOIRE`. A rule two pixels above such a heading sat outside a band that
+stopped below the accents, so it was not a near miss, it was not looked at.
+
+Brackets do it too (`(` reaches 0.80 in Roboto) and so does `j`. The ink
+extents here are per character, measured with a bounds pen over the glyph
+outline, which works for the quadratic and the cubic fonts alike.
+
 Why a **range** and not a number
 ---------------------------------
 The figures do not ask for a font. They ask for a stack:
@@ -38,8 +52,8 @@ The last entry in the stack, `sans-serif`, is whatever the machine decides,
 and nothing here can bound it. That is the reason the model stays a range: it
 is not an estimate waiting to be sharpened, it is a fact about a font stack.
 
-    python3 scripts/measure_advances.py            # rewrite the table
-    python3 scripts/measure_advances.py --check    # fail if it has drifted
+    python3 scripts/measure_type.py            # rewrite the table
+    python3 scripts/measure_type.py --check    # fail if it has drifted
 
 Needs `fontTools` and the fonts themselves, so it is a developer tool rather
 than a lane step — the table it writes is committed, and that is what the lane
@@ -62,7 +76,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-TABLE = ROOT / "assets" / "font-advances.json"
+TABLE = ROOT / "assets" / "font-metrics.json"
 
 #: Each family of the stack, and the file carrying each weight the figures
 #: use. A `.ttc` needs the index of the face inside it.
@@ -96,7 +110,41 @@ FACES: dict[str, dict[int, list[tuple[str, int]]]] = {
         600: [("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 0)],
         700: [("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 0)],
     },
+    # And the tail of the stack. `sans-serif` is whatever the machine decides,
+    # which on a bare Linux box is DejaVu Sans — and DejaVu is **wider than
+    # all four named families for 163 of the 201 measured characters**, by up
+    # to 0.30 em on a brace. Leaving it out and still calling the result a
+    # bound was the residual the previous round wrote down and shipped
+    # anyway; a bound that holds for macOS, Windows and Android and fails for
+    # Linux is a bound with an asterisk, and an asterisk nobody reads.
+    #
+    # Liberation Sans is deliberately **not** here, and that is an argument
+    # rather than an omission: it is metric-compatible with Arial by design —
+    # same advances, glyph for glyph — so it is already inside the Arial
+    # column and measuring it would add a column of duplicates.
+    #
+    # `sans-serif` still is not bounded in general: a reader can configure
+    # anything. What changes is that the one font the overwhelming majority of
+    # unconfigured Linux readers actually get is now inside the range.
+    "DejaVu Sans": {
+        400: [("@dejavu/DejaVuSans.ttf", 0)],
+        600: [("@dejavu/DejaVuSans-Bold.ttf", 0)],
+        700: [("@dejavu/DejaVuSans-Bold.ttf", 0)],
+    },
 }
+
+#: Where DejaVu Sans might be. Searched in order, and the last entry is the
+#: honest one: it is not a system font on macOS, and `matplotlib` bundles it,
+#: so a developer who has run anything scientific already has the file. The
+#: script fails loudly when none of these exists rather than measuring one
+#: family fewer and still calling the result a bound.
+DEJAVU_DIRS = (
+    "/usr/share/fonts/truetype/dejavu",
+    "/usr/share/fonts/dejavu",
+    "/opt/homebrew/share/fonts",
+    "~/Library/Fonts",
+    "@matplotlib",
+)
 
 #: What the table has to cover: everything a figure could plausibly contain,
 #: not only what one does today. Printable Latin-1 plus the typography these
@@ -129,10 +177,32 @@ ALPHABET = (
 )
 
 
+def _resolve(path: str) -> Path:
+    """A font path, with `@dejavu/` searched over `DEJAVU_DIRS`."""
+    if not path.startswith("@dejavu/"):
+        return Path(path).expanduser()
+    name = path.removeprefix("@dejavu/")
+    for directory in DEJAVU_DIRS:
+        if directory == "@matplotlib":
+            try:
+                import matplotlib
+            except ImportError:
+                continue
+            base = Path(matplotlib.__file__).parent / "mpl-data" / "fonts" / "ttf"
+        else:
+            base = Path(directory).expanduser()
+        if (base / name).exists():
+            return base / name
+    raise SystemExit(
+        f"{name} is not in any of {', '.join(DEJAVU_DIRS)} — install DejaVu Sans, or "
+        f"the table would be written without the font most Linux readers get"
+    )
+
+
 def _font(path: str, index: int):
     from fontTools.ttLib import TTCollection, TTFont
 
-    resolved = Path(path).expanduser()
+    resolved = _resolve(path)
     if not resolved.exists():
         raise SystemExit(f"missing font: {resolved}")
     if resolved.suffix.lower() == ".ttc":
@@ -140,33 +210,63 @@ def _font(path: str, index: int):
     return TTFont(str(resolved), lazy=True)
 
 
-def _advances(path: str, index: int) -> dict[str, float]:
-    """Every character of `ALPHABET` this face carries, in em.
+def _metrics(path: str, index: int) -> dict[str, tuple[float, float, float]]:
+    """Every character of `ALPHABET` this face carries: advance, ink top, ink
+    bottom — all three in em, all three positive.
 
-    One pass over the font rather than one render per glyph: `cmap` maps the
-    character to a glyph name and `hmtx` gives that glyph's advance, which is
-    the number a renderer advances the pen by. Dividing by `unitsPerEm` makes
-    it independent of the font's internal grid.
+    One pass over the font rather than one render per glyph. `cmap` maps the
+    character to a glyph name, `hmtx` gives that glyph's advance — the number
+    a renderer advances the pen by — and a bounds pen over the outline gives
+    how far its ink actually reaches above and below the baseline. Dividing by
+    `unitsPerEm` makes all of it independent of the font's internal grid.
+
+    The pen rather than the font's declared `capHeight` and `descender`: those
+    are one number for the whole alphabet, and the whole point here is that
+    `E` and `É` are not the same height. It also works for both outline
+    formats, which matters because Helvetica is cubic and Roboto quadratic.
 
     A character the face does not carry is skipped rather than guessed. The
-    renderer would fall back to another font for it, and a width invented here
-    would be a width nobody renders.
+    renderer would fall back to another font for it, and a measurement
+    invented here would be one nobody renders.
     """
+    from fontTools.pens.boundsPen import BoundsPen
+
     font = _font(path, index)
     cmap = font.getBestCmap()
-    metrics = font["hmtx"].metrics
+    advances = font["hmtx"].metrics
+    glyphs = font.getGlyphSet()
     upem = font["head"].unitsPerEm
     out = {}
     for char in ALPHABET:
         glyph = cmap.get(ord(char))
-        if glyph is None or glyph not in metrics:
+        if glyph is None or glyph not in advances or glyph not in glyphs:
             continue
-        out[char] = metrics[glyph][0] / upem
+        pen = BoundsPen(glyphs)
+        glyphs[glyph].draw(pen)
+        # A space has an advance and no outline. Its ink is nothing, which is
+        # the right answer rather than a missing one.
+        #
+        # And both extents are clamped at zero, because a glyph can sit
+        # entirely on one side of the baseline: `"` never descends, so its raw
+        # `yMin` is *above* the line and a signed depth would be negative. A
+        # negative depth used as a band edge pulls the band the wrong way, so
+        # a glyph that does not cross the baseline contributes nothing on that
+        # side rather than a credit.
+        top, bottom = (0.0, 0.0) if pen.bounds is None else (pen.bounds[3], -pen.bounds[1])
+        out[char] = (advances[glyph][0] / upem, max(top, 0.0) / upem, max(bottom, 0.0) / upem)
     return out
 
 
 def measure() -> dict:
-    """The table: per weight, per character, the narrowest and widest advance."""
+    """The table: per weight, per character, four numbers.
+
+    `[narrowest advance, widest advance, highest ink, deepest ink]`, each taken
+    across every face a renderer could pick, so each is the extreme in the
+    direction the audit needs it. The two advances bound a label's width from
+    both sides; the two ink extents bound the band it occupies, and only
+    outward — a rule inside that band strikes the word on *somebody's*
+    machine, which is the finding worth having.
+    """
     sys.path.insert(0, str(ROOT / "scripts"))
     from make_figures import FONT
 
@@ -175,27 +275,36 @@ def measure() -> dict:
     for family, weights in FACES.items():
         for weight, files in weights.items():
             for path, index in files:
-                widths = _advances(path, index)
+                found = _metrics(path, index)
                 measured.append(
-                    {"family": family, "weight": weight, "file": path, "glyphs": len(widths)}
+                    {
+                        "family": family,
+                        "weight": weight,
+                        "file": _resolve(path).name,
+                        "glyphs": len(found),
+                    }
                 )
                 bucket = per_weight.setdefault(str(weight), {})
-                for char, width in widths.items():
-                    low, high = bucket.get(char, (width, width))
-                    bucket[char] = (min(low, width), max(high, width))
+                for char, (advance, top, bottom) in found.items():
+                    low, high, over, under = bucket.get(char, (advance, advance, top, bottom))
+                    bucket[char] = (
+                        min(low, advance),
+                        max(high, advance),
+                        max(over, top),
+                        max(under, bottom),
+                    )
 
     return {
         "font_stack": FONT,
         "note": (
-            "Advance widths in em, as [narrowest, widest] across every face a "
-            "renderer could pick for the declared stack. Written by "
-            "scripts/measure_advances.py; do not edit by hand."
+            "Per character, per font-weight: [narrowest advance, widest advance, "
+            "highest ink above the baseline, deepest ink below it], in em, across "
+            "every face a renderer could pick for the declared stack. Written by "
+            "scripts/measure_type.py; do not edit by hand."
         ),
         "faces": measured,
-        "advances": {
-            weight: {
-                char: [round(low, 4), round(high, 4)] for char, (low, high) in sorted(chars.items())
-            }
+        "metrics": {
+            weight: {char: [round(v, 4) for v in values] for char, values in sorted(chars.items())}
             for weight, chars in sorted(per_weight.items())
         },
     }
@@ -217,11 +326,11 @@ def _render(table: dict) -> str:
         comma = "," if index < len(table["faces"]) - 1 else ""
         lines.append(f"    {json.dumps(face, ensure_ascii=False)}{comma}")
     lines.append("  ],")
-    lines.append('  "advances": {')
-    weights = list(table["advances"])
+    lines.append('  "metrics": {')
+    weights = list(table["metrics"])
     for windex, weight in enumerate(weights):
         lines.append(f"    {json.dumps(weight)}: {{")
-        chars = table["advances"][weight]
+        chars = table["metrics"][weight]
         for cindex, (char, pair) in enumerate(chars.items()):
             comma = "," if cindex < len(chars) - 1 else ""
             lines.append(f"      {json.dumps(char, ensure_ascii=False)}: {json.dumps(pair)}{comma}")
@@ -250,7 +359,7 @@ def main() -> int:
         return 0
 
     TABLE.write_text(rendered, encoding="utf-8")
-    covered = {len(chars) for chars in fresh["advances"].values()}
+    covered = {len(chars) for chars in fresh["metrics"].values()}
     print(
         f"wrote {TABLE.relative_to(ROOT)}: {len(fresh['faces'])} faces, "
         f"{sorted(covered)} characters per weight"
