@@ -26,6 +26,21 @@ text failing on the green bar of ``floor_bar``; the bar spans y=42..56 and the
 text sits at y=76. Nothing was wrong, and fixing it would have made the figure
 worse.
 
+And a geometry half
+-------------------
+The contrast audit was green while two labels of ``figure-trade.svg`` had a
+dashed gridline through their glyphs, so a second half reads the committed
+markup for rules through words, labels on labels and text off the canvas.
+
+Both need the width of a string, and that width is **bounded, not computed**:
+the figures declare a font *stack*, so the same label is not the same width on
+two readers' machines. The bounds come from
+``assets/font-advances.json`` — every character's narrowest and widest advance
+across the faces a renderer could pick, written by
+``scripts/measure_advances.py`` — and the two ends are used in opposite
+directions, widest for collisions and narrowest for overflow, so that neither
+can invent a finding.
+
     python scripts/audit_figures.py
 
 Exits non-zero on a failure, so it can gate a commit.
@@ -38,6 +53,7 @@ Warith Harchaoui
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -275,19 +291,33 @@ DESCENDER = 0.26
 #: defect wearing a different name.
 CLEARANCE = 2.0
 
-#: Average advance per character, in em, for the font stack these figures
-#: declare. Measured rather than assumed: eleven real strings from the three
-#: figures were rendered with `rsvg-convert` at eight times size and their ink
-#: extents divided by their character counts. The weighted mean is 0.457 em;
-#: the spread is 0.437 (lower-case prose) to 0.547 (a line of capitals), which
-#: is why there are two numbers here instead of one.
+#: Per-character advance widths, in em, read out of the fonts the figures ask
+#: for by `scripts/measure_advances.py` and committed beside them.
 #:
-#: They are used in opposite directions on purpose. A collision test wants the
-#: **widest** a string could be, so it cannot miss an overlap. An off-canvas
-#: test wants the **narrowest**, so it cannot invent an overflow. Anything in
-#: between is reported by neither, which is the honest shape for an estimate.
-ADVANCE_WIDE = 0.55
-ADVANCE_NARROW = 0.43
+#: This replaced one number for every character — 0.457 em, with 0.55 and 0.43
+#: used as the two ends. That band was measured and it was honest, and it was
+#: also four times too coarse to verify anything: a lower-case `l` is 0.22 em
+#: and a capital `W` is 0.94, so a label of narrow letters was reported at up
+#: to twice its width and a line of capitals at two thirds of it. A figure
+#: clearing by three pixels was not verified, it was unreported.
+#:
+#: The pairs stay pairs because the figures declare a font **stack**, not a
+#: font. A reader gets whichever of Roboto, Helvetica Neue, Helvetica or Arial
+#: their machine has, the four differ, and the last entry — `sans-serif` — is
+#: whatever the machine decides and cannot be bounded at all. So each
+#: character carries the narrowest and widest advance any of those faces
+#: gives, and the two ends are still used in opposite directions: the
+#: **widest** for collisions, so an overlap cannot be missed, the
+#: **narrowest** for overflow, so one cannot be invented.
+ADVANCES = json.loads((ROOT / "assets" / "font-advances.json").read_text(encoding="utf-8"))
+
+#: Keyed "400"/"600"/"700" — the weights the figures' own stylesheet declares.
+PER_WEIGHT: dict[str, dict[str, list[float]]] = ADVANCES["advances"]
+
+#: Used only for a character the table does not carry, so that the bound stays
+#: a bound while the gap is reported rather than absorbed. See `_text_width`.
+WIDEST = max(pair[1] for chars in PER_WEIGHT.values() for pair in chars.values())
+NARROWEST = min(pair[0] for chars in PER_WEIGHT.values() for pair in chars.values())
 
 #: Characters a `<text>` may contain that the advance model does not describe.
 #: An ampersand entity is five characters of markup and one of ink, and left
@@ -297,43 +327,101 @@ ENTITIES = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'"}
 SVG_NS = "{http://www.w3.org/2000/svg}"
 
 
-def _font_sizes(style: str) -> dict[str, float]:
-    """`font-size` per selector, read out of the figure's own stylesheet.
+def _type_rules(style: str) -> dict[str, dict[str, float]]:
+    """Size, weight and letter-spacing per selector, from the figure's own
+    stylesheet.
 
     Read rather than imported from `make_figures.py` because this half is a
     parse of the committed file: the contrast half reads the generator, since
     a palette is what the figures are *made of*, while a collision is a fact
     about the bytes that shipped.
+
+    `letter-spacing` was not read here at all until now, and two of the five
+    text classes declare it — `.n` adds 0.1 em after every character and `.h`
+    0.08. Thirty-six labels in the committed figures carry one of those, and
+    every one of them was being measured up to a tenth narrower than it
+    renders. That is the direction that makes a collision test miss a
+    collision, which is the only direction that matters.
     """
-    sizes: dict[str, float] = {}
+    rules: dict[str, dict[str, float]] = {}
     for selectors, block in re.findall(r"([^{}]+)\{([^}]*)\}", style):
-        found = re.search(r"font-size:\s*([\d.]+)px", block)
+        found: dict[str, float] = {}
+        if size := re.search(r"font-size:\s*([\d.]+)px", block):
+            found["size"] = float(size.group(1))
+        if weight := re.search(r"font-weight:\s*(\d+)", block):
+            found["weight"] = float(weight.group(1))
+        if tracking := re.search(r"letter-spacing:\s*(\.?[\d.]+)em", block):
+            found["tracking"] = float(tracking.group(1))
         if not found:
             continue
         for selector in selectors.split(","):
-            sizes[selector.strip()] = float(found.group(1))
-    return sizes
+            rules.setdefault(selector.strip(), {}).update(found)
+    return rules
 
 
-def _size_of(classes: str, sizes: dict[str, float]) -> float:
-    """The size a `<text class="...">` renders at.
+def _type_of(classes: str, rules: dict[str, dict[str, float]]) -> tuple[float, int, float]:
+    """How a `<text class="...">` renders: size, weight, letter-spacing in em.
 
     Later rules win, as in a stylesheet, and `text` is the base every one of
     them overrides. The figures use single-class selectors only, which is why
-    this is six lines rather than a cascade.
+    this is ten lines rather than a cascade. A class that sets a size and not a
+    weight inherits the weight, which is what a cascade does and what an
+    earlier version of this — one dictionary per property — got right by
+    accident and would have got wrong at the first class that set two.
     """
-    size = sizes.get("text", 12.0)
+    base = rules.get("text", {})
+    size = base.get("size", 12.0)
+    weight = base.get("weight", 400.0)
+    tracking = base.get("tracking", 0.0)
     for name in classes.split():
-        if f".{name}" in sizes:
-            size = sizes[f".{name}"]
-    return size
+        rule = rules.get(f".{name}")
+        if rule is None:
+            continue
+        size = rule.get("size", size)
+        weight = rule.get("weight", weight)
+        tracking = rule.get("tracking", tracking)
+    return size, int(weight), tracking
 
 
-def _text_width(content: str, size: float, advance: float) -> float:
-    """A string's width in user units, from the measured advance model."""
+def _unmeasured(content: str, weight: int) -> set[str]:
+    """Characters of `content` the advance table has no width for."""
+    table = PER_WEIGHT.get(str(weight), {})
+    return {char for char in _plain(content) if char not in table}
+
+
+def _plain(content: str) -> str:
+    """The ink of a `<text>`: markup entities collapsed to the one character
+    each of them renders as."""
     for entity, char in ENTITIES.items():
         content = content.replace(entity, char)
-    return len(content) * size * advance
+    return content
+
+
+def _text_width(content: str, size: float, weight: int, tracking: float, widest: bool) -> float:
+    """A string's width in user units, summed character by character.
+
+    `widest` picks which end of each character's range to take, and the same
+    choice is applied to letter-spacing: the wide bound pays for the space
+    after the final character and the narrow one does not, because
+    implementations disagree about that last one and a bound must not depend
+    on which is right.
+
+    A character the table does not carry is given the widest or narrowest
+    advance in the whole table, so the result stays a genuine bound rather
+    than an average quietly standing in for a measurement. `audit_geometry`
+    reports it separately, which is the half that gets it fixed.
+    """
+    table = PER_WEIGHT.get(str(weight), {})
+    plain = _plain(content)
+    total = 0.0
+    for char in plain:
+        pair = table.get(char)
+        if pair is None:
+            total += WIDEST if widest else NARROWEST
+        else:
+            total += pair[1] if widest else pair[0]
+    spaced = len(plain) if widest else max(len(plain) - 1, 0)
+    return size * (total + spaced * tracking)
 
 
 def _rules(d: str) -> tuple[list[tuple[float, float, float]], list[tuple[float, float, float]]]:
@@ -372,8 +460,9 @@ def _rules(d: str) -> tuple[list[tuple[float, float, float]], list[tuple[float, 
     return horizontal, vertical
 
 
-def _labels(root, sizes: dict[str, float]) -> list[tuple[str, float, float, float, str]]:
-    """Every untransformed `<text>`, as `(content, x, y, size, anchor)`.
+def _labels(root, rules: dict[str, dict[str, float]]) -> list[tuple]:
+    """Every untransformed `<text>`, as `(content, x, y, size, weight,
+    tracking, anchor)`.
 
     Rotated text is skipped and said to be skipped: the y-axis title is turned
     ninety degrees, so its baseline is a column rather than a row and none of
@@ -392,7 +481,7 @@ def _labels(root, sizes: dict[str, float]) -> list[tuple[str, float, float, floa
                 content,
                 float(node.get("x", 0)),
                 float(node.get("y", 0)),
-                _size_of(node.get("class", ""), sizes),
+                *_type_of(node.get("class", ""), rules),
                 node.get("text-anchor", "start"),
             )
         )
@@ -415,8 +504,8 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
     source = path.read_text(encoding="utf-8")
     root = ET.fromstring(source)
     style = "".join("".join(n.itertext()) for n in root.iter(f"{SVG_NS}style"))
-    sizes = _font_sizes(style)
-    labels = _labels(root, sizes)
+    rules = _type_rules(style)
+    labels = _labels(root, rules)
 
     rules: list[tuple[float, float, float]] = []
     uprights: list[tuple[float, float, float]] = []
@@ -428,10 +517,19 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
     _, _, view_w, view_h = (float(v) for v in root.get("viewBox", "0 0 0 0").split())
 
     findings = []
-    for content, x, y, size, anchor in labels:
+    for content, x, y, size, weight, tracking, anchor in labels:
+        missing = _unmeasured(content, weight)
+        if missing:
+            shown = " ".join(sorted(repr(c) for c in missing))
+            findings.append(
+                f"{path.name}: {content[:30]!r} contains {shown}, which "
+                f"assets/font-advances.json has no width for at weight {weight} — "
+                f"run scripts/measure_advances.py"
+            )
+
         top = y - CAP_HEIGHT * size - CLEARANCE
         bottom = y + DESCENDER * size + CLEARANCE
-        wide = _span(x, _text_width(content, size, ADVANCE_WIDE), anchor)
+        wide = _span(x, _text_width(content, size, weight, tracking, True), anchor)
         for rule_y, rule_from, rule_to in rules:
             if top <= rule_y <= bottom and rule_from < wide[1] and rule_to > wide[0]:
                 findings.append(
@@ -440,7 +538,7 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
                 )
                 break
 
-        narrow = _span(x, _text_width(content, size, ADVANCE_NARROW), anchor)
+        narrow = _span(x, _text_width(content, size, weight, tracking, False), anchor)
         for rule_x, rule_from, rule_to in uprights:
             if narrow[0] <= rule_x <= narrow[1] and rule_from < y and rule_to > top:
                 findings.append(
@@ -462,8 +560,8 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
     # is used here, as for the canvas -- a reported overlap has to be one that
     # is certainly there, not one an estimate could have invented.
     boxes = []
-    for content, x, y, size, anchor in labels:
-        span = _span(x, _text_width(content, size, ADVANCE_NARROW), anchor)
+    for content, x, y, size, weight, tracking, anchor in labels:
+        span = _span(x, _text_width(content, size, weight, tracking, False), anchor)
         boxes.append((content, y - CAP_HEIGHT * size, y + DESCENDER * size, *span))
     for i, (one, top1, bottom1, from1, to1) in enumerate(boxes):
         for two, top2, bottom2, from2, to2 in boxes[i + 1 :]:

@@ -269,3 +269,169 @@ def test_the_legibility_gate_catches_a_rule_through_a_word(tmp_path):
 
     overrun = figure('<text x="380" y="100">A label far wider than the canvas</text>')
     assert "leaves the" in "".join(audit.audit_geometry(overrun, quiet=True))
+
+
+# ---------------------------------------------------------------------------
+# The width model: per character, out of the fonts, and tracking included.
+# ---------------------------------------------------------------------------
+
+
+def _audit():
+    """`scripts/audit_figures.py`, imported by path."""
+    spec = importlib.util.spec_from_file_location(
+        "audit_figures", ROOT / "scripts" / "audit_figures.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_advance_table_describes_the_font_stack_the_figures_ask_for():
+    """The drift guard that needs no fonts.
+
+    `scripts/measure_advances.py` reads the widths out of Roboto, Helvetica
+    Neue, Helvetica and Arial, which means it needs those fonts and
+    `fontTools` — neither of which the lane has, and neither of which it
+    should. What it writes is committed, and this is what keeps the committed
+    file describing the right fonts: the table records the stack it measured,
+    and the day `make_figures.FONT` names a different one, this fails and says
+    to re-measure.
+    """
+    figures = _figures()
+    table = _audit().ADVANCES
+    assert table["font_stack"] == figures.FONT, (
+        "the figures changed font stack; run scripts/measure_advances.py"
+    )
+    assert table["faces"], "a table measured from no faces bounds nothing"
+
+
+def test_every_weight_the_stylesheet_declares_has_been_measured():
+    """A class can declare `font-weight: 800` in one edit, and a weight the
+    table does not carry would silently fall through to the widest and
+    narrowest advance in the whole table — a bound so loose it reports
+    nothing. So the stylesheet's own weights are compared against the table's.
+    """
+    audit = _audit()
+    style = (ROOT / "assets" / "figure-plan.svg").read_text(encoding="utf-8")
+    declared = {int(w) for w in re.findall(r"font-weight:\s*(\d+)", style)} | {400}
+    assert declared <= {int(w) for w in audit.PER_WEIGHT}, (
+        f"the figures declare weights the advance table has no widths for: "
+        f"{declared - {int(w) for w in audit.PER_WEIGHT}}"
+    )
+
+
+def test_every_character_in_every_figure_has_a_measured_width():
+    """Coverage, asserted rather than hoped for.
+
+    The committed figures carry French accents, an em dash, a middle dot, a
+    narrow no-break space and an arrow. A character the table misses does not
+    make the audit wrong — the bound widens to the extremes of the whole table
+    — but it makes it useless for that label, silently. The audit reports it
+    and this is the test that the figures as committed never trip it.
+    """
+    audit = _audit()
+    for figure in sorted((ROOT / "assets").glob("figure-*.svg")):
+        findings = [f for f in audit.audit_geometry(figure, quiet=True) if "no width for" in f]
+        assert findings == [], "\n".join(findings)
+
+
+def test_letter_spacing_is_part_of_a_label_width():
+    """The defect this round found, in one assertion.
+
+    `.n` declares `letter-spacing: .1em` and `.h` declares `.08em`, and the
+    width model ignored both. That is not imprecision, it is an unsound bound:
+    the collision test asks for the *widest* a string could be, and for every
+    capitalised letter-spaced label — thirty-six of them in the committed
+    figures — the answer it got was about a third narrower than the label
+    actually renders. A bound in the wrong direction cannot miss politely; it
+    misses a rule through a word.
+    """
+    audit = _audit()
+    rules = audit._type_rules(
+        "text { font-size: 12px; } .n { font-size: 11px; font-weight: 700; letter-spacing: .1em; }"
+    )
+    assert audit._type_of("n", rules) == (11.0, 700, 0.1)
+    assert audit._type_of("", rules) == (12.0, 400, 0.0)
+
+    plain = audit._text_width("ORDER", 11.0, 700, 0.0, True)
+    spaced = audit._text_width("ORDER", 11.0, 700, 0.1, True)
+    assert spaced > plain
+    assert spaced - plain == pytest.approx(5 * 11.0 * 0.1)
+
+    # And the narrow bound does not pay for the space after the last
+    # character, because implementations disagree about it and a bound must
+    # not depend on which is right.
+    assert audit._text_width("ORDER", 11.0, 700, 0.1, False) - audit._text_width(
+        "ORDER", 11.0, 700, 0.0, False
+    ) == pytest.approx(4 * 11.0 * 0.1)
+
+
+def test_the_width_model_knows_an_l_from_a_w():
+    """What replacing one number with two hundred actually bought.
+
+    The old model gave every character the same advance, so `llll` and `WWWW`
+    were the same width. They are not: a lower-case `l` is a little over a
+    fifth of an em and a capital `W` is nearly a whole one.
+    """
+    audit = _audit()
+    narrow = audit._text_width("llllllll", 12.0, 400, 0.0, True)
+    wide = audit._text_width("WWWWWWWW", 12.0, 400, 0.0, True)
+    assert wide > 3 * narrow
+
+    # And the bound is still a bound in both directions, for every character.
+    for weight, chars in audit.PER_WEIGHT.items():
+        for char, (low, high) in chars.items():
+            assert 0 < low <= high <= 1.1, f"{char!r} at weight {weight} measures {low}..{high}"
+
+
+def test_the_audit_catches_a_rule_under_a_letter_spaced_heading(tmp_path):
+    """The specimen neither older model could see, with the arithmetic shown.
+
+    One heading, `WHERE A TURN IS READ`, at 13px in the `.h` class — capitals,
+    weight 600, `letter-spacing: .08em`. Its widest possible extent from
+    x=40 is:
+
+        40..183.0   one average advance for every character (the old model)
+        40..198.8   per-character advances, letter-spacing ignored
+        40..219.6   per-character advances, letter-spacing paid for
+
+    So a dashed rule starting at x=205 runs through the last three words of a
+    heading that renders to 219, and both earlier models called the figure
+    clean — not by a hair, by twenty pixels. A bound that lands short is not a
+    loose bound, it is the wrong answer: the collision test exists to be told
+    the *widest* a string can be.
+    """
+    audit = _audit()
+
+    def figure(rule_from: float) -> pathlib.Path:
+        path = tmp_path / f"heading-{rule_from:g}.svg"
+        path.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
+            "<style>text { font-size: 12px; }"
+            " .h { font-size: 13px; font-weight: 600; letter-spacing: .08em; }</style>"
+            f'<path class="dash" d="M{rule_from:g} 100 H390"/>'
+            '<text class="h" x="40" y="100">WHERE A TURN IS READ</text></svg>',
+            encoding="utf-8",
+        )
+        return path
+
+    heading = "WHERE A TURN IS READ"
+    tracked = audit._text_width(heading, 13.0, 600, 0.08, True)
+    untracked = audit._text_width(heading, 13.0, 600, 0.0, True)
+    uniform = len(heading) * 13.0 * 0.55
+
+    assert uniform < untracked < tracked, (uniform, untracked, tracked)
+
+    # Beyond what the old uniform advance could reach, inside what the
+    # per-character widths give.
+    assert any("crosses" in f for f in audit.audit_geometry(figure(40 + uniform + 5), quiet=True))
+
+    # And beyond even that, reachable only once letter-spacing is paid for.
+    only_tracking = 40 + untracked + 5
+    assert only_tracking < 40 + tracked
+    assert any("crosses" in f for f in audit.audit_geometry(figure(only_tracking), quiet=True))
+
+    # The figure stays clean when the rule really is past the label, which is
+    # what keeps the test above from passing for the wrong reason.
+    assert audit.audit_geometry(figure(40 + tracked + 5), quiet=True) == []

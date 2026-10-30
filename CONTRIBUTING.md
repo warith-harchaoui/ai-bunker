@@ -110,6 +110,20 @@ continuous integration. Point them anywhere with `AI_BUNKER_TEST_ENGINE`;
 with nothing set they look for Ollama. Nothing in there is the only test of
 anything: each has a stubbed twin.
 
+And two measurements that write a committed file rather than returning a
+verdict, so they are run when their input changes rather than on every push:
+
+```bash
+python3 scripts/measure_advances.py    # per-character text widths, from the fonts
+python3 scripts/measure_ratio.py       # the characters-per-token floor, from the tokenizers
+```
+
+The first needs `fontTools` and the four fonts the figures name; the second
+needs the `tokenizers` extra and the network. Neither belongs in a lane, and
+neither is unguarded: `tests/test_figures.py` fails when the figures change
+font stack without a re-measure, and `tests/test_budget.py` holds the ratio
+constant to what the estimate is allowed to assume.
+
 And:
 
 ```bash
