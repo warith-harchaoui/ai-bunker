@@ -141,3 +141,14 @@ desktop.ini
 opencode.db
 .claude/settings.local.json
 .agents/
+
+# The film: source is tracked, output is not.
+# `video/film/index.html` plus `video/film/narration/` rebuild the MP4 exactly
+# (`npx hyperframes render`), and `video/film.yaml` is what keeps the numbers
+# in it true. The render itself is tens of megabytes of derived bytes and has
+# no business in a repository that has to stay cloneable.
+video/film/out/
+video/film/renders/
+video/film/.hyperframes/
+video/film/node_modules/
+*.mp4

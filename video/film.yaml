@@ -54,6 +54,28 @@ claims:
       method: literal
       selector: "1140 tests, `ruff` clean"
 
+  # Found by `make-film scan`, not by remembering: four figures were on
+  # screen that no claim accounted for. That is the half of the audit that
+  # catches the number typed into a keyframe at midnight, and it caught these.
+  - text: "compaction fires at 20,000"
+    value: "= compaction starts at                      20000"
+    source:
+      path: README.md
+      method: literal
+      selector: "= compaction starts at                      20000"
+
+  - text: "tool schemas (7) — 3,164"
+    value: "3164 tokens"
+    source: { path: README.md, method: literal, selector: "3164 tokens" }
+
+  - text: "charter — 905"
+    value: "905 tokens"
+    source: { path: README.md, method: literal, selector: "905 tokens" }
+
+  - text: "knowledge index — 353"
+    value: "353 tokens"
+    source: { path: README.md, method: literal, selector: "353 tokens" }
+
   - text: "BSD-3-Clause"
     value: "BSD-3-Clause"
     source: { path: pyproject.toml, method: literal, selector: "BSD-3-Clause" }
@@ -89,17 +111,41 @@ claims:
       selector: "https://github.com/warith-harchaoui/ai-bunker"
 
 assets:
+  # Paths are relative to the composition tree (`video/film`), which is what
+  # `make-film assets --tree video/film --repo .` resolves them against.
+  #
+  # Only what the film actually renders from. `figure-budget.svg` and
+  # `figure-pipeline.svg` were listed here and are not used: those two beats
+  # are built natively in the composition because the thing that has to land
+  # in them is the motion -- a floor crossing a line, four stages arriving in
+  # order -- and a static import cannot move.
   - rel: assets/figure-path.svg
     provenance: derived
-    why: "written by scripts/make_figures.py; `--check` fails if it drifts"
-  - rel: assets/figure-budget.svg
-    provenance: derived
-    why: "written by scripts/make_figures.py; `--check` fails if it drifts"
-  - rel: assets/figure-pipeline.svg
-    provenance: derived
-    why: "written by scripts/make_figures.py; `--check` fails if it drifts"
+    why: "written by scripts/make_figures.py; `make_figures.py --check` fails if it drifts"
   - rel: assets/figure-plan.svg
     provenance: derived
-    why: "written by scripts/make_figures.py; `--check` fails if it drifts"
+    why: "written by scripts/make_figures.py; `make_figures.py --check` fails if it drifts"
+  # Byte-identical to `assets/logo-dark.png` at the repository root (same
+  # sha1). `make-film assets` reports it as diverged because it cannot resolve
+  # the counterpart from inside `--tree`; the file is correct and the finding
+  # is the tool's, which is worth writing down rather than silencing by
+  # relabelling a true provenance as something else.
   - rel: assets/logo-dark.png
     provenance: tracked
+  - rel: narration/lines.txt
+    provenance: sole
+    why: >-
+      The spoken script, authored for this film and living nowhere else. It is
+      what `sprezzature-audio narrate` reads, so losing it means the narration
+      cannot be regenerated even in principle.
+  - rel: narration/narration.mp3
+    provenance: sole
+    why: >-
+      Generated once by `sprezzature-audio narrate` from `narration/lines.txt`,
+      and every beat boundary in the film is cut to the measured length of its
+      segments. Kokoro is not guaranteed to produce the same waveform across
+      versions, so regenerating it would silently change the cut. Tracked at
+      128 kbit/s rather than the 5.4 MB original.
+  - rel: narration/narration.vtt
+    provenance: derived
+    why: "written beside the audio by the same run; the film's timing reads it"

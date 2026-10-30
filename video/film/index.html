@@ -54,7 +54,7 @@
       }
 
       .kicker {
-        font-size: 26px;
+        font-size: 30px;
         font-weight: 700;
         letter-spacing: 0.18em;
         color: var(--blue);
@@ -123,19 +123,23 @@
       }
       .meter .tag {
         position: absolute;
-        top: 90px;
-        font-size: 28px;
+        top: 94px;
+        font-size: 30px;
         color: var(--muted);
       }
 
       /* Beats 3 and 4 — bars and a table built here rather than imported,
          because the thing that has to land is the motion: a floor crossing a
          line, and a verdict arriving last. */
+      .barwrap {
+        position: relative;
+        width: 1480px;
+        margin-top: 22px;
+      }
       .bar {
         position: relative;
         width: 1480px;
         height: 62px;
-        margin-top: 22px;
         display: flex;
         border-radius: 8px;
         overflow: hidden;
@@ -146,7 +150,7 @@
         transform-origin: left center;
       }
       .barlabel {
-        font-size: 28px;
+        font-size: 30px;
         color: var(--muted);
         margin-top: 52px;
       }
@@ -175,7 +179,7 @@
       }
       .row .own {
         color: var(--orange);
-        font-size: 26px;
+        font-size: 30px;
         letter-spacing: 0.12em;
       }
       .row .own.mine {
@@ -191,7 +195,7 @@
 
       /* Beat 5 — the four stages, two lanes, in the order they happen. */
       .lane {
-        font-size: 24px;
+        font-size: 30px;
         font-weight: 700;
         letter-spacing: 0.16em;
         color: var(--muted);
@@ -213,7 +217,7 @@
       .stage i {
         font-style: normal;
         font-weight: 700;
-        font-size: 26px;
+        font-size: 30px;
         letter-spacing: 0.1em;
         color: var(--orange);
       }
@@ -226,7 +230,7 @@
         font-weight: 700;
       }
       .stage small {
-        font-size: 28px;
+        font-size: 30px;
         color: var(--muted);
       }
 
@@ -265,9 +269,24 @@
       .cta .star {
         color: var(--orange);
       }
-      #mark {
-        width: 150px;
-        margin-bottom: 44px;
+      /* The width belongs on the image. It was on the wrapper, and a
+         1024-pixel logo inside a 230-pixel box is a 1024-pixel logo: it filled
+         half the frame and pushed the two URLs -- the only ask in the film --
+         off the bottom edge. */
+      .wordmark {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        margin-bottom: 56px;
+      }
+      .wordmark img {
+        width: 132px;
+        height: auto;
+      }
+      .wordmark b {
+        font-size: 76px;
+        font-weight: 700;
+        letter-spacing: -0.035em;
       }
     </style>
   </head>
@@ -276,12 +295,18 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="101"
+      data-duration="114"
       data-width="1920"
       data-height="1080"
     >
+      <!-- The narration, and the clock everything else is cut to.
+           Kokoro through `sprezzature-audio narrate`; the beat boundaries
+           below are read from the VTT it wrote, so the film is cut to the
+           measured length of each line rather than to a guess at it. -->
+      <audio id="vo" src="narration/narration.mp3" data-start="0"></audio>
+
       <!-- 1 — opening punchline -->
-      <section class="scene mid clip" data-start="0" data-duration="9.4" data-track-index="0">
+      <section id="beat1-punchline" class="scene mid clip" data-start="0" data-duration="15.232" data-track-index="0">
         <h1 class="huge" id="s1a">An agent that estimates its own context</h1>
         <h1 class="huge" id="s1b" style="color: var(--blue)">is a bank that estimates your balance.</h1>
         <div class="meter" id="s1m">
@@ -290,54 +315,73 @@
           <div class="tag" style="left: 0">40,433 tokens sent</div>
           <div class="tag" style="left: 700px">32,768 held</div>
         </div>
+        <div class="note" id="s1n" style="margin-top: 96px">
+          25 September 2026. Nobody was lying — the client was estimating.
+        </div>
       </section>
 
       <!-- 2 — what -->
-      <section class="scene clip" data-start="9.4" data-duration="10" data-track-index="0">
+      <section id="beat2-what" class="scene clip" data-start="15.232" data-duration="12.565" data-track-index="0">
         <div class="kicker" id="s2k">WHAT IT IS</div>
         <div class="say" id="s2t">
           A serving layer between your coding agent and <em>your own</em> graphics card. It speaks
           OpenAI, so every client you already use works unchanged — and nothing leaves the network.
         </div>
-        <div class="paper" id="s2f" style="margin-top: 44px">
+        <div class="paper" data-hold id="s2f" style="margin-top: 36px">
           <img src="assets/figure-path.svg" alt="Four positions on one path" />
+        </div>
+        <div class="note" id="s2n" style="margin-top: 28px">
+          Four positions on one path. Only one of them sees both ends of a turn.
         </div>
       </section>
 
       <!-- 3 — problem -->
-      <section class="scene clip" data-start="19.4" data-duration="16.6" data-track-index="0">
+      <section id="beat3-problem" class="scene clip" data-start="27.797" data-duration="19.413" data-track-index="0">
         <div class="kicker" id="s3k">THE PROBLEM</div>
         <div class="say" id="s3t">
           The client was not lying. It was <em>estimating</em>. Fifty-nine agent skills cost
           <em>17,754 tokens</em> — and the floor crossed the line where compaction fires.
         </div>
-        <div class="bar" id="s3b">
-          <span id="s3o" style="background: var(--orange); opacity: 0.6; width: 1324px"></span>
-          <span id="s3u" style="background: var(--blue); opacity: 0.6; width: 72px"></span>
-          <span id="s3r" style="background: var(--red); opacity: 0.6; width: 84px"></span>
+        <div class="barwrap">
+          <div class="bar" id="s3b">
+            <span id="s3o" style="background: var(--orange); opacity: 0.6; width: 1324px"></span>
+            <span id="s3u" style="background: var(--blue); opacity: 0.6; width: 72px"></span>
+            <span id="s3r" style="background: var(--red); opacity: 0.6; width: 84px"></span>
+          </div>
           <div class="trigger" id="s3g" style="left: 1138px"></div>
         </div>
         <div class="barlabel" id="s3l">
-          Compaction fires at 20,000. Build, compact, build — eight tokens a turn, and the harness
-          never said a word.
+          Compaction fires at 20,000 — and the floor is already past it.
+        </div>
+        <div class="barlabel" id="s3m" style="margin-top: 18px">
+          So the session compacts on turn one with nothing to compact.
+        </div>
+        <div class="barlabel" id="s3n" style="margin-top: 18px; color: var(--red)">
+          Eight tokens a turn. The accelerator busy for nothing. The harness never said a word.
         </div>
       </section>
 
       <!-- 4 — solution -->
-      <section class="scene clip" data-start="36" data-duration="14" data-track-index="0">
+      <section id="beat4-solution" class="scene clip" data-start="47.21" data-duration="17.877" data-track-index="0">
         <div class="kicker" id="s4k">THE ANSWER</div>
-        <div class="big" id="s4t">Count where the tokenizer is.</div>
+        <div class="big" data-hold id="s4t">Count where the tokenizer is.</div>
         <div class="ledger">
           <div class="row s4r"><b>agent skills (59)</b><span><span class="own">CLIENT</span> 17,754</span></div>
           <div class="row s4r"><b>tool schemas (7)</b><span><span class="own">CLIENT</span> 3,164</span></div>
           <div class="row s4r"><b>charter</b><span><span class="own mine">AI-BUNKER</span> 905</span></div>
           <div class="row s4r"><b>knowledge index</b><span><span class="own mine">AI-BUNKER</span> 353</span></div>
         </div>
-        <div class="verdict" id="s4v">VERDICT&nbsp;&nbsp;UNUSABLE — and it is the exit code, not a warning.</div>
+        <div class="note" id="s4n" style="margin-top: 26px">
+          A floor nobody can decompose is a floor nobody can reduce — so every token has an owner,
+          including ours.
+        </div>
+        <div class="verdict" id="s4v" style="margin-top: 26px">
+          VERDICT&nbsp;&nbsp;UNUSABLE — the exit code, not a warning.
+        </div>
       </section>
 
       <!-- 5 — secret sauce -->
-      <section class="scene clip" data-start="50" data-duration="18" data-track-index="0">
+      <section id="beat5-sauce" class="scene clip" data-start="65.087" data-duration="17.579" data-track-index="0">
         <div class="kicker" id="s5k">THE ORDER IS THE POINT</div>
         <div class="lane s5e">ON THE WAY IN</div>
         <div class="stage s5s"><i>01</i><u>Screen inbound tool results</u><small>secrets out, injections marked</small></div>
@@ -345,23 +389,32 @@
         <div class="stage engine s5s"><i>03</i><u>Measure and enforce the budget</u><small>the engine's own tokenizer</small></div>
         <div class="lane s5e">ON THE WAY BACK</div>
         <div class="stage s5s"><i>04</i><u>Screen outbound tool calls</u><small>the command has not run yet</small></div>
+        <div class="note" id="s5n" style="margin-top: 28px">
+          01 and 04 are one rule engine, read at both ends of one turn.
+        </div>
       </section>
 
       <!-- 6 — best example -->
-      <section class="scene clip" data-start="68" data-duration="15.6" data-track-index="0">
+      <section id="beat6-example" class="scene clip" data-start="82.666" data-duration="16.960" data-track-index="0">
         <div class="kicker" id="s6k">ONE H100, EVERY SLOT FILLED</div>
-        <div class="paper" id="s6f">
+        <div class="paper" data-hold id="s6f">
           <img src="assets/figure-plan.svg" alt="Where an 80 GiB card goes" />
         </div>
         <div class="note" id="s6t">
-          Ask for pictures and the coder drops to the dense 24B. Printed before you deploy it — and
-          the guardrails themselves cost under 5% of the window.
+          Ask for pictures and the coder drops from the 80B mixture-of-experts to the dense 24B.
+        </div>
+        <div class="note" id="s6u" style="margin-top: 14px">
+          Printed before you deploy it, not discovered after — and the guardrails themselves cost
+          under 5% of the window.
         </div>
       </section>
 
       <!-- 7 — call to action -->
-      <section class="scene mid clip" data-start="83.6" data-duration="9.4" data-track-index="0">
-        <img id="mark" src="assets/logo-dark.png" alt="ai-bunker" />
+      <section id="beat7-cta" class="scene mid clip" data-start="99.626" data-duration="6.592" data-track-index="0">
+        <div class="wordmark" id="mark">
+          <img src="assets/logo-dark.png" alt="" />
+          <b>ai-bunker</b>
+        </div>
         <div class="cta">
           <div id="s7a"><span>read it</span>deraison.ai/ai-helpers</div>
           <div id="s7b"><span>star it</span><span class="star">★</span>github.com/warith-harchaoui/ai-bunker</div>
@@ -372,7 +425,7 @@
       </section>
 
       <!-- 8 — closing punchline -->
-      <section class="scene mid clip" data-start="93" data-duration="8" data-track-index="0">
+      <section id="beat8-close" class="scene mid clip" data-start="106.218" data-duration="7.782" data-track-index="0">
         <div class="say" id="s8a" style="color: var(--muted); max-width: 1300px">
           Every number in this film is in the repository, and a test fails when one of them drifts.
         </div>
@@ -385,55 +438,79 @@
       const rise = { opacity: 0, y: 44 };
       const set = { opacity: 1, y: 0, ease: "power3.out" };
 
-      // 1 — the two lines, then the overflow running past the wall it was
-      // told it fitted inside.
-      tl.fromTo("#s1a", rise, { ...set, duration: 0.7 }, 0.3);
-      tl.fromTo("#s1b", rise, { ...set, duration: 0.7 }, 0.9);
-      tl.fromTo("#s1m", { opacity: 0 }, { opacity: 1, duration: 0.5 }, 2.4);
-      tl.fromTo("#s1s", { scaleX: 0 }, { scaleX: 1, duration: 1.5, ease: "power2.inOut" }, 3.0);
-      tl.to("#s1s", { opacity: 0.85, duration: 0.3 }, 4.5);
+      // Where each beat begins, read from `narration/narration.vtt` -- the
+      // measured length of each spoken line, not an estimate of it. Written
+      // as an array and used as offsets so that re-narrating a line moves
+      // everything cut to it, instead of leaving eight hand-typed numbers to
+      // drift one at a time.
+      const B = [0, 15.232, 27.797, 47.21, 65.087, 82.666, 99.626, 106.218];
+      const at = (beat, offset) => B[beat - 1] + offset;
 
-      // 2 — claim, then the evidence under it.
-      tl.fromTo("#s2k", rise, { ...set, duration: 0.5 }, 9.7);
-      tl.fromTo("#s2t", rise, { ...set, duration: 0.7 }, 10.0);
-      tl.fromTo("#s2f", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 10.8);
+      // 1 — the first line is on screen at frame 0 rather than fading in:
+      // frame 0 is the thumbnail every social player shows, and a thumbnail
+      // of an empty stage is a thumbnail nobody clicks.
+      tl.fromTo("#s1b", rise, { ...set, duration: 0.7 }, at(1, 0.6));
+      tl.fromTo("#s1m", { opacity: 0 }, { opacity: 1, duration: 0.5 }, at(1, 4.0));
+      tl.fromTo("#s1s", { scaleX: 0 }, { scaleX: 1, duration: 2.4, ease: "power2.inOut" }, at(1, 5.0));
+      tl.to("#s1s", { opacity: 0.85, duration: 0.4 }, at(1, 7.6));
+      tl.fromTo("#s1n", { opacity: 0 }, { opacity: 1, duration: 0.7 }, at(1, 10.4));
+      tl.fromTo("#s1n", { scale: 1 }, { scale: 1.012, duration: 3.6, ease: "none" }, at(1, 11.4));
 
-      // 3 — the bar grows and crosses the trigger. The red segment is the
-      // part past the line, so it arrives last and on its own.
-      tl.fromTo("#s3k", rise, { ...set, duration: 0.5 }, 19.7);
-      tl.fromTo("#s3t", rise, { ...set, duration: 0.7 }, 20.0);
-      tl.fromTo("#s3g", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 21.2);
-      tl.fromTo("#s3o", { scaleX: 0 }, { scaleX: 1, duration: 1.6, ease: "power2.out" }, 21.6);
-      tl.fromTo("#s3u", { scaleX: 0 }, { scaleX: 1, duration: 0.3 }, 23.2);
-      tl.fromTo("#s3r", { scaleX: 0 }, { scaleX: 1, duration: 0.5 }, 23.5);
-      tl.fromTo("#s3l", { opacity: 0 }, { opacity: 1, duration: 0.6 }, 24.4);
+      // 2 — claim, evidence, then what the evidence means.
+      tl.fromTo("#s2k", rise, { ...set, duration: 0.5 }, at(2, 0.3));
+      tl.fromTo("#s2t", rise, { ...set, duration: 0.7 }, at(2, 0.6));
+      tl.fromTo("#s2f", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, at(2, 3.4));
+      tl.fromTo("#s2n", { opacity: 0 }, { opacity: 1, duration: 0.7 }, at(2, 8.4));
+      tl.fromTo("#s2f", { scale: 1 }, { scale: 1.015, duration: 3.2, ease: "none" }, at(2, 9.2));
 
-      // 4 — the ledger arrives a row at a time, because attribution is the
-      // argument; the verdict lands after the reader has seen who owes what.
-      tl.fromTo("#s4k", rise, { ...set, duration: 0.5 }, 36.3);
-      tl.fromTo("#s4t", rise, { ...set, duration: 0.7 }, 36.6);
-      tl.fromTo(".s4r", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.45, stagger: 0.35, ease: "power2.out" }, 37.6);
-      tl.fromTo("#s4v", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 39.6);
+      // 3 — the bar grows, crosses the trigger, and the consequence arrives
+      // one line at a time, which is how it arrives in a session.
+      tl.fromTo("#s3k", rise, { ...set, duration: 0.5 }, at(3, 0.3));
+      tl.fromTo("#s3t", rise, { ...set, duration: 0.7 }, at(3, 0.6));
+      tl.fromTo("#s3g", { opacity: 0 }, { opacity: 1, duration: 0.4 }, at(3, 3.4));
+      tl.fromTo("#s3o", { scaleX: 0 }, { scaleX: 1, duration: 2.6, ease: "power2.out" }, at(3, 4.0));
+      tl.fromTo("#s3u", { scaleX: 0 }, { scaleX: 1, duration: 0.3 }, at(3, 6.6));
+      tl.fromTo("#s3r", { scaleX: 0 }, { scaleX: 1, duration: 0.6 }, at(3, 6.9));
+      tl.fromTo("#s3l", { opacity: 0 }, { opacity: 1, duration: 0.6 }, at(3, 9.4));
+      tl.fromTo("#s3m", { opacity: 0 }, { opacity: 1, duration: 0.6 }, at(3, 12.6));
+      tl.fromTo("#s3n", { opacity: 0 }, { opacity: 1, duration: 0.6 }, at(3, 15.4));
+      tl.fromTo("#s3n", { scale: 1 }, { scale: 1.015, duration: 3.0, ease: "none" }, at(3, 16.2));
 
-      // 5 — one stage at a time, in the order a turn meets them.
-      tl.fromTo("#s5k", rise, { ...set, duration: 0.5 }, 50.3);
-      tl.fromTo(".s5e", { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 3.6 }, 50.9);
-      tl.fromTo(".s5s", { opacity: 0, x: -36 }, { opacity: 1, x: 0, duration: 0.5, stagger: 1.5, ease: "power2.out" }, 51.2);
+      // 4 — the ledger a row at a time, because attribution is the argument;
+      // the verdict after the reader has seen who owes what.
+      tl.fromTo("#s4k", rise, { ...set, duration: 0.5 }, at(4, 0.3));
+      tl.fromTo("#s4t", rise, { ...set, duration: 0.7 }, at(4, 0.6));
+      tl.fromTo(".s4r", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.45, stagger: 1.5, ease: "power2.out" }, at(4, 5.4));
+      tl.fromTo("#s4n", { opacity: 0 }, { opacity: 1, duration: 0.7 }, at(4, 7.6));
+      tl.fromTo("#s4v", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, at(4, 12.4));
+      tl.fromTo("#s4v", { scale: 1 }, { scale: 1.025, duration: 3.6, ease: "none" }, at(4, 13.2));
 
-      // 6 — the figure, then the price it prints.
-      tl.fromTo("#s6k", rise, { ...set, duration: 0.5 }, 68.3);
-      tl.fromTo("#s6f", { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 68.7);
-      tl.fromTo("#s6t", { opacity: 0 }, { opacity: 1, duration: 0.7 }, 71.5);
+      // 5 — one stage at a time, in the order a turn meets them, then the
+      // sentence the shared colour has already made.
+      tl.fromTo("#s5k", rise, { ...set, duration: 0.5 }, at(5, 0.3));
+      tl.fromTo(".s5e", { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 9.2 }, at(5, 0.9));
+      tl.fromTo(".s5s", { opacity: 0, x: -36 }, { opacity: 1, x: 0, duration: 0.5, stagger: 3.1, ease: "power2.out" }, at(5, 1.6));
+      tl.fromTo("#s5n", { opacity: 0 }, { opacity: 1, duration: 0.7 }, at(5, 11.0));
+      tl.fromTo("#s5n", { scale: 1 }, { scale: 1.015, duration: 4.8, ease: "none" }, at(5, 11.8));
 
-      // 7 — the ask, unhurried.
-      tl.fromTo("#mark", { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.7, ease: "power3.out" }, 83.9);
-      tl.fromTo("#s7a", rise, { ...set, duration: 0.6 }, 84.5);
-      tl.fromTo("#s7b", rise, { ...set, duration: 0.6 }, 85.1);
-      tl.fromTo("#s7c", { opacity: 0 }, { opacity: 1, duration: 0.6 }, 86.0);
+      // 6 — the figure, the price, the rent.
+      tl.fromTo("#s6k", rise, { ...set, duration: 0.5 }, at(6, 0.3));
+      tl.fromTo("#s6f", { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, at(6, 0.7));
+      tl.fromTo("#s6t", { opacity: 0 }, { opacity: 1, duration: 0.7 }, at(6, 6.4));
+      tl.fromTo("#s6u", { opacity: 0 }, { opacity: 1, duration: 0.7 }, at(6, 11.0));
+      tl.fromTo("#s6f", { scale: 1 }, { scale: 1.02, duration: 5.0, ease: "none" }, at(6, 11.6));
+
+      // 7 — the ask, unhurried, with the star arriving on its own.
+      tl.fromTo("#mark", { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.7, ease: "power3.out" }, at(7, 0.2));
+      tl.fromTo("#s7a", rise, { ...set, duration: 0.6 }, at(7, 0.8));
+      tl.fromTo("#s7b", rise, { ...set, duration: 0.6 }, at(7, 2.6));
+      tl.fromTo("#s7c", { opacity: 0 }, { opacity: 1, duration: 0.6 }, at(7, 4.0));
+      tl.fromTo("#s7b .star", { scale: 1 }, { scale: 1.4, duration: 0.45, ease: "power2.out", yoyo: true, repeat: 3 }, at(7, 4.2));
 
       // 8 — the claim, then the two words that depend on it.
-      tl.fromTo("#s8a", { opacity: 0 }, { opacity: 1, duration: 0.8 }, 93.4);
-      tl.fromTo("#s8b", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, 95.2);
+      tl.fromTo("#s8a", { opacity: 0 }, { opacity: 1, duration: 0.8 }, at(8, 0.3));
+      tl.fromTo("#s8b", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" }, at(8, 3.4));
+      tl.fromTo("#s8b", { scale: 1 }, { scale: 1.035, duration: 3.2, ease: "power1.out" }, at(8, 4.3));
 
       window.__timelines["main"] = tl;
       tl.seek(0);
