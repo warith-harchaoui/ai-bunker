@@ -77,15 +77,24 @@ python scripts/audit_contrast.py     # the dashboard's WCAG gate
 python scripts/lint_a11y.py          # the dashboard's static a11y gate
 python scripts/lint_acronyms.py      # no abbreviation used before it is explained
 python scripts/lint_claims.py        # no claim that stopped being true
+python scripts/lint_film.py          # the launch film still matches the repository
 python scripts/sync_counts.py        # rewrite every quoted figure from its source
 ```
 
 CI runs all of these. The suite runs on **Python 3.10 and 3.13** — the two
 ends of the range `pyproject.toml` declares — and everything else runs once,
 on 3.13, because lint, format, rule evidence, the three page audits and
-`doctor` cannot answer differently on a different interpreter. The acronym and
-claim linters reach CI through the suite, which calls them
-(`tests/test_acronyms.py`, `tests/test_claims.py`).
+`doctor` cannot answer differently on a different interpreter. Four of the
+commands above reach CI through the suite rather than through a workflow step,
+because the suite calls them: the acronym linter (`tests/test_acronyms.py`),
+the claim linter (`tests/test_claims.py`), the film linter
+(`tests/test_film.py`) and `sync_counts.py --check` (`tests/test_site.py`).
+
+A script in `scripts/` has to be run by one of those two routes, or listed in
+`SCRIPT_RUNNERS` in `tests/test_packaging.py` with the reason it cannot be.
+Adding a gate and forgetting to wire it up is the most common defect this
+repository has found in itself — three times now — so the directory is
+compared against that mapping on every run.
 
 Two checks are deliberately **not** in that list.
 

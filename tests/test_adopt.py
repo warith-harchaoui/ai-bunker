@@ -14,6 +14,7 @@ Warith Harchaoui
 from __future__ import annotations
 
 import json
+import pathlib
 
 import os_helper as osh
 import pytest
@@ -583,3 +584,34 @@ def test_a_kit_asks_for_a_need_rather_than_naming_a_model(repo):
     for model in load_catalog()["models"]:
         assert str(model["id"]) not in rendered
         assert str(model["id"]).split("-", 1)[0] not in rendered
+
+
+def test_a_child_process_can_be_told_the_website_is_not_here(monkeypatch, tmp_path):
+    """One published figure is counted by a subprocess, and it has to count
+    what a clone counts.
+
+    Twenty-one tests in this suite are parametrised over the website's pages,
+    so `pytest --collect-only` returns twenty-one more on the maintainer's
+    machine than anywhere else, and the number written into both READMEs was
+    the maintainer's. `without_site` is what makes the two agree.
+
+    The two halves asserted here are the two ways it could silently stop
+    working: an *empty* value falls through to `SITE_CANDIDATES` and finds the
+    site again on the one machine that has it, and a value naming a real
+    directory would find it outright. What is set has to resolve to None.
+    """
+    from ai_bunker.adopt import SITE_ENV, site_root, without_site
+
+    site = tmp_path / "site"
+    site.mkdir()
+    monkeypatch.setenv(SITE_ENV, str(site))
+    assert site_root() == site
+
+    monkeypatch.setenv(SITE_ENV, without_site()[SITE_ENV])
+    assert site_root() is None
+
+    # And what makes that work: the value names something real, so it cannot
+    # be mistaken for "unset" and fall through to the candidate search, and it
+    # is not a directory, so `site_root` refuses it.
+    declared = pathlib.Path(without_site()[SITE_ENV])
+    assert declared.exists() and not declared.is_dir()

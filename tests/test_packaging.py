@@ -151,6 +151,85 @@ def test_every_declared_quality_tool_is_actually_run_in_the_lane(manifest):
         assert command in runs, f"{tool} is declared in [dev] and nothing in ci.yml runs it"
 
 
+#: Every module in `scripts/`, and what runs it. `"ci"` means a `run:` line in
+#: the workflow; a `tests/...` path means the suite; `None` is the escape, and
+#: it has to be argued for in the comment beside it.
+#:
+#: The forcing function is the mapping being *exhaustive*. `pyproject.toml`
+#: declares its tools, so `test_every_declared_quality_tool_is_actually_run_in
+#: _the_lane` can read a list and find a name nothing invokes. A file this
+#: repository wrote itself is declared nowhere, and that is exactly how the
+#: launch film's claim checker went missing: `video/film.yaml` was verified by
+#: a command typed on one laptop, in a directory the suite did not touch, while
+#: the film's closing frame promised a test would fail if a number drifted.
+#:
+#: A mention is not a run, and the two are told apart by *shape*. Four test
+#: modules discuss `sync_counts.py` in their prose and, until this round, none
+#: of them invoked it -- so a search for the filename would have reported it
+#: gated. A suite module that actually runs a script builds a path to it,
+#: `ROOT / "scripts" / "name.py"`, which no sentence about it ever does.
+#: That still would not catch a module that builds the path and never calls
+#: what it loads; the part with real teeth is the mapping being exhaustive.
+SCRIPT_RUNNERS = {
+    "audit_contrast.py": "ci",
+    "audit_figures.py": "ci",
+    "lint_a11y.py": "ci",
+    "no_heavy_stack.py": "ci",
+    "lint_acronyms.py": "tests/test_acronyms.py",
+    "lint_claims.py": "tests/test_claims.py",
+    "lint_film.py": "tests/test_film.py",
+    "make_figures.py": "tests/test_figures.py",
+    "measure_overhead.py": "tests/test_budget.py",
+    "sync_counts.py": "tests/test_site.py",
+    "verify_deployment.py": "tests/test_verify_deployment.py",
+    # The two escapes, and they are escapes rather than oversights.
+    #
+    # `bench_context.py` fits a line through decode time against prompt length,
+    # which needs a loaded model on a live engine.
+    "bench_context.py": None,
+    # `measure_ratio.py --check` re-measures the characters-per-token floor
+    # against three real tokenizers, so it wants the `tokenizers` extra -- an
+    # extra the lane installs on purpose *not* to have -- and it downloads
+    # three vocabularies. Its own docstring says so and says what it is for
+    # instead: the thing you run when you change the constant.
+    #
+    # This entry was `tests/test_budget.py` for the length of one test run.
+    # That module talks about the script in two docstrings and has never run
+    # it, which is exactly the mistake the shape check above exists to catch,
+    # made by the person adding the shape check.
+    "measure_ratio.py": None,
+}
+
+
+def test_every_script_this_repository_wrote_is_run_by_the_lane_or_the_suite():
+    """The class, one level above `[dev]`.
+
+    A quality tool arrives declared in a manifest, so a test can read the
+    manifest. A gate this repository wrote itself arrives as a file, declared
+    nowhere, and the only list of those is the directory listing -- so that is
+    what is compared.
+    """
+    present = {path.name for path in (ROOT / "scripts").glob("*.py")}
+    assert present == set(SCRIPT_RUNNERS), (
+        "a script in scripts/ has no declared runner; wire it into the lane or "
+        f"the suite and say so here: {present ^ set(SCRIPT_RUNNERS)}"
+    )
+
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    runs = "\n".join(re.findall(r"^\s+run:.*(?:\n\s{8,}.*)*", workflow, re.M))
+    for script, runner in SCRIPT_RUNNERS.items():
+        if runner is None:
+            continue
+        if runner == "ci":
+            assert f"scripts/{script}" in runs, f"{script} is declared a lane step and is not one"
+        else:
+            module = ROOT / runner
+            assert module.exists(), f"{script} names {runner}, which does not exist"
+            assert f'"scripts" / "{script}"' in module.read_text(encoding="utf-8"), (
+                f"{runner} is declared to run {script} and only talks about it"
+            )
+
+
 def test_the_coverage_floor_is_declared_and_defended(manifest):
     """A floor that lives in a workflow argument is a floor one `-p` removes.
 

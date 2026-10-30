@@ -56,6 +56,33 @@ SITE_ENV = "AI_BUNKER_SITE"
 SITE_CANDIDATES = ("web", "~/web/deraison/ai-bunker")
 
 
+def without_site(base: dict[str, str] | None = None) -> dict[str, str]:
+    """A child process's environment with the website declared absent.
+
+    One published figure is counted by running `pytest --collect-only` in a
+    subprocess: the test count in both READMEs. That count is **not** the same
+    on every machine, because twenty-one tests are parametrised over the
+    website's pages and the website is a different repository. So the number
+    was 1,156 on the maintainer's laptop, 1,135 in a clone, and the README
+    quoted the laptop -- a figure no reader could reproduce, published by a
+    project whose entire argument is that its numbers are measured rather than
+    asserted.
+
+    Worse, the guard could not see it. `test_the_documentation_quotes_the_real
+    _test_count` carried a skip-without-the-site marker, so it ran only where
+    the discrepancy existed and skipped everywhere it would have been caught.
+
+    The fix is to count what a clone counts, which means telling the child
+    process there is no site. `SITE_ENV` is set to a path that is a file rather
+    than a directory, which `site_root` resolves to None without consulting
+    `SITE_CANDIDATES` -- an empty value would fall through to the search and
+    find the site again on the one machine that has it.
+    """
+    env = dict(os.environ if base is None else base)
+    env[SITE_ENV] = str(ROOT / "pyproject.toml")
+    return env
+
+
 def site_root() -> Path | None:
     """Where the website's tree is, or None when it is not here.
 

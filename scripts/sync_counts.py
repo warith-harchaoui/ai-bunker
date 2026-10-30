@@ -27,7 +27,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ai_bunker.adopt import site_root
+from ai_bunker.adopt import site_root, without_site
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -47,6 +47,16 @@ SOURCES = [
     ROOT / "docs" / "REGLES.md",
     ROOT / "EXAMPLES.md",
     ROOT / "EXEMPLES.md",
+    # The launch film quotes the test count in three places -- the spoken
+    # script, the claim spec, and the closing card of the composition itself --
+    # and for its first week none of the three was owned here. That is the
+    # worst place in the repository for a figure to live by hand: a README is
+    # re-read, and a number rendered into a keyframe is not. The film's own
+    # closing line promises a test fails when one of its numbers drifts, so
+    # the number has to be written from the source like every other.
+    ROOT / "video" / "SCRIPT.md",
+    ROOT / "video" / "film.yaml",
+    ROOT / "video" / "film" / "index.html",
 ]
 if WEB is not None:
     SOURCES += [
@@ -60,7 +70,14 @@ if WEB is not None:
 
 
 def collected_tests() -> int:
-    """What `pytest` actually collects. Not an estimate: see test_site.py."""
+    """What `pytest` actually collects **in a clone**. Not an estimate.
+
+    `without_site` is not decoration: twenty-one tests are parametrised over
+    the website's pages, so this machine collects twenty-one more than anybody
+    else, and the figure written into the README has to be the one a reader can
+    reproduce. See `test_site.py` for the rest, and `adopt.without_site` for
+    why an empty environment variable would not have been enough.
+    """
     result = subprocess.run(
         [
             sys.executable,
@@ -75,6 +92,7 @@ def collected_tests() -> int:
         capture_output=True,
         text=True,
         cwd=ROOT,
+        env=without_site(),
         timeout=300,
         check=False,
     )
@@ -189,6 +207,17 @@ def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
         # commit and bought nothing a green CI gate does not already say. Only
         # the READMEs carry the number, where correcting it costs no upload.
         (re.compile(r"\|\s*\d+ tests, `ruff`"), f"| {tests} tests, `ruff`", "tests (checklist)"),
+        # The film's three. Each pattern keeps its own context so that the
+        # historical note in the same files -- *"thirteen hundred tests" was
+        # 1,140* -- is a record of a past moment and stays one.
+        (re.compile(r"\*\*[\d,]+ tests\*\*"), f"**{tests:,} tests**", "tests (film script)"),
+        (re.compile(r"· [\d,]+ tests"), f"· {tests:,} tests", "tests (film closing card)"),
+        (re.compile(r'text: "[\d,]+ tests"'), f'text: "{tests:,} tests"', "tests (film claim)"),
+        (
+            re.compile(r'"\d+ tests, `ruff` clean"'),
+            f'"{tests} tests, `ruff` clean"',
+            "tests (film claim selector)",
+        ),
         (re.compile(r"^(\s*rules loaded\s+)\d+$", re.M), rf"\g<1>{rules}", "rules loaded"),
         (re.compile(r"^(\s*assertions passed\s+)\d+$", re.M), rf"\g<1>{assertions}", "assertions"),
         (

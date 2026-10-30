@@ -24,7 +24,7 @@ import sys
 
 import pytest
 
-from ai_bunker.adopt import ROOT, site_root
+from ai_bunker.adopt import ROOT, site_root, without_site
 from ai_bunker.charter import load_charter
 from ai_bunker.rules import load_rules
 from ai_bunker.rules import test_rules as check_rules
@@ -115,15 +115,54 @@ def test_the_documentation_quotes_the_real_rule_counts(all_prose):
             assert n == actual, f"the documentation says {n} {label}; there are {actual}"
 
 
-@needs_site
+def test_no_published_figure_is_stale():
+    """`sync_counts.py --check`, which nothing had ever run.
+
+    The tests around this one assert specific figures by reading them back out
+    of the prose: rules, assertions, scenarios, the test count. They are the
+    *read* side. `scripts/sync_counts.py` is the write side, and its
+    substitution list is the authoritative inventory of every figure this
+    repository publishes -- nineteen patterns across eight files, several of
+    which no assertion here has ever looked at.
+
+    Four test modules mention the script in their docstrings. None invoked it.
+    So the inventory grew, the generator stayed correct, and whether a figure
+    it owns had drifted was answered by whoever last typed the command.
+
+    This runs it in `--check` mode, which changes nothing and returns non-zero
+    when a file quotes something the repository no longer says. It costs one
+    collection subprocess, the same one the test below already pays for.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "sync_counts", ROOT / "scripts" / "sync_counts.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    assert module.main(["--check"]) == 0, "a published figure has drifted; run sync_counts.py"
+
+
 def test_the_documentation_quotes_the_real_test_count(all_prose):
     """Only claims about the present. A sentence like "the 327 tests of the
     time did not catch it" is a fact about a past moment and must keep its
     number -- updating it would turn a true statement into a false one -- so
     the pattern is anchored on the checklist row, which is a claim about now.
+
+    This carried `@needs_site` and should never have: `all_prose` is the six
+    files of *this* repository plus the site's two when the site happens to be
+    on the machine, and `sync_counts.py` states in its own comment that the
+    site deliberately quotes no test count at all -- "only the READMEs carry
+    the number". So the one figure nothing outside this repository states was
+    the one whose guard demanded a checkout of something outside this
+    repository: green on a laptop with the site beside it, skipped in the lane
+    where the README is the only thing there is.
     """
     actual = _collected_tests()
-    for n in {int(x) for x in re.findall(r"\|\s*(\d+) tests, `ruff`", all_prose)}:
+    quoted = {int(x) for x in re.findall(r"\|\s*(\d+) tests, `ruff`", all_prose)}
+    assert quoted, "nothing quotes a test count any more; delete this test or the row"
+    for n in quoted:
         assert n == actual, f"the documentation says {n} tests; pytest collects {actual}"
 
 
@@ -161,6 +200,12 @@ def _collected_tests() -> int:
     with the site because it was comparing the site to its own estimate rather
     than to the suite. On a project whose claim is that every published number
     is measured, that is the one place an estimate must not be.
+
+    And it counts what a *clone* collects, not what this machine does. Twenty-one
+    of these tests are parametrised over the website's pages, so the total was
+    1,156 here and 1,135 in continuous integration, and the README quoted the
+    larger one -- a published figure no reader could reproduce. `without_site`
+    is what makes the two agree; its docstring carries the rest of the story.
     """
     result = subprocess.run(
         [
@@ -173,6 +218,7 @@ def _collected_tests() -> int:
             "-p",
             "no:cacheprovider",
         ],
+        env=without_site(),
         capture_output=True,
         text=True,
         cwd=ROOT,

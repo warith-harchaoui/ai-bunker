@@ -47,12 +47,12 @@ claims:
   # The count in the film, read from the line `scripts/sync_counts.py` writes
   # and `tests/test_site.py` gates against what pytest actually collects. Three
   # links, and the film is the last one.
-  - text: "1,140 tests"
-    value: "1140 tests, `ruff` clean"
+  - text: "1,137 tests"
+    value: "1137 tests, `ruff` clean"
     source:
       path: README.md
       method: literal
-      selector: "1140 tests, `ruff` clean"
+      selector: "1137 tests, `ruff` clean"
 
   # Found by `make-film scan`, not by remembering: four figures were on
   # screen that no claim accounted for. That is the half of the audit that
@@ -75,6 +75,43 @@ claims:
   - text: "knowledge index — 353"
     value: "353 tokens"
     source: { path: README.md, method: literal, selector: "353 tokens" }
+
+  # The three below were on screen from the first render and declared by
+  # nothing. `make-film scan` reported all three and the report went nowhere:
+  # the first pass declared the four figures of the budget table and left the
+  # rest, which is how a scan that finds twelve gets written up as finding
+  # four. `scripts/lint_film.py` now runs the same scan in the suite, so the
+  # next one cannot be left.
+
+  # The incident date, which is the one claim no literal search for the film's
+  # wording could ever have found: the film says "25 September 2026" and the
+  # README says `2026-09-25`. A spec is exactly the place where two notations
+  # of one fact are reconciled, and this is the pair that proves it earns its
+  # keep.
+  - text: "25 September 2026"
+    value: "On 2026-09-25,"
+    source: { path: README.md, method: literal, selector: "On 2026-09-25," }
+
+  # The card the sizing beat is about, read from the generator that draws the
+  # figure rather than from the prose that describes it -- `make_figures.py
+  # --check` already refuses to let that file drift from the committed SVG, so
+  # this claim inherits a gate instead of needing a new one.
+  - text: "one H100, 80 GiB, every slot filled"
+    value: "ONE H100 80 GiB, EVERY SLOT FILLED"
+    source:
+      path: scripts/make_figures.py
+      method: literal
+      selector: "ONE H100 80 GiB, EVERY SLOT FILLED"
+
+  # And what asking for pictures costs: the coder it displaces. Same file, same
+  # reason. Without this the film could keep saying "80B" after the catalogue
+  # had moved to a different mixture-of-experts.
+  - text: "the coder drops from the 80B mixture-of-experts"
+    value: "the coder drops from the 80B"
+    source:
+      path: scripts/make_figures.py
+      method: literal
+      selector: "the coder drops from the 80B"
 
   - text: "BSD-3-Clause"
     value: "BSD-3-Clause"
@@ -109,6 +146,26 @@ claims:
       path: pyproject.toml
       method: literal
       selector: "https://github.com/warith-harchaoui/ai-bunker"
+
+# Figures on screen that are ordinals rather than quantities: the stage numbers
+# of the pipeline beat. They are not claims -- nothing in the repository says
+# "02", the generator says there are four stages and a claim above counts them
+# -- but they are digits in front of a viewer, so the scan would otherwise be
+# silent about them or noisy forever.
+#
+# The list is this short on purpose. Adding a fifth stage to the diagram puts
+# `05` on screen and turns `scripts/lint_film.py` red, which is the correct
+# answer: a film that shows five stages while the gateway has four is the exact
+# drift this file exists to catch.
+labels:
+  - shown: "01"
+    why: "pipeline stage ordinal; the count itself is claimed above"
+  - shown: "02"
+    why: "pipeline stage ordinal"
+  - shown: "03"
+    why: "pipeline stage ordinal"
+  - shown: "04"
+    why: "pipeline stage ordinal"
 
 assets:
   # Paths are relative to the composition tree (`video/film`), which is what
