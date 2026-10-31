@@ -241,7 +241,7 @@ def _unfilled(style: str) -> set[str]:
     return out
 
 
-def undeclared_pairs() -> list[str]:
+def undeclared_pairs(figures: list[Path] | None = None) -> list[str]:
     """Ink-on-surface combinations the committed figures render and nothing audits.
 
     :data:`ASSET_PAIRS` is a hand-written list, and round 36 spent itself on
@@ -255,6 +255,13 @@ def undeclared_pairs() -> list[str]:
     stylesheet. A filled rectangle this does not recognise *is* reported,
     because a new tinted shape with type on it is exactly the thing a
     contrast audit must not be silent about.
+
+    Parameters
+    ----------
+    figures : list[Path], optional
+        Which files to read. Defaults to the committed ones, and exists so a
+        test can hand this a figure built to exercise a case the shipped ten
+        do not have yet.
     """
     import xml.etree.ElementTree as ET
 
@@ -263,7 +270,7 @@ def undeclared_pairs() -> list[str]:
     findings: list[str] = []
     seen: set[tuple[str, str | None]] = set()
 
-    for path in sorted((ROOT / "assets").glob("figure-*.svg")):
+    for path in figures if figures is not None else sorted((ROOT / "assets").glob("figure-*.svg")):
         root = ET.fromstring(path.read_text(encoding="utf-8"))
         style = "".join("".join(n.itertext()) for n in root.iter(f"{SVG_NS}style"))
         hollow = _unfilled(style)
@@ -281,7 +288,15 @@ def undeclared_pairs() -> list[str]:
             boxes.append((name, x, y, x + w, y + h))
 
         for node in root.iter(f"{SVG_NS}text"):
-            if not (node.text or "").strip():
+            # `itertext`, not `.text`, and the same call `_labels` makes. A
+            # `<text>` with `<tspan>` children has no direct text of its own,
+            # so reading `.text` here would have skipped exactly the labels
+            # the geometry half does check -- two readings of "a label" that
+            # disagree, which is the defect this function was written to find,
+            # reintroduced by the commit that added it. No figure uses tspans
+            # today; the point is that the day one does, these two agree.
+            content = "".join(node.itertext()).strip()
+            if not content:
                 continue
             classes = (node.get("class") or "").split()
             ink = next((c for c in classes if c in tokens), "ink")
@@ -295,7 +310,7 @@ def undeclared_pairs() -> list[str]:
                 surface = RECT_SURFACES.get(nearest[0])
                 if surface is None:
                     findings.append(
-                        f"{path.name}: {(node.text or '')[:28]!r} sits on a filled "
+                        f"{path.name}: {content[:28]!r} sits on a filled "
                         f"{nearest[0]!r} rectangle, which is not a surface this audit knows"
                     )
                     continue
@@ -306,7 +321,7 @@ def undeclared_pairs() -> list[str]:
             seen.add((ink, surface))
             findings.append(
                 f"{path.name}: {ink!r} on {surface or 'the page'} renders "
-                f"({(node.text or '')[:28]!r}) and ASSET_PAIRS does not declare it"
+                f"({content[:28]!r}) and ASSET_PAIRS does not declare it"
             )
     return findings
 

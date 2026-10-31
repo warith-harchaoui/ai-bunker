@@ -821,7 +821,7 @@ def test_the_geometry_audit_catches_a_defect_planted_in_every_shipped_figure(tmp
         return [
             node
             for node in tree.getroot().iter(f"{audit.SVG_NS}text")
-            if (node.text or "").strip() and not node.get("transform")
+            if "".join(node.itertext()).strip() and not node.get("transform")
         ]
 
     planted, missed = 0, []
@@ -941,3 +941,32 @@ def test_a_new_tinted_shape_with_type_on_it_is_reported(monkeypatch):
     reported = audit.undeclared_pairs()
     assert reported, "every surface became unknown and the audit said nothing"
     assert any("is not a surface this audit knows" in line for line in reported), reported
+
+
+def test_a_label_written_as_tspans_is_not_invisible_to_the_pair_check(tmp_path):
+    """Two readings of "a label", and they used to disagree.
+
+    `_labels` — the geometry half — takes `"".join(node.itertext())`, so a
+    `<text>` whose words live in `<tspan>` children is one label to it. The
+    pair derivation was written a round later reading `node.text`, which is
+    empty for exactly those nodes: it would have gone quietly blind on the
+    labels the other half does check, which is the defect it exists to find,
+    reintroduced by the commit that added it.
+
+    No committed figure uses tspans today. The point is the day one does.
+    """
+    audit = _audit()
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
+        "<style>.card-blue { fill: #000; } .outline { fill: none; }</style>"
+        '<rect class="card-blue" x="20" y="20" width="200" height="100"/>'
+        '<text class="s green" x="60" y="70"><tspan>split</tspan>'
+        "<tspan> across tspans</tspan></text></svg>"
+    )
+    drawn = tmp_path / "figure-tspan.svg"
+    drawn.write_text(svg, encoding="utf-8")
+
+    reported = audit.undeclared_pairs([drawn])
+    assert reported, "a label made of tspans was read as no label at all"
+    assert any("'green' on blue card" in line for line in reported), reported
+    assert any("split across tspans" in line for line in reported), reported
