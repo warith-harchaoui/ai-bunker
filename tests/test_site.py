@@ -198,10 +198,10 @@ def _collected_tests() -> int:
     """What pytest actually collects, asked of the module that owns the figure.
 
     This used to run its own `--collect-only` subprocess, beside the one
-    `sync_counts.py` runs — two full re-imports of the suite, 10.8 seconds
-    together, on both interpreters, to learn one number twice. `sync_counts`
-    is the *writer* of that figure, so it is the one place that should measure
-    it, and this reads it from there.
+    `sync_counts.py` runs — two full re-imports of the suite, on both
+    interpreters, to learn one number twice. `sync_counts` is the *writer* of
+    that figure, so it is the one place that should measure it, and this reads
+    it from there.
 
     The measurement itself is unchanged and its history is worth keeping. It
     used to parse the AST, which expanded `parametrize` by reading the
@@ -216,13 +216,65 @@ def _collected_tests() -> int:
     lane; `adopt.without_site` is what makes the two agree.
 
     One subprocess, and the cache that makes it one is *not* here: it is the
-    `lru_cache` on `sync_counts.collected_tests`. That is the only thing in
-    this round whose correctness rests on a decorator in another file, so it
-    is written down rather than left to be rediscovered -- take it off there
-    and this quietly starts paying for a second full re-import of the suite,
-    beside the one `--check` pays for above.
+    `lru_cache` on `sync_counts.collected_tests`. Round 34 wrote that down and
+    stopped there, which left the one claim in it that rests on a decorator in
+    another file with nothing watching the decorator. Take it off and this
+    quietly starts paying for a second full re-import of the suite, beside the
+    one `--check` pays for above, and every test here still passes.
+    `test_the_collection_subprocess_is_paid_for_once` is the gate that was
+    missing.
     """
     return _sync_counts().collected_tests()
+
+
+def test_the_collection_subprocess_is_paid_for_once():
+    """Two callers in one process want the same number; one subprocess answers.
+
+    `collected_tests` re-imports the whole suite in a subprocess to get it, and
+    what makes that one subprocess rather than two is an `lru_cache` in
+    `scripts/sync_counts.py` -- a different file from the caller that depends
+    on it. `_collected_tests` above reads the figure from there precisely so it
+    does not measure it a second time.
+
+    Round 34 built that arrangement, wrote in both docstrings that it rests on
+    a decorator somewhere else, and gated none of it. Take the decorator off
+    and every other test in this file still passes while the suite silently
+    goes back to two full re-imports, on both interpreters. That is the shape
+    of defect this repository keeps finding -- a claim with nothing behind it
+    -- so the claim here is the one thing a stopwatch cannot argue with: the
+    number of subprocesses.
+
+    Loaded as its own module instance rather than through `_sync_counts()`, so
+    that the cache this fills with a fake count is not the one the rest of the
+    file reads.
+    """
+    import importlib.util
+    import types
+
+    spec = importlib.util.spec_from_file_location(
+        "sync_counts_probe", ROOT / "scripts" / "sync_counts.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    started = []
+
+    def fake_run(argv, **kwargs):
+        started.append(argv)
+        return types.SimpleNamespace(stdout="tests/test_one.py: 7\ntests/test_two.py: 5\n")
+
+    module.subprocess = types.SimpleNamespace(run=fake_run)
+
+    first = module.collected_tests()
+    assert first == 12, "the per-file counts are summed, not re-read"
+    assert [module.collected_tests() for _ in range(3)] == [first] * 3
+
+    assert len(started) == 1, (
+        f"{len(started)} subprocesses for one number -- the `lru_cache` on "
+        "sync_counts.collected_tests is gone, and nothing else would have said so"
+    )
+    assert "--collect-only" in started[0], "this is no longer a collection subprocess"
 
 
 def test_the_site_quotes_no_test_count(all_text):

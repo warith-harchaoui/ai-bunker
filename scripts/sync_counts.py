@@ -76,11 +76,18 @@ def collected_tests() -> int:
 
     Cached, and that is not a micro-optimisation: this spawns a subprocess
     that re-imports the whole suite, and the suite calls it from two places —
-    here, through `--check`, and from `test_site.py`. Measured at 7.2s and
-    3.6s, paid on both interpreters, for one number. Which is exactly the
-    defect round 29 took out of the workflow — *coverage was a second step,
-    and a second step means a second full suite* — reproduced inside the suite
-    by the round that added the second caller.
+    here, through `--check`, and from `test_site.py`. One re-import of the
+    whole suite per call, for one number that does not change between the two.
+    Which is exactly the defect round 29 took out of the workflow — *coverage
+    was a second step, and a second step means a second full suite* —
+    reproduced inside the suite by the round that added the second caller.
+
+    The count of subprocesses is the claim, and it has a gate:
+    `test_site.py::test_the_collection_subprocess_is_paid_for_once`. Round 34
+    wrote stopwatch figures here instead — 7.2 and 3.6 seconds — and nothing
+    had measured them; they are gone, because a second of wall clock on a
+    loaded laptop is not a fact about this function, and the number of
+    subprocesses it starts is.
 
     `without_site` is not decoration: twenty-one tests are parametrised over
     the website's pages, so this machine collects twenty-one more than anybody
