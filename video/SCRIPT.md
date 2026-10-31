@@ -125,7 +125,7 @@ lesson applied to itself before the first render rather than after.*
 > Read it: **deraison.ai/ai-helpers**
 > Star it: **github.com/warith-harchaoui/ai-bunker**
 >
-> BSD-3-Clause. One author. **1,187 tests**, and the count in this line
+> BSD-3-Clause. One author. **1,194 tests**, and the count in this line
 > is checked by one of them.
 
 *On screen: both URLs, the GitHub star glyph, the licence line small.*

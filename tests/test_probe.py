@@ -22,6 +22,9 @@ Warith Harchaoui
 
 from __future__ import annotations
 
+import threading
+import time
+
 import pytest
 
 from ai_bunker import probe
@@ -295,3 +298,163 @@ def test_building_the_application_does_not_touch_the_network(monkeypatch):
     monkeypatch.setattr(probe, "_get", refuse)
     monkeypatch.setattr(probe, "served_context", refuse)
     create_app(_settings(local={"model": "q", "served_context": 131_072}))
+
+
+# --------------------------------------------------------------------------
+# And keeping it true, not only getting it right once at boot.
+# --------------------------------------------------------------------------
+
+SHOW = "http://127.0.0.1:11434/api/show"
+
+
+def test_an_engine_swapped_under_a_running_gateway_is_noticed(answers):
+    """The gap `clamp_to_engine` left open, in one test.
+
+    It runs once, where a human starts a server. Replace the engine under a
+    gateway that is already serving -- a smaller model pulled into the same
+    slot -- and every budget keeps being measured against the figure the old
+    one served, until somebody restarts.
+    """
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 40_960}}
+    settings = _settings(local={"model": "qwen3:8b", "served_context": 40_960})
+    ceilings = probe.configured_contexts(settings)
+
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 8_192}}
+    notes = probe.reclamp(settings, ceilings)
+
+    assert settings.upstreams["local"].served_context == 8_192
+    assert len(notes) == 1
+    assert "8,192" in notes[0] and "40,960" in notes[0]
+    assert "already admitted" in notes[0], "say what happens to requests in flight"
+
+
+def test_the_clamp_on_a_timer_is_not_a_ratchet(answers):
+    """The design decision this whole function turns on.
+
+    `clamp_to_engine` lowers from the live figure, which is the configured one
+    exactly once -- at boot. Run *that* on a timer and one low reading from an
+    engine that happened to be reloading pins the gateway there for the life of
+    the process: the capacity is not wrong, it is gone, and nothing says why.
+
+    So every measurement is compared against what an operator configured, not
+    against what the last probe decided.
+    """
+    settings = _settings(local={"model": "qwen3:8b", "served_context": 131_072})
+    ceilings = probe.configured_contexts(settings)
+
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 8_192}}
+    probe.reclamp(settings, ceilings)
+    assert settings.upstreams["local"].served_context == 8_192
+
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 40_960}}
+    notes = probe.reclamp(settings, ceilings)
+
+    assert settings.upstreams["local"].served_context == 40_960, (
+        "a transient low reading pinned the gateway for the life of the process"
+    )
+    assert "given back" in notes[0]
+    assert "never raises past" in notes[0]
+
+
+def test_a_re_probe_still_cannot_raise_past_the_configuration(answers):
+    """The safety argument, unchanged and now load-bearing in a second place.
+
+    Giving back room a probe took away is not the same as granting room nobody
+    configured. The configured figure stays a hard ceiling that no HTTP
+    response can lift, so a server answering for a different model -- or a
+    proxy in the middle -- cannot talk the gateway into announcing capacity
+    that does not exist.
+    """
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 200_000}}
+    settings = _settings(local={"model": "qwen3:8b", "served_context": 40_960})
+    ceilings = probe.configured_contexts(settings)
+
+    assert probe.reclamp(settings, ceilings) == []
+    assert settings.upstreams["local"].served_context == 40_960
+
+
+def test_an_engine_that_goes_quiet_does_not_widen_the_bound(answers):
+    """The asymmetric case, and the one worth being careful about.
+
+    Restoring the configured figure because the engine stopped answering would
+    widen the bound on no evidence, at exactly the moment there is none. A
+    probe that cannot measure changes nothing, and says nothing either: a line
+    every five minutes reporting that an engine still will not say is a log
+    nobody reads.
+    """
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 8_192}}
+    settings = _settings(local={"model": "qwen3:8b", "served_context": 131_072})
+    ceilings = probe.configured_contexts(settings)
+    probe.reclamp(settings, ceilings)
+    assert settings.upstreams["local"].served_context == 8_192
+
+    answers.clear()
+    assert probe.reclamp(settings, ceilings) == []
+    assert settings.upstreams["local"].served_context == 8_192
+
+
+def test_a_figure_that_already_agrees_moves_nothing_and_says_nothing(answers):
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 40_960}}
+    settings = _settings(local={"model": "qwen3:8b", "served_context": 40_960})
+
+    assert probe.reclamp(settings, probe.configured_contexts(settings)) == []
+    assert settings.upstreams["local"].served_context == 40_960
+
+
+def test_the_watch_keeps_asking_and_stops_when_it_is_told(answers):
+    """The timer, off the event loop and answerable to a stop.
+
+    The requests in this module are blocking `urllib` by deliberate choice, so
+    the loop that repeats them runs on a plain thread. A blocking call on the
+    async loop is the defect this project has fixed twice -- a tokenizer probe
+    that stopped the gateway answering anybody for the length of its timeout.
+    """
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 8_192}}
+    settings = _settings(local={"model": "qwen3:8b", "served_context": 131_072})
+    notes: list[str] = []
+    stop = threading.Event()
+
+    thread = probe.watch(
+        settings,
+        probe.configured_contexts(settings),
+        report=notes.append,
+        interval=0.01,
+        stop=stop,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while settings.upstreams["local"].served_context != 8_192:
+            assert time.monotonic() < deadline, "the watch never re-measured"
+            time.sleep(0.01)
+    finally:
+        stop.set()
+        thread.join(timeout=10)
+
+    assert not thread.is_alive(), "the watch waited out its nap instead of stopping"
+    assert thread.daemon, "a non-daemon watch would hold the process open at exit"
+    assert notes and "8,192" in notes[0]
+
+
+def test_the_serve_path_reads_its_ceilings_before_it_clamps(answers):
+    """Why these three calls are not offered to the serve path separately.
+
+    Snapshot the ceilings *after* the boot clamp and the ceiling becomes
+    whatever the first probe decided -- so an engine that was reloading at boot
+    caps the gateway at its reloading figure forever, which is the ratchet
+    again, reachable by anybody wiring the three calls up by hand.
+    """
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 8_192}}
+    settings = _settings(local={"model": "qwen3:8b", "served_context": 131_072})
+    notes: list[str] = []
+    stop = threading.Event()
+    stop.set()  # one boot clamp, no loop
+
+    thread = probe.clamp_and_watch(settings, report=notes.append, interval=0.01, stop=stop)
+    thread.join(timeout=10)
+    assert settings.upstreams["local"].served_context == 8_192
+
+    answers[SHOW] = {"model_info": {"qwen3.context_length": 40_960}}
+    probe.reclamp(settings, probe.configured_contexts(settings))
+    assert settings.upstreams["local"].served_context == 8_192, (
+        "this is the mistake: ceilings taken after the clamp cap the gateway at it"
+    )

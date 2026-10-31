@@ -547,6 +547,17 @@ septembre avec la clé correctement orthographiée ; configuré *en dessous*,
 c'est signalé comme de la capacité non utilisée, ce qui peut être délibéré. Un
 moteur qui ne répond pas est une note, pas un échec.
 
+`serve` ne se contente pas de le signaler. Il abaisse un `served_context` que
+le moteur contredit avant d'admettre la première requête, puis continue de
+demander toutes les cinq minutes — car le cas qu'une seule vérification au
+démarrage ne peut pas voir, c'est un moteur *remplacé* sous une passerelle qui
+sert déjà, laquelle garde sinon le chiffre de l'ancien jusqu'à ce que
+quelqu'un redémarre. Ce qu'une sonde ne peut jamais faire, c'est élargir la
+borne au-delà de ce que la configuration accorde : le chiffre configuré est un
+plafond dur dans les deux sens, donc aucune réponse isolée d'un amont — un
+serveur qui répond pour un autre modèle, un proxy au milieu — ne peut
+convaincre la passerelle d'annoncer de la place qui n'existe pas.
+
 Ce n'est pas une hypothèse. Sur la machine où ceci a été écrit, le défaut livré
 est 131 072 et `qwen3:8b` sert 40 960 : une passerelle qui annonce trois fois
 la place dont le moteur dispose, sans rien à chercher dans un fichier.
@@ -1066,7 +1077,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1187 tests, `ruff` propre | ✅ |
+| 1194 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

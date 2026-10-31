@@ -406,13 +406,20 @@ def cmd_serve(args) -> int:
             "trust."
         )
 
-    # Ask each engine what it serves, once, before anything is built on the
-    # answer. `doctor` reports this and reporting was not enough: it is a
-    # command somebody runs, so a gateway started against an engine smaller
-    # than its configuration claims would serve the wrong figure until a human
-    # thought to check. Lowering only -- see `probe.clamp_to_engine`.
-    for note in probe.clamp_to_engine(settings):
-        osh.warning(note)
+    # Ask each engine what it serves, before anything is built on the answer,
+    # and then keep asking. `doctor` reports this and reporting was not enough:
+    # it is a command somebody runs, so a gateway started against an engine
+    # smaller than its configuration claims would serve the wrong figure until
+    # a human thought to check. One clamp at boot closed that; what it left
+    # open was the engine *replaced* under a gateway already serving, which
+    # keeps the old figure until a restart -- and the figure is the one every
+    # budget is measured against.
+    #
+    # A probe can still never announce room the configuration does not grant:
+    # the configured value is a hard ceiling in both directions, and
+    # `probe.clamp_and_watch` owns the order these steps have to happen in
+    # because getting it wrong turns the re-check into a ratchet.
+    probe.clamp_and_watch(settings, report=osh.warning)
 
     serve(settings, host=args.host, port=args.port)
     return 0

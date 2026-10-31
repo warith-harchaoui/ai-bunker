@@ -39,12 +39,19 @@ the direction where being wrong costs something.
 
 What this does not do
 ---------------------
-It does not run in the request path, and it must not. This is a question for
-``doctor`` and for a human deploying something; a gateway that asked its
+It does not run in the request path, and it must not. A gateway that asked its
 upstream for metadata on every turn would be adding a round trip to the thing
 whose whole pitch is that it stays out of the way. The probe is also allowed
 to fail: an engine that is down, or one that publishes nothing, is a *note*,
 because a check that is permanently red is a check nobody reads.
+
+Off the request path is not the same as once, though, and for a while this
+module read as if it were. ``serve`` clamps before it admits anything and then
+re-checks on a timer, on a plain thread, because the case one boot-time clamp
+cannot see is an engine *replaced* underneath a gateway that is already
+serving: it keeps the figure the old one served until somebody restarts. See
+:func:`clamp_and_watch`, and :func:`reclamp` for why a repeated clamp is not
+simply the boot clamp on a loop.
 
 Standard library only, deliberately. ``httpx`` is in the ``[api]`` extra and
 ``doctor`` has to work on a machine with the base install.
@@ -57,8 +64,10 @@ Warith Harchaoui
 from __future__ import annotations
 
 import json
+import threading
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle at runtime, types only
@@ -72,6 +81,15 @@ TIMEOUT = 2.0
 #: ``max_model_len`` is vLLM's spelling, ``context_length`` is what
 #: ``best-engine-ai-helper`` publishes, and the third is seen in the wild.
 MODEL_KEYS = ("max_model_len", "context_length", "context_window")
+
+#: Seconds between re-checks while a gateway is serving. Five minutes, which
+#: is chosen rather than measured and says so: the thing it bounds is how long
+#: a gateway can keep serving the wrong figure after somebody swaps the engine
+#: under it, and there is no measurement that tells you how long that is
+#: acceptable. Short enough that an engine swap is caught within a coffee,
+#: long enough that an engine which never answers is asked twelve times an
+#: hour rather than constantly.
+RECHECK_INTERVAL = 300.0
 
 
 def _get(url: str, payload: dict | None = None, timeout: float = TIMEOUT) -> dict | None:
@@ -193,7 +211,13 @@ def clamp_to_engine(settings, timeout: float = TIMEOUT) -> list[str]:
     Called from ``serve`` and nowhere else -- deliberately not from
     ``State.__init__`` or a startup event, both of which every test that
     builds the application would run, turning the suite into something that
-    makes network calls. Once, where a human starts a server.
+    makes network calls. Once, synchronously, where a human starts a server,
+    and before anything is built on the answer.
+
+    This is the boot half. :func:`reclamp` is the other half and is *not* this
+    function on a timer: it measures against the configured ceiling rather
+    than the live figure, which is the difference between re-checking and
+    ratcheting. Read it before reaching for this one in a loop.
 
     Parameters
     ----------
@@ -222,6 +246,170 @@ def clamp_to_engine(settings, timeout: float = TIMEOUT) -> list[str]:
         )
         up.served_context = measured
     return notes
+
+
+def configured_contexts(settings) -> dict[str, int]:
+    """Every ``served_context`` as a human wrote it, before any probe lowers one.
+
+    Must be taken *before* :func:`clamp_to_engine`, which mutates in place.
+    :func:`clamp_and_watch` is the reason this is not left to callers to
+    remember -- see the ratchet it exists to prevent, there.
+    """
+    return {name: up.served_context for name, up in settings.upstreams.items()}
+
+
+def reclamp(settings, ceilings: dict[str, int], timeout: float = TIMEOUT) -> list[str]:
+    """Re-apply the clamp, measuring each engine against what was *configured*.
+
+    :func:`clamp_to_engine` lowers from whatever the live figure happens to be,
+    which is right exactly once -- at boot, where the live figure is still the
+    configured one. Run it on a timer and it becomes a ratchet: a single low
+    reading from an engine that was reloading pins the gateway at that figure
+    for the life of the process, and the only cure is a restart. The capacity
+    is not wrong, it is just gone, and nothing says why.
+
+    So the comparison here is always against the ceiling an operator wrote,
+    never against the last thing a probe decided:
+
+    ``served_context = min(configured, measured)``
+
+    which leaves the safety argument exactly where :func:`clamp_to_engine` put
+    it. **A probe still cannot raise anything.** The configured figure is a
+    hard ceiling that no HTTP response can lift, so a server answering for a
+    different model, or a proxy in the middle, cannot talk the gateway into
+    announcing room that does not exist -- the founding incident. What a probe
+    *can* now do is give back room it took away earlier, up to that ceiling and
+    not one token past it.
+
+    An engine that will not answer changes nothing. That is deliberate and it
+    is the asymmetric case worth being careful about: restoring the configured
+    figure because the engine went quiet would widen the bound on no evidence,
+    at the moment evidence is least available. Silent, too -- a line every five
+    minutes saying an engine still will not say is a log nobody reads, which
+    the module docstring already argues about `doctor`.
+
+    Parameters
+    ----------
+    settings : Settings
+        Mutated in place.
+    ceilings : dict[str, int]
+        From :func:`configured_contexts`, taken before the first clamp.
+    timeout : float
+        Seconds per request, per upstream.
+
+    Returns
+    -------
+    list[str]
+        One line per upstream whose figure moved. Empty when nothing changed.
+    """
+    notes = []
+    for name, up in settings.upstreams.items():
+        ceiling = ceilings.get(name, up.served_context)
+        measured, source = served_context(up, timeout)
+        if measured is None:
+            continue
+        target = min(ceiling, measured)
+        if target == up.served_context:
+            continue
+        if target < up.served_context:
+            notes.append(
+                f"[gateway] {name}: this engine now serves {measured:,}, below the "
+                f"{up.served_context:,} in force ({source}). Using {target:,}. Every budget "
+                f"and the context declared to clients follow the smaller number from here; "
+                f"requests already admitted were admitted against the old figure."
+            )
+        else:
+            notes.append(
+                f"[gateway] {name}: this engine serves {measured:,} again ({source}), so the "
+                f"{up.served_context:,} a probe lowered it to is given back up to the "
+                f"configured {ceiling:,}. A probe never raises past what the configuration "
+                f"says."
+            )
+        up.served_context = target
+    return notes
+
+
+def watch(
+    settings,
+    ceilings: dict[str, int],
+    *,
+    report: Callable[[str], None],
+    interval: float = RECHECK_INTERVAL,
+    timeout: float = TIMEOUT,
+    stop: threading.Event | None = None,
+) -> threading.Thread:
+    """Keep asking, on a timer, for as long as the process serves.
+
+    A daemon thread, and a plain one rather than anything on the event loop.
+    The requests in this module are blocking ``urllib`` by deliberate choice --
+    the module docstring says why -- and a blocking call on an async loop is
+    the defect this project has already fixed twice: a tokenizer probe that
+    stopped the gateway answering anybody for the length of its own timeout.
+    Off the loop it cannot do that, whatever the engine does.
+
+    The first measurement is *not* here. :func:`clamp_and_watch` takes it
+    synchronously, before the server is built on the answer, because a figure
+    that is only correct a few minutes after boot is a figure the first
+    requests were served against wrongly.
+
+    What this gives up, stated rather than implied: capacity can now change
+    under a running gateway, so two requests a minute apart may have been
+    admitted against different figures. That is the point of it -- the
+    alternative is serving the stale number until somebody restarts -- but it
+    means the declared context is no longer constant for the life of a
+    process, and anything that caches it per-process would be wrong.
+
+    Parameters
+    ----------
+    settings, ceilings, timeout
+        As :func:`reclamp`.
+    report : Callable[[str], None]
+        Where the notes go. ``osh.warning`` from the serve path.
+    interval : float
+        Seconds between checks. Tests pass something small.
+    stop : threading.Event, optional
+        Set it to end the loop. Waited on rather than slept through, so the
+        thread stops when asked instead of at the end of its nap.
+
+    Returns
+    -------
+    threading.Thread
+        Already started.
+    """
+    ending = stop if stop is not None else threading.Event()
+
+    def loop() -> None:
+        while not ending.wait(interval):
+            for note in reclamp(settings, ceilings, timeout):
+                report(note)
+
+    thread = threading.Thread(target=loop, name="ai-bunker-probe", daemon=True)
+    thread.start()
+    return thread
+
+
+def clamp_and_watch(
+    settings,
+    *,
+    report: Callable[[str], None],
+    interval: float = RECHECK_INTERVAL,
+    timeout: float = TIMEOUT,
+    stop: threading.Event | None = None,
+) -> threading.Thread:
+    """The whole serve-time story, in the order that makes it correct.
+
+    Three steps that have to happen in this sequence, which is why they live
+    here and not in the caller: read the configured ceilings, *then* clamp
+    once, *then* start re-checking against those ceilings. Snapshot after the
+    clamp instead and the ceiling is whatever the first probe decided, which
+    is the ratchet :func:`reclamp` exists to avoid -- a mistake available to
+    anybody wiring these three calls up by hand, so they are not offered
+    separately to the serve path.
+    """
+    ceilings = configured_contexts(settings)
+    for note in clamp_to_engine(settings, timeout):
+        report(note)
+    return watch(settings, ceilings, report=report, interval=interval, timeout=timeout, stop=stop)
 
 
 def mismatch(upstream: Upstream, timeout: float = TIMEOUT) -> tuple[bool, str]:

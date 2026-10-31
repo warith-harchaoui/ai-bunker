@@ -512,6 +512,16 @@ serves is fatal — it is the September incident with the key spelled correctly 
 while configured *below* is reported as capacity left unused, because that may
 well be deliberate. An engine that will not say is a note, not a failure.
 
+`serve` does more than report it. It lowers a `served_context` the engine
+contradicts before the first request is admitted, and then keeps asking every
+five minutes — because the case a single check at boot cannot see is an engine
+*replaced* under a gateway that is already serving, which otherwise keeps the
+figure the old one served until somebody restarts. What a probe can never do
+is widen the bound past what the configuration grants: the configured number
+is a hard ceiling in both directions, so no single reply from an upstream — a
+server answering for a different model, a proxy in the middle — can talk the
+gateway into announcing room that does not exist.
+
 It is not a hypothetical. On the machine this was written on the shipped
 default is 131,072 and `qwen3:8b` serves 40,960: a gateway declaring three
 times the room the engine has, and nothing to grep for.
@@ -994,7 +1004,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1187 tests, `ruff` clean | ✅ |
+| 1194 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |
