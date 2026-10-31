@@ -831,3 +831,150 @@ def test_the_gateway_can_state_its_own_overhead():
     for row in rows:
         assert row["tokens_added"] > 0, "the charter is injected, so it costs something"
         assert row["share_of_context"] < 5.0, "under 5% of the window, as README claims"
+
+
+# ---------------------------------------------------------------------------
+# The four boundaries, each pinned at the value itself.
+# ---------------------------------------------------------------------------
+
+
+def _floor_of(request: dict, counter) -> int:
+    """What this request's floor measures, asked rather than computed.
+
+    Every test below needs a quantity to land *exactly* on a threshold, and
+    the floor comes out of a tokenizer whose arithmetic is not this file's
+    business. So it is measured first, with parameters generous enough that
+    nothing fires, and the real call is then built around the answer.
+    """
+    probe = measure_request(request, counter=counter, served_context=1_000_000)
+    return probe.floor_tokens
+
+
+def test_a_floor_exactly_at_the_compaction_trigger_is_already_too_high(counter):
+    """`floor >= starts_at`, at the equals.
+
+    Round 39 broke this comparison on purpose — `>=` to `>` — and the whole
+    suite stayed green, which means nothing had ever put a floor *on* the
+    trigger. It is not a pedantic case: a floor exactly at the trigger is a
+    session that compacts on turn one with nothing behind it to compact,
+    which is the loop this warning exists to name. One token either way
+    decides whether a deployment is told.
+    """
+    request = _request("x" * 4000)
+    floor = _floor_of(request, counter)
+
+    on_it = measure_request(
+        request, counter=counter, served_context=1_000_000, declared_context=floor
+    )
+    assert any("compaction trigger" in w for w in on_it.warnings), (
+        f"floor {floor} sits exactly on the trigger and nothing was said"
+    )
+
+    just_under = measure_request(
+        request, counter=counter, served_context=1_000_000, declared_context=floor + 1
+    )
+    assert not any("compaction trigger" in w for w in just_under.warnings)
+
+
+def test_a_reply_exactly_the_size_of_the_margin_still_fits(counter):
+    """`max_output > compaction_reserve`, at the equals.
+
+    Changing it to `>=` survived the suite, so nothing had ever asked what
+    happens when a reply is exactly the margin. The right answer is that it
+    fits: the margin is held back *so that* one reply can land in it, and
+    warning about the case the design is built for would be a gate crying
+    wolf at its own invariant.
+    """
+    request = _request("x" * 400)
+
+    exact = measure_request(
+        request,
+        counter=counter,
+        served_context=200_000,
+        compaction_reserve=4096,
+        max_output=4096,
+    )
+    assert not any("compaction margin" in w for w in exact.warnings), (
+        "a reply the size of the margin is what the margin is for"
+    )
+
+    over = measure_request(
+        request,
+        counter=counter,
+        served_context=200_000,
+        compaction_reserve=4096,
+        max_output=4097,
+    )
+    assert any("compaction margin" in w for w in over.warnings), (
+        "one token past the margin and the reply lands outside the window"
+    )
+
+
+def test_a_floor_and_a_reply_that_exactly_fill_the_engine_are_admitted(counter):
+    """`floor + max_output > served_context`, at the equals.
+
+    Moving the threshold one token out survived the suite. This is the
+    admission bound — the one that turns a context-length error nobody can
+    act on into a named refusal — so which side of it the exact fit lands on
+    is the whole decision. Exactly filling the engine is a session that can
+    produce one turn, so it is admitted; one token more cannot, so it is not.
+    """
+    request = _request("x" * 4000)
+    floor = _floor_of(request, counter)
+    reply = 2048
+
+    exact = measure_request(
+        request, counter=counter, served_context=floor + reply, max_output=reply
+    )
+    assert not any("cannot produce one turn" in w for w in exact.warnings), (
+        f"floor {floor} plus a {reply}-token reply is exactly what the engine serves, which fits"
+    )
+
+    over = measure_request(
+        request, counter=counter, served_context=floor + reply - 1, max_output=reply
+    )
+    assert any("cannot produce one turn" in w for w in over.warnings)
+
+
+def test_working_space_exactly_at_the_minimum_is_not_refused(counter):
+    """`working < min_working`, at the equals.
+
+    Loosening it by one token survived the suite. `min_working` is the floor
+    below which a session is called unusable, and a session with exactly that
+    much room has exactly what the configuration asked for — refusing it
+    would mean the published minimum is off by one from the enforced one.
+    """
+    request = _request("x" * 4000)
+    floor = _floor_of(request, counter)
+    minimum = 500
+
+    exact = measure_request(
+        request,
+        counter=counter,
+        served_context=1_000_000,
+        declared_context=floor + minimum,
+        min_working=minimum,
+    )
+    assert exact.working_tokens == minimum
+    assert exact.verdict != "unusable", "exactly the minimum is the minimum"
+    assert not any("left for the conversation" in w for w in exact.warnings)
+
+    short = measure_request(
+        request,
+        counter=counter,
+        served_context=1_000_000,
+        declared_context=floor + minimum - 1,
+        min_working=minimum,
+    )
+    assert short.working_tokens == minimum - 1
+    assert short.verdict == "unusable"
+    # And the sentence, not only the verdict. Written after the mutation
+    # harness was re-run and this one mutation still survived: `working <
+    # min_working` decides a *warning* here and a *verdict* forty lines down,
+    # and loosening only the first left the verdict telling the truth while
+    # the operator was told nothing about why. A test that checks the verdict
+    # alone cannot see that, which is how the first draft of this test
+    # missed it.
+    assert any(
+        f"Only {minimum - 1:,} tokens are left for the conversation" in w for w in short.warnings
+    ), short.warnings
