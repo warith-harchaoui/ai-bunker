@@ -312,3 +312,52 @@ def test_the_guard_catches_an_asset_that_left_the_tree(guard, monkeypatch):
     problems = guard.assets_that_vanished()
     assert len(problems) == 1
     assert "is declared in film.yaml and is not in video/film/" in problems[0]
+
+
+def test_the_ignore_list_is_the_labels_block_and_not_a_second_copy_of_it(guard):
+    """Two ways of saying "ordinal, not quantity", and they had diverged.
+
+    `scripts/lint_film.py` reads `film.yaml`'s `labels:` block. `make-film
+    scan`, the tool it doubles, does not -- it wants the same figures as
+    `--ignore`. So running the tool by hand reported `01` and `03` as
+    undeclared while the spec declared both, with a reason, in as many words:
+    three phantom findings in front of somebody holding a film that is fine,
+    which is how a film that is fine gets edited.
+
+    The block wins, because it keeps the reason committed beside the number
+    and a command-line argument keeps none. This is the gate on the other
+    half: the argument is *printed from* the block, so it cannot become a
+    second copy that drifts.
+    """
+    import subprocess
+
+    printed = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "lint_film.py"), "--ignore"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    declared = [str(entry["shown"]) for entry in guard.spec().get("labels", [])]
+    assert declared, "nothing is labelled any more; delete this test or the block"
+    assert printed.split(",") == declared
+
+
+def test_the_documented_scan_command_feeds_the_tool_from_the_spec():
+    """A command documented without `--ignore` is a command that reports
+    findings that are not there, and `video/README.md` is where somebody
+    reaches for it.
+    """
+    readme = (ROOT / "video" / "README.md").read_text(encoding="utf-8")
+    lines = [line for line in readme.splitlines() if "make-film scan" in line]
+    assert lines, "video/README.md no longer documents the scan"
+
+    block = readme[readme.index("make-film scan video/film/index.html") :][:400]
+    assert "--ignore" in block, (
+        "the documented scan command has no --ignore: it will report the "
+        "pipeline ordinals the spec declares"
+    )
+    assert "lint_film.py --ignore" in block, (
+        "the --ignore list is typed out rather than printed from `labels:`, "
+        "which is the drift this test exists to stop"
+    )

@@ -279,9 +279,29 @@ def check() -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument("--list", action="store_true", help="print the guarded claims")
+    parser.add_argument(
+        "--ignore",
+        action="store_true",
+        help="print the on-screen ordinals as `make-film scan --ignore` wants them",
+    )
     args = parser.parse_args()
 
     document = spec()
+    if args.ignore:
+        # `labels:` and `--ignore` are two ways of saying "this figure is an
+        # ordinal, not a quantity", and they had diverged: this file reads the
+        # block, the tool it doubles does not, so running the tool by hand
+        # reported three figures that `film.yaml` declares in as many words.
+        # Three phantom findings in front of somebody holding a film that is
+        # fine is how a film that is fine gets "corrected".
+        #
+        # The block wins -- it keeps a *reason* beside each number, committed,
+        # where a comma-separated argument on a command line keeps none -- so
+        # the argument is printed from the block rather than retyped next to
+        # it. See `video/README.md` for the command this feeds.
+        print(",".join(str(entry["shown"]) for entry in document.get("labels", [])))
+        return 0
+
     if args.list:
         for claim in document["claims"]:
             source = claim["source"]

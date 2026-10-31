@@ -24,6 +24,21 @@ The MP4 is not committed. Everything that produces it is.
 `make-film scan` the second. Neither is what the lane runs, and the reason is
 the point of the next section.
 
+The scan needs one argument or it lies to you:
+
+```bash
+make-film scan video/film/index.html --spec video/film.yaml \
+    --ignore "$(python3 scripts/lint_film.py --ignore)"
+```
+
+`film.yaml` declares the four pipeline ordinals on screen — `01` to `04` — in
+a `labels:` block that keeps a reason beside each one. `scripts/lint_film.py`
+reads that block; `make-film scan` does not, and wants the same list as
+`--ignore` instead. Run it without and it reports three figures the spec
+declares in as many words, which is how somebody ends up "correcting" a film
+that is fine. So the argument is printed *from* the block rather than retyped
+beside it, and the two can no longer drift apart.
+
 ## The one rule this film has to keep
 
 Its closing line is *"every number in this film is in the repository, and a
