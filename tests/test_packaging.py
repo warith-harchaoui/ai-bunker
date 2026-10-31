@@ -174,7 +174,11 @@ SCRIPT_RUNNERS = {
     "audit_contrast.py": "ci",
     "audit_figures.py": "ci",
     "lint_a11y.py": "ci",
-    "no_heavy_stack.py": "ci",
+    # Was "ci" until round 36, which is to say: run only where it has never
+    # had anything to report. A guard whose green is indistinguishable from a
+    # guard that stopped looking is the shape this repository distrusts, so it
+    # is exercised in both directions here now.
+    "no_heavy_stack.py": "tests/test_packaging.py",
     "lint_acronyms.py": "tests/test_acronyms.py",
     "lint_claims.py": "tests/test_claims.py",
     "lint_film.py": "tests/test_film.py",
@@ -356,3 +360,41 @@ def test_mypy_is_clean_on_this_tree():
     mypy_api = pytest.importorskip("mypy.api", reason="mypy is a [dev] extra")
     out, err, status = mypy_api.run(["--config-file", str(ROOT / "pyproject.toml")])
     assert status == 0, f"mypy is not clean:\n{out}{err}"
+
+
+def test_the_deep_learning_guard_passes_and_can_still_fail(monkeypatch):
+    """The last barrier in `SCRIPT_RUNNERS` with nothing but the lane behind it.
+
+    `no_heavy_stack.py` is the guard that keeps a 196-megabyte torch wheel out
+    of a proxy that loads no models, and in the lane it has never once
+    reported anything — correctly, because the lane is clean. That is exactly
+    the state this repository distrusts everywhere else: a check whose green
+    is indistinguishable from a check that stopped looking. Break
+    `heavy_imports` — a typo in `HEAVY`, a `find_spec` that returns `None`
+    for everything — and torch creeps back into the lane behind a tick.
+
+    So both directions, with the import machinery stubbed rather than the
+    environment changed: this machine genuinely has torch installed, which is
+    why the script exits 1 here and 0 in the lane, and a test that depended on
+    which machine ran it would be the defect it is checking for.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "no_heavy_stack", ROOT / "scripts" / "no_heavy_stack.py"
+    )
+    guard = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(guard)
+
+    assert guard.HEAVY, "the guard looks for nothing at all"
+    assert "torch" in guard.HEAVY, "the wheel this exists to keep out is not in the list"
+
+    found = {"torch": object(), "transformers": None, "diffusers": None}
+    monkeypatch.setattr(guard.importlib.util, "find_spec", lambda name: found.get(name))
+    assert guard.heavy_imports() == ["torch"]
+    assert guard.main() == 1, "torch is installed and the guard said the lane was clean"
+
+    monkeypatch.setattr(guard.importlib.util, "find_spec", lambda name: None)
+    assert guard.heavy_imports() == []
+    assert guard.main() == 0, "nothing heavy is installed and the guard refused anyway"
