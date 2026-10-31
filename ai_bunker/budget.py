@@ -681,6 +681,28 @@ def measure_request(
     # is a request the engine will refuse mid-generation, as a context-length
     # error nobody can act on -- which is the failure this module exists to
     # turn into a named refusal before anything is forwarded.
+    #
+    # Per session, and that is not an omission. Three rounds carried a queue
+    # item asking for "reserve before admit, the concurrent version -- several
+    # requests in flight against the same ceiling", and the ceiling it assumes
+    # is not there. `served_context` is what the engine serves *one sequence*;
+    # concurrent requests occupy separate slots, each with a window of its own,
+    # so there is no shared pool of tokens for an admission to draw down and a
+    # ledger over this figure would refuse sessions the engine can serve.
+    #
+    # What concurrency does consume is device memory for key-value caches, and
+    # this project already models that in `ai_bunker.sizing` --
+    # `kv_per_session_gib`, `sessions_by_memory`, `concurrent_sessions` -- at
+    # the one moment it can be acted on, which is before the hardware is
+    # bought. The gateway cannot see it at admission time and would be
+    # guessing.
+    #
+    # The real unbounded quantity, stated here so the next reader starts from
+    # the right one: the gateway admits any number of *concurrent sessions*
+    # against a machine sized for a specific number. Bounding that is a policy
+    # decision an operator has to make -- refusing a request because another is
+    # in flight is visible behaviour, not arithmetic -- and it needs a figure
+    # the gateway is not configured with today.
     if floor + max_output > served_context:
         warnings.append(
             f"The floor ({floor:,}) plus one reply ({max_output:,}) is "
