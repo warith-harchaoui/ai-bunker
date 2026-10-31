@@ -463,19 +463,6 @@ def trade(t: dict[str, str]) -> str:
         for v in (5, 10, 15, 20, 25)
     )
 
-    # The trigger line is drawn in two segments rather than one, and the gap
-    # is where the two right-aligned notes live. A single `V266` ran through
-    # the band of `loops_note` for any reader whose browser picked a wide
-    # face: the note is anchored at x=840 and ends, on the widest measured
-    # face, at x=647 -- while the trigger sits at 660. The narrowest face puts
-    # it at 675 and clears. So the figure was broken on some machines and fine
-    # on others, which is precisely the defect a one-font width model could
-    # not see, and `audit_figures.py` reported it the hour the vertical check
-    # started using the wide bound.
-    #
-    # The line loses nothing: a threshold means something where it crosses a
-    # bar, and the two segments still cover both bars and the connector up to
-    # the label.
     body = f"""  <text class="h blue" x="60" y="38">{t["head"]}</text>
   <text class="s muted" x="60" y="58">{t["sub"]}</text>
 {gridlines}
@@ -610,6 +597,34 @@ def budget(t: dict[str, str]) -> str:
         f'  <text class="s" x="840" y="{total_y}" text-anchor="end">{number(WINDOW)}</text>'
     )
 
+    # The trigger line is drawn in two segments rather than one -- `98 V178`
+    # and `218 V266` -- and the gap is where the two right-aligned notes live.
+    # A single `V266` ran through the band of `loops_note` for any reader
+    # whose browser picked a wide face: the note is anchored at x=840 and
+    # ends, on the widest measured face, at x=647 -- while the trigger sits at
+    # 660. The narrowest face puts it at 675 and clears. So the figure was
+    # broken on some machines and fine on others, which is precisely the
+    # defect a one-font width model could not see, and `audit_figures.py`
+    # reported it the hour the vertical check started using the wide bound.
+    #
+    # This paragraph spent two rounds inside `trade()`, a hundred and fifty
+    # lines above the path it explains, naming a variable that function does
+    # not have. `trade` draws horizontal gridlines with the same `.dash` class
+    # and no trigger at all, so a reader there was being told about something
+    # that was not happening and a reader here was given two segments with no
+    # reason. A misfiled explanation is a missing one.
+    #
+    # The line loses nothing: a threshold means something where it crosses a
+    # bar, and the two segments still cover both bars and the connector up to
+    # the label. Looked at, by a second pair of eyes and a round later, which
+    # was the open question: it holds, and for a reason the first pass did not
+    # give. In the upper bar the trigger falls exactly on the boundary between
+    # `room` and `margin` -- the compaction margin begins at the trigger by
+    # definition -- so the dash there is redundant with the fill it sits on.
+    # In the lower bar it falls in the middle of one unbroken client run and
+    # is the only thing saying where 20,000 lands. The segment that earns its
+    # keep is the second one, and a single rule would have added a third
+    # crossing that says nothing while running through the note.
     body = f"""  <text class="h blue" x="60" y="38">{t["head"]}</text>
   <text class="s muted" x="60" y="58">{t["sub"]}</text>
 
