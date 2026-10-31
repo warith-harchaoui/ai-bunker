@@ -139,6 +139,11 @@ did: pointing the variable at a file that is not a site is what makes the two
 agree. The weaker in-place command above had the variable all along; the
 stricter one did not, which is the wrong way round.
 
+How much that was worth, measured by running the rehearsal both ways on the
+same commit: **six tests skip with the site present and twenty-five without
+it.** Nineteen tests were behaving differently in the rehearsal than in the
+lane, in the one procedure whose entire purpose is to behave like the lane.
+
 Two checks are deliberately **not** in that list.
 
 ```bash
