@@ -5,6 +5,34 @@ Standardization's year-month-day order.
 
 ## [Unreleased]
 
+### A bound on turns in flight, and it is off until you set it
+
+`gateway.max_concurrent` caps how many turns may be against the engine at
+once. **Unset is unbounded and is the default**, so upgrading changes nothing:
+the figure is a property of your machine rather than of this software, and a
+gateway that worked it out at runtime and enforced it would be inventing a
+bound — the same mistake as a probe raising `served_context` from one reply.
+`ai-bunker sizing` prints what the machine carries, as `concurrent_sessions`.
+
+- **Why it exists.** Without it the engine decides what happens when it runs
+  out, and neither answer is one a client can act on: Ollama queues to
+  `OLLAMA_MAX_QUEUE` and then returns a bare `503` mid-request, vLLM queues on
+  `max_num_seqs` and never refuses, so the caller waits. Turning that into a
+  named refusal before anything is forwarded is what this gateway is for.
+- **What a refusal looks like.** `429` with `Retry-After`, the code
+  `too_many_concurrent_requests`, and the setting named in the message —
+  distinguishable from the engine's `503`, which means the layer below ran out
+  of queue. Nothing is forwarded and nothing is screened.
+- **Both engine-facing endpoints count.** `/v1/chat/completions` and
+  `/v1/embeddings`. A bound covering only the first is one an embeddings loop
+  walks around.
+- **Streams hold their place to the last byte**, and give it back if the
+  reader disconnects. A bound that leaked a place per abandoned stream would
+  tighten every time somebody was impatient.
+- **`ai-bunker doctor` reports which state you are in** and never fails on it.
+  How many sessions to carry is a choice; a choice is reported, a mistake is
+  refused.
+
 ### The image slot was the least-tested code in the project, and it had a bug
 
 The previous entry closed by noting that no published `best-engine-ai-helper`
