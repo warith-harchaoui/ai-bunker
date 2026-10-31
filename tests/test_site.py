@@ -666,3 +666,98 @@ def test_the_handoff_pattern_leaves_records_of_past_counts_alone():
     assert "1 147 dans un clone" in after, "a quotation of a past state was rewritten"
     assert "**1 000 dans un clone**" not in after, "the live row was not updated"
     assert f"**{_collected_tests():,} dans un clone**".replace(",", " ") in after
+
+
+#: Files that carry a figure in a shape `sync_counts.py` recognises and are
+#: deliberately *not* rewritten. Both are records rather than statements:
+#: editing them to satisfy a linter turns a true sentence about a past moment
+#: into a false one, which is the argument `lint_handoff.py` already makes for
+#: the first and `lint_claims.py` for the second.
+UNOWNED_ON_PURPOSE = {
+    ".private/thread.md",
+    "CHANGELOG.md",
+}
+
+
+def test_every_file_shaped_like_a_published_figure_has_an_owner():
+    """`SOURCES` is a list, and round 35 found what an unchecked list costs.
+
+    The handoff's state table said 1,147 while the published figure was 1,186
+    — wrong for two rounds in the one document whose job is to be true —
+    because `sync_counts.py` did not read `.private/` and `lint_handoff.py`
+    declined to check figures on the grounds that `sync_counts.py` owned
+    them. An ownership claim with nobody behind it.
+
+    So: anything in this repository carrying text that one of this script's
+    own patterns matches is either in `SOURCES` or named below with a reason.
+    Silence is no longer one of the options.
+
+    **What this does not catch, said plainly.** The round-35 defect itself
+    would have walked past it: `die.md` quoted the figure in a shape no
+    pattern recognised, so nothing matched and nothing was missing. Catching
+    *that* needs a check on values rather than shapes, and measuring one says
+    no — searching every text file for the four figures' values reports
+    eleven files, of which zero are defects, because `27` is a line number as
+    often as it is a rule count. A gate at that ratio is a gate somebody
+    deletes.
+
+    What is left is narrower and real: a new document adopting a shape the
+    script knows, and nobody adding it to the list.
+    """
+    counts = _sync_counts()
+    owned = {path.resolve() for path in counts.SOURCES}
+    allowed = {(ROOT / name).resolve() for name in UNOWNED_ON_PURPOSE}
+    patterns = counts.substitutions()
+
+    skip = {
+        ".git",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "__pycache__",
+        "node_modules",
+        ".venv",
+        "logs",
+        ".deepeval",
+    }
+    unowned: list[str] = []
+    for path in ROOT.rglob("*"):
+        if path.suffix not in {".md", ".yaml", ".yml", ".html", ".txt"} or not path.is_file():
+            continue
+        if any(part in skip for part in path.parts):
+            continue
+        resolved = path.resolve()
+        if resolved in owned or resolved in allowed:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):  # pragma: no cover - not a text file after all
+            continue
+        matched = [label for pattern, _replacement, label in patterns if pattern.search(text)]
+        if matched:
+            unowned.append(f"{path.relative_to(ROOT)} carries {matched}")
+
+    assert not unowned, (
+        "a file quotes a figure in a shape `sync_counts.py` rewrites, and the script "
+        f"does not own it, so the figure will drift in silence: {unowned}"
+    )
+
+
+def test_the_deliberate_exceptions_still_need_the_exception():
+    """An exception list is itself a list, and the same argument applies.
+
+    A name here that no longer carries any such figure is a decision nobody
+    is making any more, and leaving it would let a file be added back under
+    an exemption granted for a reason that has expired.
+    """
+    counts = _sync_counts()
+    patterns = counts.substitutions()
+    for name in sorted(UNOWNED_ON_PURPOSE):
+        path = ROOT / name
+        if not path.exists():  # `.private/` is not committed; absent in a clone
+            continue
+        text = path.read_text(encoding="utf-8")
+        assert any(pattern.search(text) for pattern, _r, _l in patterns), (
+            f"{name} is excused from `SOURCES` and carries nothing to excuse; "
+            "drop it from the list rather than leaving an exemption nobody needs"
+        )

@@ -47,12 +47,12 @@ claims:
   # The count in the film, read from the line `scripts/sync_counts.py` writes
   # and `tests/test_site.py` gates against what pytest actually collects. Three
   # links, and the film is the last one.
-  - text: "1,215 tests"
-    value: "1215 tests, `ruff` clean"
+  - text: "1,217 tests"
+    value: "1217 tests, `ruff` clean"
     source:
       path: README.md
       method: literal
-      selector: "1215 tests, `ruff` clean"
+      selector: "1217 tests, `ruff` clean"
 
   # Found by `make-film scan`, not by remembering: four figures were on
   # screen that no claim accounted for. That is the half of the audit that
