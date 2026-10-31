@@ -167,24 +167,32 @@ addopts = "-q -p no:deepeval -p no:langsmith_plugin -p no:hydra_pytest -p no:fak
 # in a `gate` job that runs once. This is the same argument applied to the
 # gates that live inside the suite rather than beside it.
 #
-# Measured, and measured in the lane, because this machine could not. Two
-# back-to-back rehearsals of one unchanged tree put the saving at 8.6 seconds
-# and then at 1.4, the maintainer's machine running other sessions throughout.
-# A number that moves by a factor of six between two readings has been
-# sampled, not measured, and a projected figure is the one thing this
-# repository does not let itself publish.
+# Measured in the lane, because this machine cannot. Two back-to-back
+# rehearsals of one unchanged tree put the saving at 8.6 seconds and then at
+# 1.4, the maintainer's laptop running other work throughout; a number that
+# moves by a factor of six between two readings has been sampled, not
+# measured.
 #
-# The lane is the quiet machine -- quieter, not silent. Its 3.10 `Tests` step
-# took 63, 63 and 69 seconds over the three runs before this round, and 44 and
-# 49 over the first two after it. So: about 18 seconds off a leg that is
-# itself worth 63 give or take 5, which is why this says 18 and not 18.5.
+# The lane is quieter. It is not quiet. Every reading of this step the lane
+# has recorded, in order -- 52, 53, 69, 63, 63 before this change, then 38,
+# 44, 49 after. Those last three are one code state read three times: the two
+# commits following the change touched comments and nothing else. So eleven of
+# those seconds are the lane disagreeing with itself, on identical work.
 #
-# What that 19 does not say, because one run cannot separate it: two changes
-# land on this leg at once. The deselection is one. The other is that the two
+# Which is why what is written here is the two sets and not a saving. They do
+# not overlap, so the direction is not in doubt; the difference of their means
+# is 16 seconds and the interval around that is 3 to 31. Round 34 published
+# "about 18 seconds off a leg worth 63 give or take 5", taking its baseline
+# from the slowest three-run window when five runs were already on record, and
+# its correction commit then changed 19 to 18 in one paragraph and left 19
+# standing in the next. Those are all the same mistake as the "about 13
+# seconds" that round had already deleted for being nobody's measurement.
+#
+# None of it can separate the two changes that land on this leg together
+# anyway: the deselection is one, and the other is that the two
 # `test_site.py` tests it deselects were the only callers of a
 # `--collect-only` subprocess that re-imports the whole suite, so the leg
-# stopped paying for that too. 19 seconds is what the round took off 3.10,
-# not what the marker took off alone.
+# stopped paying for that as well.
 #
 # What it gives up, stated rather than implied: a defect that appears when one
 # of those gates runs under 3.10 and not under 3.13 would now reach a release.

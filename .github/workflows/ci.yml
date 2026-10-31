@@ -71,11 +71,10 @@ jobs:
       # claim linter, the figure audit, the film spec, the handoff gate, the
       # published-figure check -- and none of them can answer differently on a
       # different interpreter. They were being paid for twice: sixty-five
-      # tests, and this step went from about 63 seconds to about 45 when it
-      # stopped paying for them -- both figures read off this step itself, in
-      # the lane, over several runs, not projected from a laptop and not taken
-      # from one sample. `markers` in `pyproject.toml` carries the
-      # measurement, what it declines to attribute, and the trade this gives
+      # tests, and this step reads 38 to 49 seconds now where it read 52 to
+      # 69 before -- every reading the lane has recorded, rather than a window
+      # picked out of them. `markers` in `pyproject.toml` carries both sets,
+      # why no single saving is quoted from them, and the trade this gives
       # up. Same argument the `gate` job below makes for
       # lint, format, rules and the page audits, applied to the gates that
       # happen to live inside the suite. `markers` in `pyproject.toml` carries
@@ -84,6 +83,13 @@ jobs:
         if: matrix.python-version != '3.13'
         run: pytest -q -m "not gate"
 
+      # This step is the loudest thing in the lane and worth knowing before
+      # anybody reads a number off it: 62, 77, 97, 79, 95 seconds across the
+      # five runs before the round above, then 83, 52 and 47 across the three
+      # after -- and those three are one code state, the two later commits
+      # having touched only comments. Thirty-six seconds of spread on
+      # identical work. It went down, and nothing here claims to know how much
+      # of that was the round.
       - name: Tests with coverage
         if: matrix.python-version == '3.13'
         run: pytest -q --cov --cov-report=term
