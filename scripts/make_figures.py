@@ -901,7 +901,10 @@ STRINGS: dict[str, dict[str, dict[str, str]]] = {
             # 1.5 pixels inside it. The audit said nothing because its canvas
             # check used the *narrow* bound; it uses the wide one now, which
             # is what found this. Margins at the wide bound are 60, 44 and
-            # 101 pixels.
+            # 101 pixels, and `python3 scripts/audit_figures.py --slack` is
+            # what re-measures them -- round 35 left itself the rule that a
+            # number in committed prose comes with the command that
+            # reproduces it, and this is the first caption to get one.
             "foot1": (
                 "Four positions, and they are not interchangeable. A file on a laptop "
                 "drifts. A library runs only when the application calls it. A tool-server"

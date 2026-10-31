@@ -542,6 +542,30 @@ def _char_boxes(label: tuple) -> list[tuple[float, float, float, float]]:
     return boxes
 
 
+def canvas_margins() -> list[tuple[str, str, float]]:
+    """``(figure, label, margin)`` for every measurable label, widest bound.
+
+    The margin is the smallest distance from the label's widest possible box
+    to any edge of its canvas; negative means it runs off, which is what
+    :func:`audit_geometry` reports. Printed by ``--slack`` so the figures
+    quoted in `make_figures.py` beside a hand-wrapped caption can be checked
+    rather than believed.
+    """
+    import xml.etree.ElementTree as ET
+
+    out = []
+    for path in sorted((ROOT / "assets").glob("figure-*.svg")):
+        root = ET.fromstring(path.read_text(encoding="utf-8"))
+        style = "".join("".join(n.itertext()) for n in root.iter(f"{SVG_NS}style"))
+        width, height = (float(v) for v in root.get("viewBox", "0 0 0 0").split()[2:4])
+        for label in _labels(root, _type_rules(style)):
+            if label[7] is None or _unmeasured(label[0], label[4]):
+                continue
+            x0, x1, y0, y1 = _box(label, widest=True)
+            out.append((path.name, label[0][:34], min(x0, width - x1, y0, height - y1)))
+    return out
+
+
 def band_slack() -> list[tuple[str, str, float, float]]:
     """What the one-band-per-label approximation costs, per pair, in pixels.
 
@@ -860,6 +884,18 @@ def main() -> int:
         print(f"  an exact silhouette      {exact:6.2f}px")
         print(f"  widest margin given away {away:6.2f}px")
         print(f"  pairs the two models judge differently: {disagree}")
+
+        # And the other room a figure can run out of, for the same reason the
+        # first half is printed: round 35 left itself the rule that a number
+        # in committed prose comes with the command that reproduces it, and
+        # the canvas margins quoted in `make_figures.py` had no such command
+        # until this line existed.
+        print()
+        margins = canvas_margins()
+        tightest = min(margins, key=lambda row: row[2])
+        print(f"{len(margins)} label(s) measured against their canvas, widest bound")
+        print(f"  tightest margin          {tightest[2]:6.2f}px")
+        print(f"  on                       {tightest[0]} {tightest[1]!r}")
         return 0
 
     failures, checked = [], 0
