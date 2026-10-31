@@ -171,10 +171,22 @@ def test_every_registered_claim_can_actually_be_broken(guard, monkeypatch):
     assert guard.check() == [], "the repository is not clean; this measures nothing"
 
     deaf: list[str] = []
+    unreadable: list[str] = []
     planted = 0
 
     for claim in guard.CLAIMS:
-        target = claim.files[0]
+        # Only the files that are actually here. Four claims guard `web/`,
+        # which is a different repository and absent from the lane, so
+        # planting a phrase in one changes nothing and `check()` is right to
+        # stay quiet. The first draft of this test counted that silence as a
+        # claim nobody can enforce: green on a laptop with the site beside
+        # it, red in the lane. Round 37's largest finding, committed by the
+        # round after it.
+        present = [name for name in claim.files if real_read(name) is not None]
+        if not present:
+            unreadable.append(claim.name)
+            continue
+        target = present[0]
 
         for phrase in claim.forbidden:
 
@@ -191,7 +203,14 @@ def test_every_registered_claim_can_actually_be_broken(guard, monkeypatch):
             if not any(claim.name in line for line in reported):
                 deaf.append(f"{claim.name}: {phrase[:48]!r} planted in {target}, not reported")
 
-        if claim.required_somewhere:
+        # A required phrase that lives only in a file this machine does not
+        # have cannot be stripped from anywhere that matters either.
+        stated_here = any(
+            phrase in (real_read(name) or "")
+            for name in present
+            for phrase in claim.required_somewhere
+        )
+        if claim.required_somewhere and stated_here:
 
             def stripped_read(relative, _claim=claim):
                 text = real_read(relative)
@@ -208,7 +227,15 @@ def test_every_registered_claim_can_actually_be_broken(guard, monkeypatch):
             if not any(claim.name in line for line in reported):
                 deaf.append(f"{claim.name}: every required phrase removed, not reported")
 
-    assert planted >= 20, f"only {planted} mutations; this stopped exercising the register"
+    # Said out loud rather than hidden: in the lane this exercises fewer
+    # claims than it does here, and a test that quietly measures less than it
+    # looks is the thing this file exists to stop.
+    exercised = len(guard.CLAIMS) - len(unreadable)
+    assert exercised >= 8, (
+        f"only {exercised} of {len(guard.CLAIMS)} claims have a readable file here, "
+        f"so this is barely measuring anything: {unreadable}"
+    )
+    assert planted >= 14, f"only {planted} mutations; this stopped exercising the register"
     assert not deaf, (
         "a claim is registered that this script cannot catch anybody contradicting, "
         f"so it is protection in name only: {deaf}"
