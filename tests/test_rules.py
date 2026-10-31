@@ -20,6 +20,7 @@ from ai_bunker.rules import (
     PURPOSE_VAR,
     SUGGESTED_ENTROPY,
     Decision,
+    Violation,
     compile_rule,
     decisions_for,
     format_note,
@@ -1407,3 +1408,82 @@ def test_a_whole_repository_log_is_still_unbounded(shipped):
     for command in ("git log --all --oneline -5", "git log --oneline -5", "git diff --stat"):
         refusal, _ = screen_command(command, shipped)
         assert refusal is None, f"{command!r} refused by {refusal.id if refusal else '?'}"
+
+
+# ---------------------------------------------------------------------------
+# Two decisions a comparison sweep found nothing standing behind.
+# ---------------------------------------------------------------------------
+
+
+def test_enforces_is_read_across_every_scope_and_severity():
+    """`enforces` is "does a match change anything, or only say something".
+
+    A sweep over this module swapped every comparison one at a time and ran
+    all eighteen test files that touch the rule engine. `self.severity ==
+    "BLOCKER"` in the tool branch survived: nothing distinguished a BLOCKER
+    tool rule from a WARN one there. That branch is the only defence the
+    comment above it claims works — a tool the planner cannot see cannot be
+    chosen — so "nothing tests it" is the wrong state for it to be in.
+
+    The whole matrix rather than the one cell, because the cell was missed by
+    tests that each checked a case they happened to care about.
+    """
+    expected = {
+        ("command", "BLOCKER"): True,
+        ("command", "GATED"): True,
+        ("command", "WARNING"): False,
+        ("tool", "BLOCKER"): True,
+        ("tool", "GATED"): False,
+        ("tool", "WARNING"): False,
+        ("output", "BLOCKER"): False,
+        ("output", "GATED"): False,
+        ("output", "WARNING"): False,
+    }
+    for (scope, severity), acts in expected.items():
+        rule = _rule(scope=scope, severity=severity)
+        assert rule is not None, f"{severity} on {scope} did not compile at all"
+        assert rule.enforces is acts, (
+            f"a {severity} rule on {scope} {'should' if acts else 'should not'} change "
+            f"what the gateway does, and `enforces` says {rule.enforces}"
+        )
+
+    # And the other half of the tool branch: redaction acts whatever the
+    # severity, which is what keeps `or self.redact` from being decoration.
+    redacting = _rule(
+        scope="tool", severity="WARNING", action={"type": "redact", "replacement": "[gone]"}
+    )
+    assert redacting.enforces is True, "a redacting tool rule rewrites the description"
+
+
+def test_the_audit_log_tells_the_four_outcomes_apart():
+    """`decisions_for` classifies, and three of its branches were untested.
+
+    The sweep flipped `v.rule.severity == "GATED" and v.rule.scope ==
+    "command"` and `v.rule.scope == "tool" and v.rule.severity == "BLOCKER"`
+    and nothing went red. This function's own docstring argues that an audit
+    trail is the point of the product; what it records is therefore not a
+    detail, and "gated" against "permitted" against "withheld" against
+    "noted" is the whole of what a reader learns.
+    """
+    gated = _rule(id="g", scope="command", severity="GATED")
+    blocked_tool = _rule(id="t", scope="tool", severity="BLOCKER")
+    noted = _rule(id="n", scope="output", severity="WARNING")
+
+    def outcome(violation, **kwargs):
+        return decisions_for([violation], **kwargs)[0].outcome
+
+    # A gate with no reason written stopped something; with one, it let
+    # something through. Calling both "refused" would hide every command the
+    # gate actually passed.
+    assert outcome(Violation(rule=gated)) == "gated"
+    assert outcome(Violation(rule=gated, purpose="deploying the staging build")) == "permitted"
+
+    # A BLOCKER on a tool is a capability that disappeared from the request,
+    # which is more than a note.
+    assert outcome(Violation(rule=blocked_tool)) == "withheld"
+
+    # Everything else that fired without stopping anything.
+    assert outcome(Violation(rule=noted)) == "noted"
+
+    # And the refusal, which outranks the scope rules above it.
+    assert outcome(Violation(rule=noted), refusal=noted) == "refused"
