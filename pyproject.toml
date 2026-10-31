@@ -173,11 +173,16 @@ addopts = "-q -p no:deepeval -p no:langsmith_plugin -p no:hydra_pytest -p no:fak
 # moves by a factor of six between two readings has been sampled, not
 # measured.
 #
-# The lane is quieter. It is not quiet. Every reading of this step the lane
-# has recorded, in order -- 52, 53, 69, 63, 63 before this change, then 38,
-# 44, 49 after. Those last three are one code state read three times: the two
-# commits following the change touched comments and nothing else. So eleven of
-# those seconds are the lane disagreeing with itself, on identical work.
+# The lane is quieter. It is not quiet. The five runs before this change read
+# 52, 53, 69, 63 and 63; the first three after it read 38, 44 and 49. Those
+# three are one code state read three times -- the two commits following the
+# change touched comments and nothing else -- so eleven of those seconds are
+# the lane disagreeing with itself about identical work.
+#
+# "The five before" and "the first three after" are anchored on purpose. The
+# sentence this replaced said *every* reading the lane had recorded, which was
+# true for one commit and false at the next push; the same trap, and the same
+# way out, as the figure two paragraphs down.
 #
 # Which is why what is written here is the two sets and not a saving. They do
 # not overlap, so the direction is not in doubt; the difference of their means
