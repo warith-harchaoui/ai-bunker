@@ -23,9 +23,14 @@ bound — the same mistake as a probe raising `served_context` from one reply.
   `too_many_concurrent_requests`, and the setting named in the message —
   distinguishable from the engine's `503`, which means the layer below ran out
   of queue. Nothing is forwarded and nothing is screened.
-- **Both engine-facing endpoints count.** `/v1/chat/completions` and
-  `/v1/embeddings`. A bound covering only the first is one an embeddings loop
-  walks around.
+- **Every engine-facing endpoint counts.** `/v1/chat/completions`,
+  `/v1/embeddings` and `/v1/images/generations`. A bound covering only the
+  first is one an embeddings loop walks around — and the picture route is the
+  one where a place matters most, since a denoising run holds an accelerator
+  far longer than a chat turn. This list said "both" for one commit and left
+  the picture route out; a test now finds every call that reaches an engine
+  and fails if its handler takes no place, so the list cannot be wrong again
+  without something saying so.
 - **Streams hold their place to the last byte**, and give it back if the
   reader disconnects. A bound that leaked a place per abandoned stream would
   tighten every time somebody was impatient.

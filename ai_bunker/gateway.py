@@ -986,6 +986,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             osh.debug(f"[gateway] {model!r} -> {resolved!r} on {upstream.name} ({why})")
             body = {**body, "model": resolved}
 
+        # Counted like the other two, and this is the route where it matters
+        # most: a denoising run holds an accelerator for a length of time a
+        # chat turn does not approach. The round that added the bound said in
+        # its own commit message that "both endpoints that reach the engine are
+        # counted" -- there are three, and this was the one left out, which is
+        # how an enumeration nobody checked becomes a hole in the thing it was
+        # enumerating. `test_every_route_that_reaches_an_engine_takes_a_place`
+        # is what checks it now.
+        slot = state.inflight.take()
+        if slot is None:
+            return _at_capacity(state.inflight.limit)
         try:
             return await _forward(body, upstream, "/images/generations", request)
         except ClientGone:
@@ -997,6 +1008,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         except httpx.HTTPError as exc:
             return _error(502, f"Upstream {upstream.name} is unreachable: {exc}", "upstream_error")
+        finally:
+            slot.release()
 
     _mount_mcp(app)
     return app

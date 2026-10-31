@@ -1468,3 +1468,85 @@ def test_a_stream_through_the_gateway_leaks_no_place(client, streaming_upstream)
         assert response.status_code == 200, "the gateway never got its place back"
         response.read()
     assert state.inflight.held == 0
+
+
+def test_every_route_that_reaches_an_engine_takes_a_place():
+    """The gate for the mistake the bound was shipped with.
+
+    `gateway.max_concurrent` arrived counting `/v1/chat/completions` and
+    `/v1/embeddings`, and its own commit message said "both endpoints that
+    reach the engine are counted". There are three. `/v1/images/generations`
+    forwards too, and it is the route where a place matters most: a denoising
+    run holds an accelerator for a length of time a chat turn does not
+    approach, so the one endpoint left out was the one most able to fill the
+    machine on its own.
+
+    The defect was an enumeration nobody checked, which is this repository's
+    recurring shape, so the fix is not "and the third one too" -- it is this.
+    Every call to `_forward` or `_stream` is found in the source, the
+    innermost function containing it is the handler, and that handler must
+    take a place. Add a fourth engine-facing route without one and this names
+    it and the line.
+    """
+    import ast
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    source = (root / "ai_bunker" / "gateway.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    functions = [
+        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+    ]
+    # The primitives themselves: `_forward` and `_stream` are what a handler
+    # calls, and `_release_after` is the wrapper that gives a place back.
+    plumbing = {"_forward", "_stream", "_release_after"}
+
+    reached, unguarded = 0, []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        if node.func.id not in {"_forward", "_stream"}:
+            continue
+        inner = None
+        for candidate in functions:
+            end = candidate.end_lineno or candidate.lineno
+            encloses = candidate.lineno <= node.lineno <= end
+            if encloses and (inner is None or candidate.lineno > inner.lineno):
+                inner = candidate
+        if inner is None or inner.name in plumbing:
+            continue
+        reached += 1
+        body = ast.get_source_segment(source, inner) or ""
+        if "inflight.take()" not in body:
+            unguarded.append(f"{inner.name}() calls {node.func.id} at line {node.lineno}")
+
+    assert reached >= 3, f"only {reached} engine-facing call sites found; this stopped reading"
+    assert not unguarded, (
+        "a route reaches the engine and takes no place, so `gateway.max_concurrent` "
+        f"does not bound it: {unguarded}"
+    )
+
+
+def test_the_image_route_is_counted_like_the_others(client, upstream):
+    """And the behaviour, because the gate above reads source and a reader of
+    source can be wrong about what runs."""
+    upstream.reply = {"created": 1, "data": [{"b64_json": "aGk="}]}
+    served = client(
+        max_concurrent=1,
+        upstreams={"pictures": Upstream(name="pictures", base_url="http://pix.test/v1")},
+        needs={"image": "pictures"},
+    )
+    state = served.app.state.bunker
+
+    occupied = state.inflight.take()
+    assert occupied is not None
+    try:
+        refused = served.post("/v1/images/generations", json={"prompt": "a cat"}, headers=AUTH)
+    finally:
+        occupied.release()
+    assert refused.status_code == 429
+    assert refused.json()["error"]["code"] == "too_many_concurrent_requests"
+
+    allowed = served.post("/v1/images/generations", json={"prompt": "a cat"}, headers=AUTH)
+    assert allowed.status_code == 200
+    assert state.inflight.held == 0, "a finished picture kept its place"
