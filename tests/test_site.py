@@ -110,6 +110,13 @@ def test_the_documentation_quotes_the_real_rule_counts(all_prose):
         (r"(\d+) règles, (?:\d+) assertions", len(rules), "rules (fr)"),
         (r"\d+ règles, (\d+) assertions", report.passed, "assertions (fr)"),
         (r"\d+ règles, \d+ assertions, (\d+) scénarios", scenarios, "scenarios (fr)"),
+        # Evidence coverage, and it was in the same place as the version:
+        # checked against the *site's* pages by `test_the_quoted_coverage_is_real`,
+        # which skips wherever the site is not — the lane, every time. Both
+        # READMEs print the line, and nothing in continuous integration read
+        # either of them. Round 37 went looking for figures with the version's
+        # shape and this is the one it found.
+        (r"rules carrying evidence\s+(\d+)%", round(report.coverage * 100), "evidence"),
     ):
         for n in {int(x) for x in re.findall(pattern, all_prose)}:
             assert n == actual, f"the documentation says {n} {label}; there are {actual}"
