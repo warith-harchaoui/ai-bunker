@@ -621,3 +621,48 @@ def test_out_refuses_a_destination_it_did_not_produce(tmp_path):
     here = publish.HERE.resolve()
     for target in (here, here.parent, here / "css"):
         assert publish.why_not_replaceable(target), f"{target} must be refused"
+
+
+def test_the_handoff_state_row_is_owned_by_the_script_that_claims_to_own_it():
+    """`lint_handoff.py` declines to check figures because this script owns
+    them. For two rounds that was a claim with nobody behind it: this script
+    did not read `.private/` at all, so the test count in the handoff's state
+    table had no owner, said 1,147 while the published figure was 1,184 and
+    then 1,186, and the gate written for that document went green over it every
+    time -- it checks paths, commits and line numbers.
+
+    One owner per figure is the right rule. This is the assertion that the
+    owner actually reaches the file.
+    """
+    owned = {str(path) for path in _sync_counts().SOURCES}
+    handoff = str(ROOT / ".private" / "die.md")
+    assert handoff in owned, (
+        "the handoff's state row is not among the files this script rewrites, "
+        "and `lint_handoff.py` is declining to check it on the grounds that it is"
+    )
+
+
+def test_the_handoff_pattern_leaves_records_of_past_counts_alone():
+    """Every pattern in `sync_counts.py` keeps its own context, and this one
+    has to keep two.
+
+    The same file carries *"1 135 dans un clone"* about round 30 and *"1 147
+    dans un clone"* inside a quotation of its own former self. Both are true
+    statements about a past moment; rewriting either would turn a record into
+    a falsehood, which is the mistake this script's own docstring warns about
+    for `327 tests`. So the live row is the bold one, and nothing else matches.
+    """
+    pattern, replacement, _ = next(
+        entry for entry in _sync_counts().substitutions() if entry[2] == "tests (handoff state row)"
+    )
+    before = (
+        "| Tests | **1 000 dans un clone** (et c'est le chiffre publie) |\n"
+        "le compte publie valait 1 156 ici et 1 135 dans un clone.\n"
+        "annoncait « 1 147 dans un clone (et c'est le chiffre publie) ».\n"
+    )
+    after = pattern.sub(replacement, before)
+
+    assert "1 135 dans un clone" in after, "a record of round 30 was rewritten"
+    assert "1 147 dans un clone" in after, "a quotation of a past state was rewritten"
+    assert "**1 000 dans un clone**" not in after, "the live row was not updated"
+    assert f"**{_collected_tests():,} dans un clone**".replace(",", " ") in after

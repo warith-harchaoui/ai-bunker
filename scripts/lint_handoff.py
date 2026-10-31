@@ -39,6 +39,15 @@ Figures. The test count in the state table is owned by `sync_counts.py`, like
 every other quoted number in this repository — one owner per figure, and a
 second guard reading the same number is a second place for them to disagree.
 
+That reasoning is right and for two rounds it was also false, which is worth
+keeping rather than quietly fixing. `sync_counts.py` did not read `.private/`
+at all, so the figure this file declined to check on the grounds that it had
+an owner had no owner: `die.md` said 1,147 while the published number was
+1,184 and then 1,186, and this gate went green over it every single time. The
+fix is not a second guard here — it is `.private/die.md` in that script's
+`SOURCES`, where it is now. One owner per figure still, and the owner now
+reaches the file.
+
     python3 scripts/lint_handoff.py          # report
     python3 scripts/lint_handoff.py --list   # what is being read
 

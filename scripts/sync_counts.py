@@ -58,6 +58,18 @@ SOURCES = [
     ROOT / "video" / "SCRIPT.md",
     ROOT / "video" / "film.yaml",
     ROOT / "video" / "film" / "index.html",
+    # The handoff's state table, which is not committed and is read by the
+    # next session as fact. `lint_handoff.py` declines to check figures and
+    # says why -- one owner per figure, and that owner is this file -- except
+    # that this file did not read `.private/`, so the figure there had no owner
+    # at all. It said 1,147 for at least two rounds while the published number
+    # was 1,184 and then 1,186, and the gate that exists for that document
+    # passed over it every time, because it checks paths, commits and line
+    # numbers. An ownership claim with nobody behind it is the defect this
+    # repository keeps finding; this is the owner turning up. `main` skips
+    # sources that are absent, so the lane, which has no `.private/`, is
+    # unaffected.
+    ROOT / ".private" / "die.md",
 ]
 if WEB is not None:
     SOURCES += [
@@ -224,6 +236,18 @@ def substitutions() -> list[tuple[re.Pattern[str], str, str]]:
         # commit and bought nothing a green CI gate does not already say. Only
         # the READMEs carry the number, where correcting it costs no upload.
         (re.compile(r"\|\s*\d+ tests, `ruff`"), f"| {tests} tests, `ruff`", "tests (checklist)"),
+        # The handoff's state row, in French and with a French thousands
+        # separator. Anchored on the bold *and* on "dans un clone", because the
+        # same file says "1 135 dans un clone" about round 30 and "1 147 dans
+        # un clone" inside a quotation of its own former self -- both records
+        # of a past moment, neither in bold, and both must stay exactly as
+        # they are. Same reasoning as every other pattern here, and the same
+        # reason each one keeps its own context.
+        (
+            re.compile(r"\*\*[\d  ]+ dans un clone\*\*"),
+            f"**{tests:,} dans un clone**".replace(",", " "),
+            "tests (handoff state row)",
+        ),
         # The film's three. Each pattern keeps its own context so that the
         # historical note in the same files -- *"thirteen hundred tests" was
         # 1,140* -- is a record of a past moment and stays one.
