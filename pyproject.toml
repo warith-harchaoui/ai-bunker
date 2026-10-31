@@ -174,9 +174,10 @@ addopts = "-q -p no:deepeval -p no:langsmith_plugin -p no:hydra_pytest -p no:fak
 # sampled, not measured, and a projected figure is the one thing this
 # repository does not let itself publish.
 #
-# The lane is the quiet machine. Its 3.10 `Tests` step took 63, 63 and 69
-# seconds over the three runs before this one; it takes 44 now. So: about 19
-# seconds off a 63-second leg.
+# The lane is the quiet machine -- quieter, not silent. Its 3.10 `Tests` step
+# took 63, 63 and 69 seconds over the three runs before this round, and 44 and
+# 49 over the first two after it. So: about 18 seconds off a leg that is
+# itself worth 63 give or take 5, which is why this says 18 and not 18.5.
 #
 # What that 19 does not say, because one run cannot separate it: two changes
 # land on this leg at once. The deselection is one. The other is that the two

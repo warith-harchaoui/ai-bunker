@@ -71,9 +71,10 @@ jobs:
       # claim linter, the figure audit, the film spec, the handoff gate, the
       # published-figure check -- and none of them can answer differently on a
       # different interpreter. They were being paid for twice: sixty-five
-      # tests, and this step went from 63 seconds to 44 when it stopped paying
-      # for them -- both figures read off this step itself, in the lane, not
-      # projected from a laptop. `markers` in `pyproject.toml` carries the
+      # tests, and this step went from about 63 seconds to about 45 when it
+      # stopped paying for them -- both figures read off this step itself, in
+      # the lane, over several runs, not projected from a laptop and not taken
+      # from one sample. `markers` in `pyproject.toml` carries the
       # measurement, what it declines to attribute, and the trade this gives
       # up. Same argument the `gate` job below makes for
       # lint, format, rules and the page audits, applied to the gates that
