@@ -489,12 +489,32 @@ $ ai-bunker doctor
   [ok  ] 247 rule assertions pass
   [ok  ] 100% of rules carry evidence
   [WARN] upstream local answers at http://127.0.0.1:8001/v1   not reachable
+  [ok  ] local: served_context 40,960 matches (ollama /api/show)
   [WARN] an API key is configured   no key: this gateway is open to anyone who
                                     can reach it. Fine on a trusted network, a
                                     decision either way
   [ok  ] no route leaves this network
-  12/14 checks pass
 ```
+
+The tally this used to print — *12/14 checks pass* — is deliberately gone. The
+number of checks depends on how many upstreams are configured and how many of
+them answer, so it is different on every deployment and was quoted here from a
+run nobody repeated: the command prints seventeen today. A figure a reader
+cannot reproduce is the weakest kind this project allows itself, so it is not
+published rather than published stale.
+
+One of those lines is the whole argument, pointed at the gateway's own
+configuration. `served_context` is the figure every budget is measured
+against, and `doctor` now **asks the engine** rather than believing the configuration file:
+Ollama publishes the real context on `/api/show`, and an OpenAI-compatible
+server often publishes it on `/v1/models`. Configured *above* what the engine
+serves is fatal — it is the September incident with the key spelled correctly —
+while configured *below* is reported as capacity left unused, because that may
+well be deliberate. An engine that will not say is a note, not a failure.
+
+It is not a hypothetical. On the machine this was written on the shipped
+default is 131,072 and `qwen3:8b` serves 40,960: a gateway declaring three
+times the room the engine has, and nothing to grep for.
 
 `/health` reports the same facts at runtime: whether the deployment is
 **sovereign** (no configured route leaves the network), whether it is
@@ -974,7 +994,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1147 tests, `ruff` clean | ✅ |
+| 1177 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

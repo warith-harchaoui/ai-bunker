@@ -16,7 +16,7 @@ from pathlib import Path
 
 import os_helper as osh
 
-from ai_bunker import __version__, i18n
+from ai_bunker import __version__, i18n, probe
 from ai_bunker.adopt import ALL_CLIENTS, CLIENTS, FRAMEWORKS, adopt, plan_adopt
 from ai_bunker.budget import (
     DECLARED_FRACTION,
@@ -405,6 +405,15 @@ def cmd_serve(args) -> int:
             "off this machine. Make sure the API key is set and the network is one you "
             "trust."
         )
+
+    # Ask each engine what it serves, once, before anything is built on the
+    # answer. `doctor` reports this and reporting was not enough: it is a
+    # command somebody runs, so a gateway started against an engine smaller
+    # than its configuration claims would serve the wrong figure until a human
+    # thought to check. Lowering only -- see `probe.clamp_to_engine`.
+    for note in probe.clamp_to_engine(settings):
+        osh.warning(note)
+
     serve(settings, host=args.host, port=args.port)
     return 0
 
@@ -516,6 +525,22 @@ def cmd_doctor(args) -> int:
             f"upstream {up.name} answers at {up.base_url}",
             "" if reachable else "not reachable: start the engine, or check the VPN",
         )
+
+        # And the number every budget is measured against, asked of the engine
+        # rather than read off the configuration. The stray-key check above
+        # catches `served_kontext`; it cannot catch a `served_context` that is
+        # spelled perfectly and wrong, which reproduces the founding incident
+        # with nothing to grep for.
+        #
+        # Fatal in one direction only. Configured *above* what the engine
+        # serves admits a request the engine will reject -- a mistake, like a
+        # key nobody reads. Configured *below* is capacity left unused and may
+        # well be deliberate, so it is reported. And an engine that will not
+        # say is a note: `doctor` runs in the lane, where there is no engine at
+        # all, and a check that is permanently red is a check nobody reads.
+        if reachable:
+            safe, note = probe.mismatch(up)
+            check(safe, note if safe else f"upstream {up.name} over-declares", note, fatal=not safe)
 
     check(
         bool(settings.api_key),

@@ -363,9 +363,14 @@ picture endpoint nobody can wait for is not a saving.
 
 ### What you need installed
 
-The picker arrives in **best-engine-ai-helper 1.10**. 1.9.0 is the newest on
-the package index at the time of writing, and with it the slot declines by
-name rather than guessing a footprint:
+The picker arrives in **best-engine-ai-helper 1.10**, which is published, so
+`pyproject.toml` floors the dependency there and an install that can run
+`ai-bunker sizing` can plan the image slot. For two rounds this section said
+1.9.0 was the newest on the package index — true when it was written, and the
+reason seven tests here skipped under every version a user could install.
+
+The declining path is kept, because an older helper in an existing
+environment is a real state and the message is the useful half:
 
 ```
 image: the slot was requested and is being left out. best-engine-ai-helper

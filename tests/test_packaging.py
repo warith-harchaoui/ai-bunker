@@ -178,6 +178,7 @@ SCRIPT_RUNNERS = {
     "lint_acronyms.py": "tests/test_acronyms.py",
     "lint_claims.py": "tests/test_claims.py",
     "lint_film.py": "tests/test_film.py",
+    "lint_handoff.py": "tests/test_handoff.py",
     "make_figures.py": "tests/test_figures.py",
     "measure_overhead.py": "tests/test_budget.py",
     "sync_counts.py": "tests/test_site.py",
@@ -241,6 +242,49 @@ def test_every_script_this_repository_wrote_is_run_by_the_lane_or_the_suite():
             assert f'"scripts" / "{script}"' in module.read_text(encoding="utf-8"), (
                 f"{runner} is declared to run {script} and only talks about it"
             )
+
+
+def test_the_floor_guarantees_the_image_picker_and_the_workaround_is_gone(manifest):
+    """A workaround and its reason have to live or die together.
+
+    `imagine_rank` and `imagine_pick` are the text-to-image selector this
+    project delegates the whole slot to. For several releases they existed
+    only on the provider's development branch, so seven tests skipped under
+    every published version -- and the lane compensated with two steps that
+    `pip install`-ed the helper from git and re-ran two test modules. Those
+    steps carried their own instruction: delete them the day `pyproject.toml`
+    can floor the helper at a published version that carries the picker.
+
+    1.10.0 publishes it. Verified against the wheel from the package index in
+    a clean environment, not against the maintainer's editable checkout, which
+    is the distinction that made the old claim wrong for two rounds.
+
+    Three things are asserted, and the third is the one that matters: the
+    floor is high enough, the symbols are really there, and the workaround is
+    **not**. A raised floor with the git-clone steps still in place would
+    install the branch over the release and test something no user has; the
+    steps removed with the floor left low would silently stop exercising the
+    slot at all. Either half alone is worse than neither.
+    """
+    floor = next(
+        spec for spec in manifest["project"]["dependencies"] if "best-engine-ai-helper" in spec
+    )
+    major, minor = (int(part) for part in floor.split(">=")[1].split(".")[:2])
+    assert (major, minor) >= (1, 10), f"{floor} predates the published image picker"
+
+    helper = pytest.importorskip("best_engine_ai_helper")
+    for symbol in ("imagine_rank", "imagine_pick"):
+        assert hasattr(helper, symbol), (
+            f"the installed helper has no {symbol}; either the floor is wrong or the "
+            f"provider removed it"
+        )
+
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    runs = "\n".join(re.findall(r"^\s+run:.*(?:\n\s{8,}.*)*", workflow, re.M))
+    assert "best-engine-ai-helper @ git+" not in runs, (
+        "the floor carries the picker, so the lane must not install the provider's "
+        "branch over the release a user gets"
+    )
 
 
 def test_the_coverage_floor_is_declared_and_defended(manifest):

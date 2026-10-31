@@ -523,11 +523,33 @@ $ ai-bunker doctor
   [ok  ] 247 rule assertions pass
   [ok  ] 100% of rules carry evidence
   [WARN] upstream local answers at http://127.0.0.1:8001/v1   not reachable
+  [ok  ] local: served_context 40,960 matches (ollama /api/show)
   [WARN] an API key is configured   no key: this gateway is open to anyone who
                                     can reach it…
   [ok  ] no route leaves this network
-  12/14 checks pass
 ```
+
+Le total que cette sortie affichait — *12/14 checks pass* — a été retiré
+exprès. Le nombre de contrôles dépend du nombre d'upstreams configurés et de
+ceux qui répondent : il diffère sur chaque déploiement, et il était cité ici
+d'après une exécution que personne n'a refaite (la commande en affiche
+dix-sept aujourd'hui). Un chiffre qu'un lecteur ne peut pas reproduire est le
+plus faible que ce projet s'autorise, donc il n'est pas publié plutôt que
+publié périmé.
+
+Une de ces lignes est tout l'argument du projet, retourné contre sa propre
+configuration. `served_context` est le chiffre contre lequel chaque budget est
+mesuré, et `doctor` **interroge désormais le moteur** au lieu de croire le
+fichier de configuration : Ollama publie le contexte réel sur `/api/show`, et
+un serveur compatible OpenAI le publie souvent sur `/v1/models`. Configuré
+*au-dessus* de ce que le moteur sert, c'est fatal — c'est l'incident de
+septembre avec la clé correctement orthographiée ; configuré *en dessous*,
+c'est signalé comme de la capacité non utilisée, ce qui peut être délibéré. Un
+moteur qui ne répond pas est une note, pas un échec.
+
+Ce n'est pas une hypothèse. Sur la machine où ceci a été écrit, le défaut livré
+est 131 072 et `qwen3:8b` sert 40 960 : une passerelle qui annonce trois fois
+la place dont le moteur dispose, sans rien à chercher dans un fichier.
 
 `/health` publie les mêmes faits à l'exécution : si le déploiement est
 **souverain** (aucune route configurée ne quitte le réseau), s'il est
@@ -1044,7 +1066,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1147 tests, `ruff` propre | ✅ |
+| 1177 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

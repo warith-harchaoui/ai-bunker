@@ -134,36 +134,18 @@ jobs:
       - name: Doctor
         run: ai-bunker doctor --config config/gateway.example.yaml
 
-      # The text-to-image slot, against the provider rather than against a
-      # stub -- and last, so every step above it runs on the helper a user
-      # gets from the package index.
+      # The text-to-image slot used to be checked here against the provider's
+      # development branch, by two steps that pip-installed
+      # `best-engine-ai-helper` from git and re-ran two test modules. The
+      # reason was that `imagine_rank` and `imagine_pick` -- the selector this
+      # project delegates the whole slot to -- existed on that branch and in no
+      # published release, so seven tests skipped under the version a user
+      # actually gets.
       #
-      # The slot is delegated whole: `imagine_rank` sizes a diffusion pipeline
-      # per component and returns seconds per image, and this project adds the
-      # gigabyte-to-gibibyte conversion, the anti-greed rule and four
-      # refusals on top. The stub tests cover that layer everywhere, including
-      # here -- but a stub is a theory about somebody else's function, and
-      # until now nothing in this lane tested the theory. `imagine_rank` and
-      # `imagine_pick` are not in any published best-engine-ai-helper (1.9.0
-      # is the newest, and it predates them), so the contract is checked
-      # against the branch the next release comes from.
-      #
-      # Two whole modules rather than `-k image`: the tests that skip without
-      # a picker are not all named for one -- the anti-greed rule and the
-      # borrowed-bandwidth rule are not -- and the language slots go through
-      # the same provider, so running them against its development head costs
-      # seconds and catches the same class of drift.
-      #
-      # What this buys: a change to the provider's plan shape turns this step
-      # red here, in a pull request, rather than in a user's terminal. What it
-      # costs: a clone of a pure-Python package -- no new dependency, the
-      # helper's requirements are already installed above -- and a lane that
-      # can go red for an upstream reason. Both are deliberate. Delete these
-      # two steps the day `pyproject.toml` can floor the helper at a published
-      # version that carries the picker.
-      - name: Text-to-image contract
-        run: |
-          pip install --upgrade \
-            "best-engine-ai-helper @ git+https://github.com/warith-harchaoui/best-engine-ai-helper@main"
-          python scripts/no_heavy_stack.py
-          pytest tests/test_engine.py tests/test_report.py
+      # 1.10.0 publishes them. `pyproject.toml` floors the dependency there,
+      # the seven tests run in the suite above like every other test, and the
+      # workaround is deleted exactly as its own comment instructed. What the
+      # lane gives up is advance warning of a change on the provider's
+      # unreleased branch; what it gains is one less way to go red for an
+      # upstream reason, and a slot that is tested against the artefact a user
+      # installs rather than against a branch.

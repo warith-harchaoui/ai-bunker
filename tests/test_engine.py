@@ -510,15 +510,20 @@ def test_every_slot_is_reported_on_the_axis_it_was_ranked_on(helper):
 # Two layers, and they are tested separately on purpose. The helper owns the
 # diffusion arithmetic -- component footprints, denoising steps, seconds per
 # image -- and the live tests at the bottom of this section check that we read
-# its answer correctly, skipping when the installed helper predates the image
-# picker.
+# its answer correctly.
 #
 # Everything above them uses a stub, because the layer this project owns has
-# to be under test on every machine. `imagine_rank` and `imagine_pick` are not
-# in any published best-engine-ai-helper yet, so the live tests skip in
-# continuous integration -- which is exactly where the anti-greed rule, the
-# gigabyte-to-gibibyte conversion and the four refusals would otherwise go
-# unexercised, and they are this project's code, not somebody else's.
+# to be under test on every machine, including one where the helper cannot
+# profile the hardware.
+#
+# The live tests used to open with `if not hasattr(helper, "imagine_rank"):
+# pytest.skip(...)`, five times, because the picker existed only on the
+# provider's development branch: seven tests skipped under every published
+# version, and the lane compensated with two steps that cloned that branch.
+# 1.10.0 publishes it, `pyproject.toml` floors the dependency there, and the
+# skips are gone -- a skip that cannot fire is a test nobody is running and a
+# reader cannot tell which. What holds the floor to its promise is
+# `test_the_floor_guarantees_the_image_picker` below.
 # ---------------------------------------------------------------------------
 
 
@@ -804,9 +809,6 @@ def test_the_image_slot_is_answered_entirely_out_of_the_helpers_catalogue(helper
     assert "image" in ROLE_KINDS
     assert [m for m in catalog["models"] if m.get("role") == "image"] == []
 
-    if not hasattr(helper, "imagine_rank"):
-        pytest.skip("the installed best-engine-ai-helper offers no image picker")
-
     choice = choose("image", vram_gib=80, bandwidth_gbs=3350.0)
     assert choice.asked is True
     assert choice.model_id and choice.hf
@@ -833,8 +835,6 @@ def test_the_image_slot_applies_the_anti_greed_rule_the_helper_does_not(helper):
     card is the biggest pipeline in its catalogue. This is a gateway for coding
     agents: spare memory is supposed to buy a better coder, so the slot takes
     the leanest candidate within LEAN_TOLERANCE of the best."""
-    if not hasattr(helper, "imagine_rank"):
-        pytest.skip("the installed best-engine-ai-helper offers no image picker")
     plans = helper.imagine_rank(
         [e for e in helper.load_catalog() if e.get("kind") == "image"],
         budget_gb=200.0,
@@ -856,9 +856,6 @@ def test_the_image_slot_is_off_by_default_and_costs_the_coder_when_it_is_not(hel
     to see in the report rather than discover from a slower agent.
     """
     assert resolve_plan(vram_gib=96).image is None
-
-    if not hasattr(helper, "imagine_rank"):
-        pytest.skip("the installed best-engine-ai-helper offers no image picker")
 
     without = resolve_plan(vram_gib=80, bandwidth_gbs=3350.0)
     with_pictures = resolve_plan(vram_gib=80, bandwidth_gbs=3350.0, with_image=ASK)
@@ -883,9 +880,6 @@ def test_the_image_slot_answers_honestly_when_it_cannot_answer_fully(helper, mon
     which is where it belongs: a degradation test that skips on the very
     configuration it describes is a test of nothing.
     """
-    if not hasattr(helper, "imagine_rank"):
-        pytest.skip("the installed best-engine-ai-helper offers no image picker")
-
     # No bandwidth, and an accelerator named -- so there is nothing to borrow
     # this machine's figure for, which is the combination that crashed.
     monkeypatch.setattr(helper, "compute_profile", lambda: {}, raising=False)
@@ -900,8 +894,8 @@ def test_the_local_machines_bandwidth_is_borrowed_only_for_the_local_machine(hel
     about a catalogue accelerator, it must not: borrowing this laptop's
     bandwidth would report a number about the wrong machine, which is worse
     than reporting that it could not be timed."""
-    if not hasattr(helper, "imagine_rank") or not hasattr(helper, "compute_profile"):
-        pytest.skip("the installed best-engine-ai-helper offers no image picker")
+    if not hasattr(helper, "compute_profile"):
+        pytest.skip("the installed best-engine-ai-helper cannot profile this machine")
     here = choose("image")
     named = choose("image", vram_gib=96)
     if (helper.compute_profile() or {}).get("bandwidth_gbs"):

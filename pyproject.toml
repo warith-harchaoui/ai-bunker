@@ -26,7 +26,15 @@ classifiers = [
 # Ollama-vs-vLLM rule are not reimplemented here.
 dependencies = [
   "os-helper>=0.1",
-  "best-engine-ai-helper>=1.4",
+  # Floored at 1.10 for `imagine_rank`/`imagine_pick`, the text-to-image
+  # selector this project delegates the whole slot to. They existed only on
+  # the provider's development branch for several releases, so seven tests
+  # skipped under every published version and the lane compensated with two
+  # steps that cloned that branch. 1.10.0 publishes them -- verified in a
+  # clean environment against the wheel from the package index, not against
+  # the maintainer's editable checkout -- so the floor rises and those two
+  # steps are gone. `tests/test_engine.py` holds the floor to that promise.
+  "best-engine-ai-helper>=1.10",
   "PyYAML>=6.0",
 ]
 

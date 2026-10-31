@@ -78,6 +78,7 @@ python scripts/lint_a11y.py          # the dashboard's static a11y gate
 python scripts/lint_acronyms.py      # no abbreviation used before it is explained
 python scripts/lint_claims.py        # no claim that stopped being true
 python scripts/lint_film.py          # the launch film still matches the repository
+python scripts/lint_handoff.py       # the session handoff still describes this repository
 python scripts/sync_counts.py        # rewrite every quoted figure from its source
 ```
 
@@ -89,6 +90,12 @@ commands above reach CI through the suite rather than through a workflow step,
 because the suite calls them: the acronym linter (`tests/test_acronyms.py`),
 the claim linter (`tests/test_claims.py`), the film linter
 (`tests/test_film.py`) and `sync_counts.py --check` (`tests/test_site.py`).
+
+`lint_handoff.py` is the odd one out and says so: it reads `.private/`, which
+is working memory between sessions and is not committed, so in the lane it has
+nothing to read and passes. `tests/test_handoff.py` feeds it synthetic
+handoffs instead, because a gate whose input is absent in CI still has to be
+shown capable of failing there.
 
 A script in `scripts/` has to be run by one of those two routes, or listed in
 `SCRIPT_RUNNERS` in `tests/test_packaging.py` with the reason it cannot be.
