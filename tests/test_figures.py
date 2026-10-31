@@ -510,9 +510,12 @@ def test_the_audit_catches_a_rule_above_an_accented_capital(tmp_path):
         )
         return path
 
-    old_band_top = 100 - 0.72 * 13 - audit.CLEARANCE
+    # The pad a dashed gridline gets: its own half-thickness plus the one
+    # perceptual margin left over once `CLEARANCE` was split in two.
+    pad = 1.0 / 2 + audit.PROXIMITY
+    old_band_top = 100 - 0.72 * 13 - pad
     above, _ = audit._ink("UN MODÈLE", 13.0, 600)
-    new_band_top = 100 - above - audit.CLEARANCE
+    new_band_top = 100 - above - pad
     assert new_band_top < old_band_top, (new_band_top, old_band_top)
 
     struck = (old_band_top + new_band_top) / 2
@@ -546,3 +549,151 @@ def test_a_label_the_table_cannot_measure_is_reported_and_not_guessed(tmp_path):
     assert len(findings) == 1
     assert "no measurement for" in findings[0]
     assert "crosses" not in findings[0]
+
+
+# ---------------------------------------------------------------------------
+# The rotated label, the rule's own thickness, and the collision both hid.
+# ---------------------------------------------------------------------------
+
+
+def test_a_quarter_turn_swaps_the_axes_exactly():
+    """For three rounds `_labels` dropped every transformed `<text>`.
+
+    The docstring was honest about it — the y-axis title's baseline is a
+    column, and none of the arithmetic applied — and the result was that the
+    one rotated label in the repository was the only one nothing ever looked
+    at, while *the figures are clean* was written three times.
+
+    `rotate(-90 cx cy)` sends `(px, py)` to `(cx + py - cy, cy - px + cx)`, so
+    the text's length runs along y and its ink band along x. Exact, not
+    approximate.
+    """
+    audit = _audit()
+    assert audit._rotation("") == 0.0
+    assert audit._rotation("rotate(-90 24 216)") == 270.0
+    assert audit._rotation("rotate(90 10 10)") == 90.0
+    assert audit._rotation("translate(4 4)") is None, "unreadable, and must be reported"
+    assert audit._rotation("rotate(37)") is None, "only quarter turns are handled"
+
+    upright = ("MM", 100.0, 200.0, 12.0, 400, 0.0, "middle", 0.0)
+    turned = ("MM", 100.0, 200.0, 12.0, 400, 0.0, "middle", 270.0)
+    ux0, ux1, uy0, uy1 = audit._box(upright, widest=True)
+    tx0, tx1, ty0, ty1 = audit._box(turned, widest=True)
+
+    # Length and band trade places, and each keeps its size.
+    assert (ux1 - ux0) == pytest.approx(ty1 - ty0)
+    assert (uy1 - uy0) == pytest.approx(tx1 - tx0)
+    # Anchored middle, so the length stays centred on the anchor either way.
+    assert (ty0 + ty1) / 2 == pytest.approx(200.0)
+
+
+def test_the_rotated_axis_title_is_now_among_the_labels_checked():
+    """`figure-trade.svg` carries one `rotate(-90 ...)` label. It used to be
+    dropped before any check ran; it is counted and checked now."""
+    audit = _audit()
+    import xml.etree.ElementTree as ET
+
+    figure = ROOT / "assets" / "figure-trade.svg"
+    root = ET.fromstring(figure.read_text(encoding="utf-8"))
+    style = "".join("".join(n.itertext()) for n in root.iter(f"{audit.SVG_NS}style"))
+    labels = audit._labels(root, audit._type_rules(style))
+
+    turned = [label for label in labels if label[-1] not in (0.0, None)]
+    assert len(turned) == 1, "the y-axis title"
+    assert "seconds" in turned[0][0]
+    assert audit.audit_geometry(figure, quiet=True) == []
+
+
+def test_a_rule_through_a_rotated_label_is_caught(tmp_path):
+    """A vertical title and a horizontal rule across it: the collision the old
+    model could not have found, because the label was never looked at."""
+    audit = _audit()
+
+    def figure(rule_y: float) -> pathlib.Path:
+        path = tmp_path / f"turned-{rule_y:g}.svg"
+        path.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">'
+            "<style>text { font-size: 12px; } .dash { stroke-width: 1 }</style>"
+            f'<path class="dash" d="M20 {rule_y:g} H380"/>'
+            '<text x="40" y="200" text-anchor="middle"'
+            ' transform="rotate(-90 40 200)">seconds an image</text></svg>',
+            encoding="utf-8",
+        )
+        return path
+
+    # The label now runs vertically through y=200, so a horizontal rule there
+    # crosses it -- and one far above it does not.
+    assert any("crosses" in f for f in audit.audit_geometry(figure(200), quiet=True))
+    assert audit.audit_geometry(figure(20), quiet=True) == []
+
+
+def test_a_transform_the_audit_cannot_read_is_reported_not_ignored(tmp_path):
+    """The rule this round applied to itself: a thing the checker cannot
+    decide is named, never silently dropped."""
+    audit = _audit()
+    path = tmp_path / "skewed.svg"
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">'
+        "<style>text { font-size: 12px; }</style>"
+        '<text x="40" y="200" transform="skewX(20)">tilted</text></svg>',
+        encoding="utf-8",
+    )
+    findings = audit.audit_geometry(path, quiet=True)
+    assert len(findings) == 1
+    assert "cannot read" in findings[0]
+
+
+def test_a_rule_is_as_thick_as_the_stylesheet_says():
+    """`CLEARANCE = 2.0` was the last chosen number in the module and was
+    doing two jobs: a rule's thickness, which is measurable, and how close is
+    too close, which is a judgement. Split."""
+    audit = _audit()
+    style = (
+        ".dash { stroke-width: 1 } .wire { fill: none; stroke-width: 2 } .axis { stroke-width: 1 }"
+    )
+    assert audit._stroke_of("dash", style) == 1.0
+    assert audit._stroke_of("wire", style) == 2.0
+    assert audit._stroke_of("nothing-declared", style) == audit.DEFAULT_STROKE
+
+    # And the margin is chosen so that nothing became *less* sensitive than
+    # the flat two pixels it replaced: a dashed gridline still gets 2.0.
+    assert pytest.approx(2.0, abs=1e-9) == audit.PROXIMITY + 1.0 / 2
+    # A thicker rule now gets more, which is the only direction a bound may
+    # move.
+    assert 2.0 / 2 + audit.PROXIMITY > 2.0
+
+
+def test_the_trigger_line_no_longer_runs_through_the_note_it_hid_behind(tmp_path):
+    """The specimen this round found in a committed figure.
+
+    `figure-budget.svg` drew the compaction trigger as one dashed line from
+    y=98 to y=266, crossing the gap between the two bars — which is exactly
+    where `no room, and nothing to compact` is right-aligned at x=840. On the
+    widest measured face that note reaches back to x=647; the trigger sits at
+    660; the narrowest face puts it at 675 and clears. So the figure was
+    broken for some readers and fine for others, and no single-font model
+    could see it.
+
+    The line is drawn in two segments now, one per bar. This asserts the old
+    shape is reported and the committed one is not.
+    """
+    audit = _audit()
+
+    def figure(d: str) -> pathlib.Path:
+        path = tmp_path / f"budget-{abs(hash(d)) % 9999}.svg"
+        path.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 526">'
+            "<style>text { font-size: 12px; } .s { font-size: 11.5px }"
+            " .dash { stroke-width: 1 }</style>"
+            f'<path class="dash" d="{d}"/>'
+            '<text class="s" x="840" y="212" text-anchor="end">'
+            "no room, and nothing to compact</text></svg>",
+            encoding="utf-8",
+        )
+        return path
+
+    was = audit.audit_geometry(figure("M660 98 V266"), quiet=True)
+    assert any("x=660" in f for f in was), was
+
+    now = audit.audit_geometry(figure("M660 98 V178 M660 218 V266"), quiet=True)
+    assert now == [], now

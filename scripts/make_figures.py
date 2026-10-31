@@ -463,6 +463,19 @@ def trade(t: dict[str, str]) -> str:
         for v in (5, 10, 15, 20, 25)
     )
 
+    # The trigger line is drawn in two segments rather than one, and the gap
+    # is where the two right-aligned notes live. A single `V266` ran through
+    # the band of `loops_note` for any reader whose browser picked a wide
+    # face: the note is anchored at x=840 and ends, on the widest measured
+    # face, at x=647 -- while the trigger sits at 660. The narrowest face puts
+    # it at 675 and clears. So the figure was broken on some machines and fine
+    # on others, which is precisely the defect a one-font width model could
+    # not see, and `audit_figures.py` reported it the hour the vertical check
+    # started using the wide bound.
+    #
+    # The line loses nothing: a threshold means something where it crosses a
+    # bar, and the two segments still cover both bars and the connector up to
+    # the label.
     body = f"""  <text class="h blue" x="60" y="38">{t["head"]}</text>
   <text class="s muted" x="60" y="58">{t["sub"]}</text>
 {gridlines}
@@ -601,7 +614,7 @@ def budget(t: dict[str, str]) -> str:
   <text class="s muted" x="60" y="58">{t["sub"]}</text>
 
   <text class="s muted" x="{trigger:.0f}" y="90" text-anchor="middle">{t["trigger"]}</text>
-  <path class="dash" d="M{trigger:.0f} 98 V266"/>
+  <path class="dash" d="M{trigger:.0f} 98 V178 M{trigger:.0f} 218 V266"/>
 
   <text class="t" x="60" y="124">{t["works"]}</text>
   <text class="s muted" x="840" y="124" text-anchor="end">{t["works_note"]}</text>

@@ -62,7 +62,7 @@
   <text class="s muted" x="60" y="58">ai-bunker budget --gate · mesurées au relais, le 28/09/2026</text>
 
   <text class="s muted" x="660" y="90" text-anchor="middle">la compaction démarre à 20 000</text>
-  <path class="dash" d="M660 98 V266"/>
+  <path class="dash" d="M660 98 V178 M660 218 V266"/>
 
   <text class="t" x="60" y="124">Une session qui fonctionne</text>
   <text class="s muted" x="840" y="124" text-anchor="end">13 233 tokens pour travailler</text>

@@ -247,6 +247,10 @@ NAMES = {
     "ToolHive",
     "Bifrost",
     "MacBook",
+    # A container format's name. "MPEG-4 Part 14" is what it stands for and
+    # spelling it out in a sentence about a rendered film would make the prose
+    # worse to satisfy a rule aimed at jargon a reader cannot look up.
+    "MP4",
     "NVIDIA",
     "NeMo",
     "OpenAI",

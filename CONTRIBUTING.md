@@ -103,6 +103,30 @@ Adding a gate and forgetting to wire it up is the most common defect this
 repository has found in itself — three times now — so the directory is
 compared against that mapping on every run.
 
+### Rehearsing what a clone sees
+
+The suite above runs against your working tree, which has things a clone does
+not: a rendered MP4, a `.private/` directory, a website checkout, an editable
+install of a sibling package. Three separate defects have shipped from that
+gap, the most recent one red in continuous integration within two minutes of a
+push that was green here.
+
+So when you touch anything that reads the filesystem — a gate, a test that
+asserts a path exists, a glob — rehearse against the committed files only:
+
+```bash
+git archive HEAD | tar -x -C /tmp/rehearsal
+cd /tmp/rehearsal && python3 -m venv .venv
+.venv/bin/pip install -q -e ".[api,mcp,dev]"
+CI=1 .venv/bin/python -m pytest -q
+```
+
+`git archive` exports exactly what is committed: no ignored files, no `.git`,
+no local extras. It is slower than running the suite in place and it is the
+only check that answers *what does somebody else get*. It found a test calling
+`git rev-parse` with `check=True` in a tree that has no git, and a glob that
+resolved only on the machine that had run a renderer.
+
 Two checks are deliberately **not** in that list.
 
 ```bash

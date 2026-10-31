@@ -302,11 +302,27 @@ def audit_assets(scheme: str, quiet: bool = False) -> list[str]:
 #: in mind. The tops now come from `assets/font-metrics.json`, per character.
 DESCENDER = 0.26
 
-#: How far a rule has to stay outside that ink band before it stops reading as
-#: a strikethrough. Two pixels is not aesthetic slack -- a rule one pixel under
-#: a baseline is an underline, and an underline nobody asked for is the same
-#: defect wearing a different name.
-CLEARANCE = 2.0
+#: How close a rule may come to a label's ink before it reads as a
+#: strikethrough, over and above the rule's own thickness.
+#:
+#: This replaced `CLEARANCE = 2.0`, which was the last chosen number in this
+#: module and was doing two jobs at once. A rule is not a line: a `<path>` at
+#: y with `stroke-width: 2` covers y-1 to y+1, and that half-width is a
+#: **measurable** fact read from the figure's own stylesheet rather than a
+#: constant. What is left over is genuinely perceptual -- a rule a pixel clear
+#: of a descender is still an underline nobody asked for -- so it is one
+#: number with one argument instead of one number with two.
+#:
+#: Set to 1.5 rather than lower on purpose: the pad for a dashed gridline,
+#: whose stroke is 1, then comes to 0.5 + 1.5 = 2.0, exactly what `CLEARANCE`
+#: gave it. Nothing becomes less sensitive than it was, and a thicker rule
+#: becomes more so, which is the only direction a bound may move.
+PROXIMITY = 1.5
+
+#: Default stroke width for a `<path>` whose class declares none. SVG's own
+#: initial value, so a rule with no stroke declared is still given a body
+#: rather than treated as infinitely thin.
+DEFAULT_STROKE = 1.0
 
 #: Per-character type metrics, in em, read out of the fonts the figures ask
 #: for by `scripts/measure_type.py` and committed beside them.
@@ -373,6 +389,26 @@ def _type_rules(style: str) -> dict[str, dict[str, float]]:
         for selector in selectors.split(","):
             rules.setdefault(selector.strip(), {}).update(found)
     return rules
+
+
+def _stroke_of(classes: str, style: str) -> float:
+    """How thick a `<path class="...">` draws, from the figure's stylesheet.
+
+    The figures declare `stroke-width` on four classes -- 1 for `.axis` and
+    `.dash`, 1.5 for `.outline`, 2 for `.wire` -- and the geometry half
+    ignored all of it, treating every rule as a line of no thickness and
+    padding the text band by a flat two pixels instead. A 2-unit wire covers a
+    unit either side of its path, which is half the old pad on its own.
+    """
+    width = DEFAULT_STROKE
+    for selectors, block in re.findall(r"([^{}]+)\{([^}]*)\}", style):
+        found = re.search(r"stroke-width:\s*([\d.]+)", block)
+        if not found:
+            continue
+        for selector in selectors.split(","):
+            if selector.strip().lstrip(".") in classes.split():
+                width = float(found.group(1))
+    return width
 
 
 def _type_of(classes: str, rules: dict[str, dict[str, float]]) -> tuple[float, int, float]:
@@ -497,19 +533,39 @@ def _rules(d: str) -> tuple[list[tuple[float, float, float]], list[tuple[float, 
     return horizontal, vertical
 
 
-def _labels(root, rules: dict[str, dict[str, float]]) -> list[tuple]:
-    """Every untransformed `<text>`, as `(content, x, y, size, weight,
-    tracking, anchor)`.
+#: `rotate(-90 24 216)` — the angle, and the centre it turns about.
+ROTATE = re.compile(r"rotate\(\s*(-?[\d.]+)(?:[\s,]+(-?[\d.]+)[\s,]+(-?[\d.]+))?\s*\)")
 
-    Rotated text is skipped and said to be skipped: the y-axis title is turned
-    ninety degrees, so its baseline is a column rather than a row and none of
-    the arithmetic below applies to it. Pretending otherwise would be a
-    finding about a label that is fine.
+
+def _rotation(transform: str) -> float | None:
+    """The angle a `<text>` is turned by, or None when nothing can be said.
+
+    Only quarter turns are handled, because only quarter turns appear: the
+    y-axis title of `figure-trade.svg` is `rotate(-90 24 216)`. An angle this
+    cannot reason about returns None and is **reported** rather than skipped —
+    which is the change this round made. For three rounds `_labels` dropped
+    every transformed label and the docstring said so honestly, and the result
+    was that the one rotated label in the repository was the only one nothing
+    ever looked at, while "the figures are clean" was written three times.
+    """
+    if not transform:
+        return 0.0
+    found = ROTATE.fullmatch(transform.strip())
+    if found is None:
+        return None
+    angle = float(found.group(1)) % 360
+    return angle if angle in (0.0, 90.0, 270.0) else None
+
+
+def _labels(root, rules: dict[str, dict[str, float]]) -> list[tuple]:
+    """Every `<text>`, as `(content, x, y, size, weight, tracking, anchor,
+    rotation)`.
+
+    `rotation` is 0, 90 or 270 degrees, or None for a transform this cannot
+    read — the caller reports that rather than ignoring it.
     """
     out = []
     for node in root.iter(f"{SVG_NS}text"):
-        if node.get("transform"):
-            continue
         content = "".join(node.itertext()).strip()
         if not content:
             continue
@@ -520,18 +576,50 @@ def _labels(root, rules: dict[str, dict[str, float]]) -> list[tuple]:
                 float(node.get("y", 0)),
                 *_type_of(node.get("class", ""), rules),
                 node.get("text-anchor", "start"),
+                _rotation(node.get("transform", "")),
             )
         )
     return out
 
 
 def _span(x: float, width: float, anchor: str) -> tuple[float, float]:
-    """A label's horizontal extent, given where it is anchored."""
+    """A label's extent along its own baseline, given where it is anchored."""
     if anchor == "middle":
         return x - width / 2, x + width / 2
     if anchor == "end":
         return x - width, x
     return x, x + width
+
+
+def _box(label: tuple, widest: bool) -> tuple[float, float, float, float]:
+    """The rectangle a label occupies: `(x0, x1, y0, y1)`.
+
+    For unrotated text the length runs along x and the ink band along y. For a
+    quarter turn the two swap, and the arithmetic is exact rather than
+    approximate because `rotate(a cx cy)` is: for `rotate(-90 cx cy)`, a point
+    `(px, py)` becomes `(cx + py - cy, cy - px + cx)`. The label is anchored at
+    the centre of its own rotation in every figure here, which is what makes
+    the result one subtraction rather than a matrix.
+
+    `widest` picks which end of the width range to use, and the caller decides
+    per check: the wide box for anything whose failure is *missing* a defect,
+    the narrow one for anything whose failure is *inventing* one.
+    """
+    content, x, y, size, weight, tracking, anchor, rotation = label
+    above, below = _ink(content, size, weight)
+    length = _span(x, _text_width(content, size, weight, tracking, widest), anchor)
+
+    if rotation == 0.0:
+        return length[0], length[1], y - above, y + below
+    if rotation == 270.0:  # rotate(-90): the text reads bottom-to-top
+        return x - above, x + below, y - (length[1] - x), y - (length[0] - x)
+    # rotate(90): top-to-bottom
+    return x - below, x + above, y + length[0] - x, y + length[1] - x
+
+
+def _overlaps(one: tuple[float, float], two: tuple[float, float]) -> bool:
+    """Whether two closed intervals share any point."""
+    return one[0] <= two[1] and two[0] <= one[1]
 
 
 def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
@@ -541,22 +629,33 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
     source = path.read_text(encoding="utf-8")
     root = ET.fromstring(source)
     style = "".join("".join(n.itertext()) for n in root.iter(f"{SVG_NS}style"))
-    rules = _type_rules(style)
-    labels = _labels(root, rules)
+    labels = _labels(root, _type_rules(style))
 
-    rules: list[tuple[float, float, float]] = []
-    uprights: list[tuple[float, float, float]] = []
+    # Each rule carries its own half-thickness. A `<path>` at y with
+    # `stroke-width: 2` covers y-1 to y+1, and the geometry half used to treat
+    # every rule as a line of no width and pad the text band by a flat two
+    # pixels instead -- one chosen number doing the job of a measurement and a
+    # judgement at once.
+    across: list[tuple[float, float, float, float]] = []
+    down: list[tuple[float, float, float, float]] = []
     for node in root.iter(f"{SVG_NS}path"):
-        across, down = _rules(node.get("d", ""))
-        rules += across
-        uprights += down
+        half = _stroke_of(node.get("class", ""), style) / 2
+        horizontal, vertical = _rules(node.get("d", ""))
+        across += [(*segment, half) for segment in horizontal]
+        down += [(*segment, half) for segment in vertical]
 
     _, _, view_w, view_h = (float(v) for v in root.get("viewBox", "0 0 0 0").split())
 
     findings = []
     measurable = []
     for label in labels:
-        content, _, _, _, weight, _, _ = label
+        content, _, _, _, weight, _, _, rotation = label
+        if rotation is None:
+            findings.append(
+                f"{path.name}: {content[:30]!r} carries a transform this cannot read; "
+                f"only quarter turns are handled"
+            )
+            continue
         missing = _unmeasured(content, weight)
         if missing:
             shown = " ".join(sorted(repr(c) for c in missing))
@@ -568,53 +667,56 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
             continue
         measurable.append(label)
 
-    for content, x, y, size, weight, tracking, anchor in measurable:
-        above, below = _ink(content, size, weight)
-        top = y - above - CLEARANCE
-        bottom = y + below + CLEARANCE
-        wide = _span(x, _text_width(content, size, weight, tracking, True), anchor)
-        for rule_y, rule_from, rule_to in rules:
-            if top <= rule_y <= bottom and rule_from < wide[1] and rule_to > wide[0]:
+    for label in measurable:
+        content, y, size = label[0], label[2], label[3]
+        wx0, wx1, wy0, wy1 = _box(label, widest=True)
+        nx0, nx1, ny0, ny1 = _box(label, widest=False)
+
+        # Both orientations against the wide box. A rule through a word is a
+        # defect, so the failure to avoid is missing one -- and the vertical
+        # case used the *narrow* box for three rounds, inherited from the
+        # label-against-label test below where the argument is the opposite.
+        for rule_y, rule_from, rule_to, half in across:
+            body = (rule_y - half - PROXIMITY, rule_y + half + PROXIMITY)
+            if _overlaps(body, (wy0, wy1)) and _overlaps((rule_from, rule_to), (wx0, wx1)):
                 findings.append(
                     f"{path.name}: a rule at y={rule_y:.1f} crosses "
                     f"{content[:44]!r} (baseline y={y:.1f}, {size:g}px)"
                 )
                 break
 
-        narrow = _span(x, _text_width(content, size, weight, tracking, False), anchor)
-        for rule_x, rule_from, rule_to in uprights:
-            if narrow[0] <= rule_x <= narrow[1] and rule_from < y and rule_to > top:
+        for rule_x, rule_from, rule_to, half in down:
+            body = (rule_x - half - PROXIMITY, rule_x + half + PROXIMITY)
+            if _overlaps(body, (wx0, wx1)) and _overlaps((rule_from, rule_to), (wy0, wy1)):
                 findings.append(
                     f"{path.name}: a rule at x={rule_x:.1f} crosses "
-                    f"{content[:44]!r} (x {narrow[0]:.0f}..{narrow[1]:.0f})"
+                    f"{content[:44]!r} (x {wx0:.0f}..{wx1:.0f})"
                 )
                 break
 
-        if narrow[0] < 0 or narrow[1] > view_w or y - size > view_h or y < 0:
+        # The canvas, on the narrow box: an overflow that is reported has to be
+        # one that is certainly there.
+        if nx0 < 0 or nx1 > view_w or ny1 > view_h or ny0 < 0:
             findings.append(
                 f"{path.name}: {content[:44]!r} leaves the "
-                f"{view_w:g}x{view_h:g} canvas (x {narrow[0]:.0f}..{narrow[1]:.0f}, y {y:.0f})"
+                f"{view_w:g}x{view_h:g} canvas (x {nx0:.0f}..{nx1:.0f}, y {ny0:.0f}..{ny1:.0f})"
             )
 
-    # Labels against each other. Two strings whose ink bands overlap and whose
-    # spans overlap are one unreadable string, and this is the failure that
-    # arrives when a figure is edited rather than when it is drawn: a word
-    # grows by four characters and lands on its neighbour. The narrow advance
-    # is used here, as for the canvas -- a reported overlap has to be one that
-    # is certainly there, not one an estimate could have invented.
-    boxes = []
-    for content, x, y, size, weight, tracking, anchor in measurable:
-        span = _span(x, _text_width(content, size, weight, tracking, False), anchor)
-        above, below = _ink(content, size, weight)
-        boxes.append((content, y - above, y + below, *span))
-    for i, (one, top1, bottom1, from1, to1) in enumerate(boxes):
-        for two, top2, bottom2, from2, to2 in boxes[i + 1 :]:
-            if top1 < bottom2 and top2 < bottom1 and from1 < to2 and from2 < to1:
+    # Labels against each other. Two strings whose boxes overlap are one
+    # unreadable string, and this is the failure that arrives when a figure is
+    # edited rather than when it is drawn: a word grows by four characters and
+    # lands on its neighbour. The narrow box here, as for the canvas -- a
+    # reported overlap has to be one that is certainly there, not one an
+    # estimate could have invented.
+    boxes = [(label[0], _box(label, widest=False)) for label in measurable]
+    for index, (one, (ax0, ax1, ay0, ay1)) in enumerate(boxes):
+        for two, (bx0, bx1, by0, by1) in boxes[index + 1 :]:
+            if _overlaps((ax0, ax1), (bx0, bx1)) and _overlaps((ay0, ay1), (by0, by1)):
                 findings.append(f"{path.name}: {one[:30]!r} overlaps {two[:30]!r}")
 
     if not quiet:
         verdict = f"{len(findings)} finding(s)" if findings else "clean"
-        count = len(rules) + len(uprights)
+        count = len(across) + len(down)
         print(f"  {verdict:16} {len(labels):3d} labels, {count:2d} rules   {path.name}")
     return findings
 

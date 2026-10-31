@@ -161,6 +161,18 @@ def test_the_guard_catches_a_commit_nothing_resolves(guard, handoff):
 
 
 def test_a_commit_this_checkout_has_is_accepted(guard, handoff):
+    """And the other half: a real commit is not reported.
+
+    Skipped where there is no history to ask about. That is not hypothetical
+    and it is not continuous integration either — `actions/checkout` clones, so
+    the lane has a `.git`. It is what a `git archive` export looks like, which
+    is how this repository rehearses what a *clone* sees, and running that
+    rehearsal is what found this test calling `git rev-parse` with
+    `check=True` in a tree that has no git at all.
+    """
+    if not guard._in_a_checkout():
+        pytest.skip("no git history here; see the rehearsal note in the docstring")
+
     import subprocess
 
     head = subprocess.run(
@@ -171,6 +183,15 @@ def test_a_commit_this_checkout_has_is_accepted(guard, handoff):
         check=True,
     ).stdout.strip()
     handoff(f"| Dernier commit | `{head}` |\n")
+    assert guard.unknown_commits() == []
+
+
+def test_without_history_no_commit_is_called_unknown(guard, handoff, monkeypatch):
+    """An exported tree has no history, so *every* commit would read as
+    missing — a page of findings that all mean "there is no git here". One
+    silence is the honest answer."""
+    handoff("| Dernier commit | `deadbee` and `cafebab` |\n")
+    monkeypatch.setattr(guard, "_in_a_checkout", lambda: False)
     assert guard.unknown_commits() == []
 
 

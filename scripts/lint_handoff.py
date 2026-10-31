@@ -163,6 +163,20 @@ def dead_paths() -> list[str]:
     return problems
 
 
+def _in_a_checkout() -> bool:
+    """Whether there is any history here to ask about."""
+    try:
+        found = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:  # no git on this machine at all
+        return False
+    return found.returncode == 0
+
+
 def unknown_commits() -> list[str]:
     """Commits a handoff names that this checkout has never seen.
 
@@ -172,6 +186,13 @@ def unknown_commits() -> list[str]:
     than a defect. Existence is the claim worth checking — a transposed
     character gives a hash nothing resolves.
     """
+    if not _in_a_checkout():
+        # Not a defect and not a silence either: an exported tree has no
+        # history, so "this commit does not exist" would be true of every
+        # commit and mean nothing. Found by running the suite against
+        # `git archive` output, which is the only way to see what a clone has.
+        return []
+
     problems = []
     for note in notes():
         for number, line in enumerate(note.read_text(encoding="utf-8").splitlines(), 1):
