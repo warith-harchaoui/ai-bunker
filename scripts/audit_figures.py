@@ -761,7 +761,7 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
     for label in measurable:
         content, y, size = label[0], label[2], label[3]
         wx0, wx1, wy0, wy1 = _box(label, widest=True)
-        nx0, nx1, ny0, ny1 = _box(label, widest=False)
+        nx0, nx1, _, _ = _box(label, widest=False)
 
         # Both orientations against the wide box. A rule through a word is a
         # defect, so the failure to avoid is missing one -- and the vertical
@@ -785,12 +785,36 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
                 )
                 break
 
-        # The canvas, on the narrow box: an overflow that is reported has to be
-        # one that is certainly there.
-        if nx0 < 0 or nx1 > view_w or ny1 > view_h or ny0 < 0:
+        # The canvas, on the *wide* box, and the reason is the same one round
+        # 33 used to move the rule check here: one side of this comparison is
+        # exact. A canvas edge is a number, not a bound, so "the widest this
+        # label can be runs past it" is a sound statement about some reader's
+        # machine, and a figure broken only for other people is still broken.
+        #
+        # This used the narrow box, on the argument that a reported overflow
+        # has to be one that is certainly there. That argument is the right
+        # one for a check whose failure is inventing a finding, and the wrong
+        # one here: round 36 found `figure-path.svg` with 1,019 pixels of
+        # caption on a 900-pixel canvas at the wide bound and 877 at the
+        # narrow one, so the audit had been green over a caption that ran off
+        # the edge for anybody whose browser chose a wide face. Exactly the
+        # defect class round 33 named, surviving in the one check it had not
+        # been applied to.
+        #
+        # The label-against-label check below deliberately keeps the narrow
+        # box, and that is not inconsistency: there, *both* sides are bounds.
+        # Two upper bounds overlapping does not mean any single face puts the
+        # two strings on top of each other, so the inference is weaker than
+        # this one. Measured rather than assumed: switching that check to wide
+        # boxes would report four pairs in the committed figures today, and
+        # deciding whether any of them is real needs a rendering, not an
+        # assertion. Written down here so the next round starts from the
+        # number.
+        if wx0 < 0 or wx1 > view_w or wy1 > view_h or wy0 < 0:
             findings.append(
-                f"{path.name}: {content[:44]!r} leaves the "
-                f"{view_w:g}x{view_h:g} canvas (x {nx0:.0f}..{nx1:.0f}, y {ny0:.0f}..{ny1:.0f})"
+                f"{path.name}: {content[:44]!r} can leave the "
+                f"{view_w:g}x{view_h:g} canvas (widest x {wx0:.0f}..{wx1:.0f}, "
+                f"y {wy0:.0f}..{wy1:.0f}); narrowest x {nx0:.0f}..{nx1:.0f}"
             )
 
     # Labels against each other. Two strings whose boxes overlap are one

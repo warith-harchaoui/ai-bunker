@@ -95,7 +95,7 @@
   <text class="s muted" x="670.0" y="192">ToolHive</text>
   <text class="s muted" x="670.0" y="212">Docker MCP Gateway</text>
   <text class="s muted" x="670.0" y="232">agent-scan</text>
-  <text class="s muted" x="60" y="298">Four positions, and they are not interchangeable. A file on a laptop drifts. A library runs only when the application remembers to call it. A</text>
-  <text class="s muted" x="60" y="316">tool-server gateway sees a call the model has already decided to make. Only the gateway position sees every request, from every client, at both</text>
-  <text class="s muted" x="60" y="334">ends of the turn — and most of what stands there forwards the bytes without reading them. Open Policy Agent is consulted from anywhere and stands here nowhere.</text>
+  <text class="s muted" x="60" y="298">Four positions, and they are not interchangeable. A file on a laptop drifts. A library runs only when the application calls it. A tool-server</text>
+  <text class="s muted" x="60" y="316">gateway sees a call the model has already made. Only the gateway sees every request, from every client, at both ends of the turn — and</text>
+  <text class="s muted" x="60" y="334">most of what stands there forwards the bytes unread. Open Policy Agent is consulted from anywhere and stands here nowhere.</text>
 </svg>

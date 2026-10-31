@@ -894,18 +894,25 @@ STRINGS: dict[str, dict[str, dict[str, str]]] = {
             "also": "WHO STANDS THERE",
             "config": "Client-side config",
             "guardrails": "Guardrail libraries",
+            # Re-wrapped in round 36, against the width model rather than by
+            # eye. The previous break put 1,019 pixels of `foot3` on a
+            # 900-pixel canvas for any reader whose browser picked a wide
+            # face -- 119 pixels of caption off the edge, and `foot2` sat
+            # 1.5 pixels inside it. The audit said nothing because its canvas
+            # check used the *narrow* bound; it uses the wide one now, which
+            # is what found this. Margins at the wide bound are 60, 44 and
+            # 101 pixels.
             "foot1": (
                 "Four positions, and they are not interchangeable. A file on a laptop "
-                "drifts. A library runs only when the application remembers to call it. A"
+                "drifts. A library runs only when the application calls it. A tool-server"
             ),
             "foot2": (
-                "tool-server gateway sees a call the model has already decided to make. "
-                "Only the gateway position sees every request, from every client, at both"
+                "gateway sees a call the model has already made. Only the gateway sees "
+                "every request, from every client, at both ends of the turn — and"
             ),
             "foot3": (
-                "ends of the turn — and most of what stands there forwards the bytes "
-                "without reading them. Open Policy Agent is consulted from anywhere and "
-                "stands here nowhere."
+                "most of what stands there forwards the bytes unread. Open Policy Agent "
+                "is consulted from anywhere and stands here nowhere."
             ),
         },
         "fr": {

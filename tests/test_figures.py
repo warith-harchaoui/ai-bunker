@@ -272,7 +272,50 @@ def test_the_legibility_gate_catches_a_rule_through_a_word(tmp_path):
     assert "overlaps" in "".join(audit.audit_geometry(stacked, quiet=True))
 
     overrun = figure('<text x="380" y="100">A label far wider than the canvas</text>')
-    assert "leaves the" in "".join(audit.audit_geometry(overrun, quiet=True))
+    assert "can leave the" in "".join(audit.audit_geometry(overrun, quiet=True))
+
+
+def test_a_caption_that_only_overflows_on_a_wide_face_is_reported(tmp_path):
+    """The canvas check judged the *narrow* box, and a shipped figure was wrong.
+
+    One side of this comparison is exact -- a canvas edge is a number, not a
+    bound -- so "the widest this label can be runs past it" is a sound
+    statement about some reader's machine. Round 33 moved the rule check to
+    the wide box for that reason and left this one behind; round 36 found
+    `figure-path.svg` with 1,019 pixels of caption on a 900-pixel canvas at
+    the wide bound and 877 at the narrow one, green the whole time. A figure
+    broken only for other people is still broken.
+
+    The label here is built to sit in that gap on purpose: inside the canvas
+    at the narrow bound, outside it at the wide one, so a check judging either
+    bound alone gives the opposite answer.
+    """
+    audit = _audit()
+    width, size, weight = 900.0, 11.5, 400
+
+    text = "Only the gateway sees every request, from every client, at both ends"
+    while True:
+        narrow = 60 + audit._text_width(text, size, weight, 0.0, False)
+        wide = 60 + audit._text_width(text, size, weight, 0.0, True)
+        if narrow < width < wide:
+            break
+        assert narrow < width, "ran out of room before the gap was reached"
+        text += " more"
+
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:g} 200">'
+        f"<style>.s {{ font-size: {size}px; font-weight: {weight}; }}</style>"
+        f'<text class="s" x="60" y="100">{text}</text></svg>'
+    )
+    drawn = tmp_path / "wide-face-only.svg"
+    drawn.write_text(svg, encoding="utf-8")
+
+    findings = "".join(audit.audit_geometry(drawn, quiet=True))
+    assert "can leave the" in findings, (
+        f"narrow box ends at {narrow:.0f} and wide at {wide:.0f} on a {width:g} canvas, "
+        "and the audit said nothing"
+    )
+    assert f"{wide:.0f}" in findings, "the finding does not say how far past the edge"
 
 
 # ---------------------------------------------------------------------------
@@ -739,4 +782,114 @@ def test_the_single_band_per_label_is_not_load_bearing():
         f"reporting a crossing, where an exact silhouette would leave "
         f"{tightest[3]:.2f}px. The one-band-per-label approximation has become "
         f"load-bearing; see `_ink` and build the silhouette, or move the rule"
+    )
+
+
+def test_the_geometry_audit_catches_a_defect_planted_in_every_shipped_figure(tmp_path):
+    """Three rounds of a gate finding nothing, and the suspicion that goes with it.
+
+    `fil.md` has carried the same worry since round 33: a barrier that never
+    reports anything is either a well-built artefact or a barrier aimed where
+    nothing happens, and three clean rounds do not tell you which. The way to
+    tell is to break the artefact on purpose.
+
+    Round 36 did it by hand first, and it paid: thirty-six planted defects
+    were caught and two were not, and chasing the two found a real one — a
+    caption running 119 pixels off `figure-path.svg` for anybody on a wide
+    face, invisible because the canvas check judged the narrow bound.
+
+    So it lives here now, over every committed figure. The three mutations
+    are defects **by construction**, which is what keeps this from being
+    circular: a label moved onto a rule that demonstrably spans it, a label
+    pushed past the right edge, and two labels given the same anchor and
+    coordinates. A mutation that merely *might* collide would make this a test
+    of the mutation rather than of the audit, which is the mistake the manual
+    pass made twice.
+    """
+    import copy
+    import xml.etree.ElementTree as ET
+
+    audit = _audit()
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+
+    def verdict(tree, name: str) -> list[str]:
+        drawn = tmp_path / name
+        drawn.write_text(ET.tostring(tree.getroot(), encoding="unicode"), encoding="utf-8")
+        return audit.audit_geometry(drawn, quiet=True)
+
+    def plain_labels(tree):
+        return [
+            node
+            for node in tree.getroot().iter(f"{audit.SVG_NS}text")
+            if (node.text or "").strip() and not node.get("transform")
+        ]
+
+    planted, missed = 0, []
+    for path in sorted((ROOT / "assets").glob("figure-*.svg")):
+        clean = ET.parse(path)
+        assert verdict(clean, f"clean-{path.name}") == [], f"{path.name} is not clean to start"
+
+        style = "".join("".join(n.itertext()) for n in clean.getroot().iter(f"{audit.SVG_NS}style"))
+        width = float(clean.getroot().get("viewBox").split()[2])
+        labels = audit._labels(clean.getroot(), audit._type_rules(style))
+        rules = []
+        for node in clean.getroot().iter(f"{audit.SVG_NS}path"):
+            horizontal, _ = audit._rules(node.get("d", ""))
+            rules += list(horizontal)
+
+        # 1. Onto a rule that demonstrably spans this label's own x range.
+        for label in labels:
+            if label[7] != 0.0 or audit._unmeasured(label[0], label[4]):
+                continue
+            x0, x1, _, _ = audit._box(label, widest=True)
+            crossing = next((r for r in rules if audit._overlaps((r[1], r[2]), (x0, x1))), None)
+            if crossing is None:
+                continue
+            mutated = copy.deepcopy(clean)
+            for node in plain_labels(mutated):
+                if (node.text or "") == label[0]:
+                    node.set("y", f"{crossing[0]:.1f}")
+                    break
+            planted += 1
+            if not verdict(mutated, f"rule-{path.name}"):
+                missed.append(
+                    f"{path.name}: {label[0][:28]!r} dropped onto the rule at "
+                    f"y={crossing[0]:.1f}, which spans its own x range"
+                )
+            break
+
+        # 2. Past the right edge, which no font choice can rescue.
+        mutated = copy.deepcopy(clean)
+        for node in plain_labels(mutated):
+            node.set("x", f"{width + 40:.1f}")
+            planted += 1
+            if not verdict(mutated, f"edge-{path.name}"):
+                missed.append(
+                    f"{path.name}: a label at x={width + 40:.0f} on a {width:g}-wide canvas"
+                )
+            break
+
+        # 3. Two labels at one position, with one anchor between them.
+        plain = plain_labels(copy.deepcopy(clean))
+        if len(plain) >= 2:
+            mutated = copy.deepcopy(clean)
+            nodes = plain_labels(mutated)
+            first, second = nodes[0], nodes[1]
+            second.set("x", first.get("x"))
+            second.set("y", first.get("y"))
+            if first.get("text-anchor"):
+                second.set("text-anchor", first.get("text-anchor"))
+            else:
+                second.attrib.pop("text-anchor", None)
+            planted += 1
+            if not verdict(mutated, f"stack-{path.name}"):
+                missed.append(
+                    f"{path.name}: {(second.text or '')[:20]!r} placed exactly "
+                    f"on {(first.text or '')[:20]!r}"
+                )
+
+    assert planted >= 25, f"only {planted} defects planted; this stopped exercising the audit"
+    assert not missed, (
+        "the geometry audit is green over figures that are broken on purpose, so its "
+        f"silence on the real ones says less than it looks: {missed}"
     )
