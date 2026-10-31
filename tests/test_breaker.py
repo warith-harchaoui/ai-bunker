@@ -388,3 +388,68 @@ def test_eviction_takes_the_oldest_first():
 
     assert "first" not in breaker._seen
     assert "fourth" in breaker._seen
+
+
+# ---------------------------------------------------------------------------
+# Three boundaries a mutation harness found, each at the value itself.
+# ---------------------------------------------------------------------------
+
+
+def test_a_refusal_exactly_one_window_old_still_counts(breaker, clock):
+    """`seen[0] < cutoff`, at the equals.
+
+    Round 39 swapped it to `<=` and the suite stayed green, so nothing had
+    ever put a refusal *on* the edge of the window. It decides whether
+    "refusals within the window" includes the one that happened exactly a
+    window ago, which is the difference between tripping and not for any
+    session refusing at a steady rate — the shape of session this exists to
+    stop.
+    """
+    breaker.record("s", refusals(2))
+    clock.tick(60)  # exactly the window
+    assert breaker.record("s", refusals(1)) is not None, (
+        "a refusal exactly one window old was dropped, so a session refusing "
+        "once per window never trips"
+    )
+
+    breaker.reset("s")
+    breaker.record("t", refusals(2))
+    clock.tick(60.001)  # a hair past it
+    assert breaker.record("t", refusals(1)) is None
+
+
+def test_a_breaker_with_nothing_left_to_run_is_not_listed_as_open(breaker, clock):
+    """`trip.remaining(now) > 0`, at the equals.
+
+    `>=` survived the suite. `status()` is what the operator's dashboard
+    reads, so this decides whether a session that recovered *this second* is
+    still shown as stopped — a dashboard that says a breaker is open when the
+    next request will be served is a dashboard that gets ignored.
+    """
+    breaker.record("s", refusals(3))
+    assert [row["session"] for row in breaker.status()] == ["s"]
+
+    clock.tick(59)
+    assert breaker.status()[0]["closes_in_s"] == 1
+
+    clock.tick(1)  # exactly expired
+    assert breaker.status() == [], "a breaker with zero seconds left is closed"
+
+
+def test_exactly_three_rules_are_all_named_and_nothing_is_added(breaker, clock):
+    """`len(trip.rules) > 3`, at the equals.
+
+    `>=` survived, and at three rules it would append "and 0 other rule(s)" —
+    a refusal message that counts to zero in front of the agent reading it.
+    The message is the whole interface here: a refusal an agent cannot parse
+    is a refusal it retries.
+    """
+    for rule in ("shell.destructive_rm", "shell.curl_pipe_sh", "secret.aws_key"):
+        breaker.record("s", refusals(1, rule))
+    trip = breaker.state("s")
+    assert trip is not None and len(trip.rules) == 3
+
+    described = as_rule(trip, now=clock.now).description
+    assert "other rule(s)" not in described, described
+    for rule in ("shell.destructive_rm", "shell.curl_pipe_sh", "secret.aws_key"):
+        assert rule in described

@@ -311,6 +311,10 @@ def reclamp(settings, ceilings: dict[str, int], timeout: float = TIMEOUT) -> lis
         target = min(ceiling, measured)
         if target == up.served_context:
             continue
+        # `<` and `<=` cannot differ here, because the line above has already
+        # taken the equal case out. Noted because a mutation harness reports
+        # this comparison as unkillable and a reader who does not know why
+        # will go looking for the missing test: there is not one to write.
         if target < up.served_context:
             notes.append(
                 f"[gateway] {name}: this engine now serves {measured:,}, below the "

@@ -126,6 +126,24 @@ def test_nonsense_is_not_a_measurement(answers):
         assert probe.served_context(_upstream(model="q"))[0] is None, value
 
 
+def test_nonsense_is_not_a_measurement_on_the_ollama_path_either(answers):
+    """The same guard, on the source that is actually preferred.
+
+    The test above walks `/v1/models`, and `/api/show` has a guard of its
+    own — `isinstance(value, int) and value > 0`. Round 39's mutation harness
+    relaxed that `>` to `>=` and the whole probe suite stayed green: the
+    Ollama path's zero check had never been exercised, while the OpenAI
+    path's had.
+
+    It is the preferred source, so it is the one a real deployment hits
+    first, and a believed zero clamps every budget to nothing. The two paths
+    now get the same five answers.
+    """
+    for value in (0, -1, "40960", None, 1.5):
+        answers["http://127.0.0.1:11434/api/show"] = {"model_info": {"qwen3.context_length": value}}
+        assert probe.served_context(_upstream(model="q"))[0] is None, value
+
+
 # --------------------------------------------------------------------------
 # And which direction is a mistake.
 # --------------------------------------------------------------------------
