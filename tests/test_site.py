@@ -355,6 +355,51 @@ def test_the_quoted_version_is_real(all_text):
         assert v == __version__
 
 
+#: Files in *this* repository that state the version. The badge spells it
+#: `0.2.0--alpha`, because shields.io reads a single dash as a field
+#: separator, so the pattern below accepts one or two.
+VERSIONED = [
+    ROOT / "README.md",
+    ROOT / "LISEZMOI.md",
+    ROOT / "LANDSCAPE.md",
+    ROOT / "PAYSAGE.md",
+]
+VERSION_IN_PROSE = re.compile(r"(\d+\.\d+\.\d+)-{1,2}alpha")
+
+
+def test_the_version_this_repository_quotes_is_real():
+    """The test above reads the *site*, and skips where the site is not.
+
+    Which is the lane, every time — so the version printed on the first
+    screen of both READMEs, in a badge and in a sentence, and in both halves
+    of the landscape survey, has been checked only on a machine that happens
+    to have the website checked out beside it. That is round 30's defect word
+    for word: green on a laptop with the site there, skipped in the lane
+    where the README is the only thing there is. Round 34 fixed it for the
+    test count; it was still true for the version.
+
+    Six statements across four files, and nothing in continuous integration
+    read any of them.
+    """
+    from ai_bunker import __version__
+
+    found: dict[str, set[str]] = {}
+    for path in VERSIONED:
+        quoted = set(VERSION_IN_PROSE.findall(path.read_text(encoding="utf-8")))
+        if quoted:
+            found[path.name] = quoted
+
+    assert len(found) == len(VERSIONED), (
+        "a file in this list stopped stating the version, so the guard over it "
+        f"quietly stopped guarding anything: {sorted(set(p.name for p in VERSIONED) - set(found))}"
+    )
+    for name, quoted in sorted(found.items()):
+        for version in sorted(quoted):
+            assert version == __version__, (
+                f"{name} says {version}-alpha and the package is {__version__}"
+            )
+
+
 # ---------------------------------------------------------------------------
 # What the site must not do.
 # ---------------------------------------------------------------------------
