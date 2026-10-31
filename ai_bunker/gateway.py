@@ -306,6 +306,15 @@ class InFlight:
     same reason: the count is touched from the event loop and from the
     generator draining a stream, and the critical section is an increment, so
     nothing is ever held across an ``await``.
+
+    **Per process, and the shipped :func:`serve` is one process** --
+    ``uvicorn.run`` with no ``workers``, so the count is the whole truth for a
+    deployment that starts the gateway the documented way. Run several
+    instances behind a balancer, or uvicorn with workers of your own, and each
+    carries its own bound: the machine then allows the figure times the number
+    of processes, which is almost certainly not what the operator who wrote
+    one number meant. Said here rather than left to be discovered, because a
+    bound that is quietly multiplied is worse than no bound at all.
     """
 
     __slots__ = ("_held", "_lock", "limit")
