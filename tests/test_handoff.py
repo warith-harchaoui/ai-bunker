@@ -157,7 +157,20 @@ def test_an_identifier_in_backticks_is_left_alone(guard, handoff):
 
 def test_the_guard_catches_a_commit_nothing_resolves(guard, handoff):
     """A transposed character in a hash gives a reference the next session
-    cannot follow, and `git log` will not tell them why."""
+    cannot follow, and `git log` will not tell them why.
+
+    Skipped where there is no history to ask about, for the same reason as the
+    test below and found the same way. `unknown_commits` reports nothing at all
+    in a tree that has no git -- that silence is deliberate and has a test of
+    its own two tests down -- so the positive half of the pair can only mean
+    something in a checkout. It carried no such guard, which made it the one
+    test here that a `git archive` export failed and `actions/checkout`
+    passed, so the lane could never have said so: the lane clones. The
+    rehearsal is what noticed.
+    """
+    if not guard._in_a_checkout():
+        pytest.skip("no git history here; see the rehearsal note in the docstring")
+
     handoff("| Dernier commit | `deadbee` — la borne verticale |\n")
     problems = guard.unknown_commits()
     assert len(problems) == 1
