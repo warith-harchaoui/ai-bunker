@@ -25,6 +25,10 @@ import pytest
 
 from ai_bunker.adopt import ROOT, site_root
 
+#: Interpreter-independent: the abbreviation catalogue is a parse of committed prose.
+#: See `markers` in pyproject.toml — this module runs once, on the newest.
+pytestmark = pytest.mark.gate
+
 LINTER = ROOT / "scripts" / "lint_acronyms.py"
 
 

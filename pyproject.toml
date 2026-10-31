@@ -158,3 +158,30 @@ testpaths = ["tests"]
 # they are switched off: a slow test suite is a test suite people stop running.
 # anyio stays: starlette's TestClient needs it.
 addopts = "-q -p no:deepeval -p no:langsmith_plugin -p no:hydra_pytest -p no:faker"
+
+# One marker, for tests whose answer cannot depend on the interpreter: the
+# linters that read committed files, the figure audit, the film spec, the
+# handoff gate, the published-figure check. The suite runs on 3.10 and 3.13,
+# so without this they are paid for twice -- which is the argument `ci.yml`
+# already makes, in prose, for keeping lint, format, rules and the page audits
+# in a `gate` job that runs once. This is the same argument applied to the
+# gates that live inside the suite rather than beside it.
+#
+# Measured where it can be measured. The 3.10 leg of the lane takes 63
+# seconds, read off the step itself over three runs. What the deselection
+# takes off that 63 is *not* written down here, and the reason is worth
+# keeping: the maintainer's machine runs other work, and two back-to-back
+# rehearsals of one unchanged tree put the saving at 8.6 seconds and then at
+# 1.4. A number that moves by a factor of six between two readings has not
+# been measured, it has been sampled, and a projected figure is the one thing
+# this repository does not let itself publish. The lane is the quiet machine,
+# so the lane is what gets to say, once this has run there.
+#
+# What it gives up, stated rather than implied: a defect that appears when one
+# of those gates runs under 3.10 and not under 3.13 would now reach a release.
+# None of them has version-conditional code, and `scripts/` is not shipped in
+# the wheel at all -- but the window is real and this is where it is written
+# down.
+markers = [
+  "gate: a check whose answer cannot differ by interpreter; run once, on the newest",
+]

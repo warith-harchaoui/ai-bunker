@@ -66,9 +66,22 @@ jobs:
       # for a pure-Python package -- the same argument as the matrix trim
       # above. The floor lives in `pyproject.toml`, where `coverage` reads it
       # whoever invokes it, rather than in a flag one `-p` can remove.
+      # `-m "not gate"` on the older leg. Five test modules and two tests in a
+      # sixth are checks on committed files -- the abbreviation catalogue, the
+      # claim linter, the figure audit, the film spec, the handoff gate, the
+      # published-figure check -- and none of them can answer differently on a
+      # different interpreter. They were being paid for twice: sixty-five
+      # tests, out of a leg that measures 63 seconds -- read off this step
+      # itself, over three runs, rather than guessed at. What the deselection
+      # takes off that 63 is deliberately not written here yet; the reason is
+      # in `pyproject.toml`, next to the marker. Same argument the `gate` job
+      # below makes for
+      # lint, format, rules and the page audits, applied to the gates that
+      # happen to live inside the suite. `markers` in `pyproject.toml` carries
+      # the trade this gives up.
       - name: Tests
         if: matrix.python-version != '3.13'
-        run: pytest -q
+        run: pytest -q -m "not gate"
 
       - name: Tests with coverage
         if: matrix.python-version == '3.13'

@@ -55,6 +55,10 @@ import pytest
 from ai_bunker.adopt import ROOT
 from ai_bunker.engine import LEAN_TOLERANCE, OVERHEAD_GIB
 
+#: Interpreter-independent: committed SVG against a committed metrics table.
+#: See `markers` in pyproject.toml — this module runs once, on the newest.
+pytestmark = pytest.mark.gate
+
 
 def _figures():
     """`scripts/make_figures.py`, imported by path.

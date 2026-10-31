@@ -32,6 +32,10 @@ from pathlib import Path
 
 import pytest
 
+#: Interpreter-independent: a YAML spec against the files it names.
+#: See `markers` in pyproject.toml — this module runs once, on the newest.
+pytestmark = pytest.mark.gate
+
 ROOT = Path(__file__).resolve().parent.parent
 
 

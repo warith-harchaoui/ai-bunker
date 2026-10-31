@@ -287,6 +287,46 @@ def test_the_floor_guarantees_the_image_picker_and_the_workaround_is_gone(manife
     )
 
 
+def test_the_gate_marker_runs_somewhere_exactly_once(manifest):
+    """A deselection is a way to stop running a check without deleting it.
+
+    `-m "not gate"` on the older leg is how five test modules and two tests in
+    a sixth stop being paid for twice, and the failure mode it creates is the
+    one this repository has now caught four times: a check that is declared
+    and never run. Put `-m "not gate"` on *both* legs and the figure audit,
+    the claim linter, the abbreviation catalogue, the film spec and the
+    handoff gate all stop running, in silence, with every one of them still
+    sitting in `tests/`.
+
+    So: the marker must be registered, and exactly one leg of the matrix must
+    deselect it.
+
+    This guard carries no `gate` marker of its own, and that is deliberate
+    twice over. It reads two committed files, so by the marker's own
+    definition it would qualify. But a guard against over-deselection must not
+    be deselectable by the thing it guards: marked `gate`, a second
+    `-m "not gate"` would silence the guard in the same breath as the five
+    modules it protects, and nothing would be left to notice. It is also not
+    among the checks paid for twice, because `manifest` skips wherever
+    `tomllib` is not standard library -- every interpreter below 3.11 -- so
+    the cost this round is about never applied to it.
+    """
+    declared = manifest["tool"]["pytest"]["ini_options"].get("markers", [])
+    assert any(m.startswith("gate:") for m in declared), (
+        "the `gate` marker is used in tests/ and not declared in pyproject.toml"
+    )
+
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    legs = re.findall(r"^\s+run:\s*pytest\b.*$", workflow, re.M)
+    assert len(legs) == 2, f"the matrix has {len(legs)} suite steps; this test assumes two"
+
+    deselecting = [leg for leg in legs if "not gate" in leg]
+    assert len(deselecting) == 1, (
+        "exactly one leg may skip the gate-marked tests -- two would mean they "
+        f"never run at all: {legs}"
+    )
+
+
 def test_the_coverage_floor_is_declared_and_defended(manifest):
     """A floor that lives in a workflow argument is a floor one `-p` removes.
 

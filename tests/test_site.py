@@ -115,6 +115,7 @@ def test_the_documentation_quotes_the_real_rule_counts(all_prose):
             assert n == actual, f"the documentation says {n} {label}; there are {actual}"
 
 
+@pytest.mark.gate
 def test_no_published_figure_is_stale():
     """`sync_counts.py --check`, which nothing had ever run.
 
@@ -144,6 +145,7 @@ def test_no_published_figure_is_stale():
     assert module.main(["--check"]) == 0, "a published figure has drifted; run sync_counts.py"
 
 
+@pytest.mark.gate
 def test_the_documentation_quotes_the_real_test_count(all_prose):
     """Only claims about the present. A sentence like "the 327 tests of the
     time did not catch it" is a fact about a past moment and must keep its

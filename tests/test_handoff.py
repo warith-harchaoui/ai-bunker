@@ -36,6 +36,10 @@ from pathlib import Path
 
 import pytest
 
+#: Interpreter-independent: paths, commits and line numbers in `.private/`.
+#: See `markers` in pyproject.toml — this module runs once, on the newest.
+pytestmark = pytest.mark.gate
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
