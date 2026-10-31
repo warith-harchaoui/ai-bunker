@@ -679,6 +679,12 @@ def team_for_sessions(sessions: int, assumptions: Assumptions | None = None) -> 
     low, high = 1, 2
     while high < 100_000 and sessions_for_team(high, assumptions) <= sessions:
         low, high = high, high * 2
+    # `low < high - 1` is the termination condition, not a taste in spelling.
+    # At `high - low == 1` the midpoint is `low`, so `low = mid` makes no
+    # progress and `<=` here loops for ever. A mutation sweep found it the
+    # expensive way: the suite does not fail on that edit, it never finishes,
+    # and a harness without a deadline waits for it while a stray pytest
+    # keeps a core busy. No test can catch a hang; this sentence can.
     while low < high - 1:
         mid = (low + high) // 2
         if sessions_for_team(mid, assumptions) <= sessions:

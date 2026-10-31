@@ -327,3 +327,53 @@ def test_serve_command_uses_the_awq_reference_for_awq_models(catalog):
     )
     cmd = serve_command(s, catalog=catalog)
     assert find_model(catalog, "qwen3-coder-next")["awq"] in cmd
+
+
+# ---------------------------------------------------------------------------
+# The two thresholds the command actually prints, at the value itself.
+# ---------------------------------------------------------------------------
+
+
+# The verdict ladder -- `single >= comfort_tps and sessions >= 8` -- is left
+# untested at its thresholds, and that is a decision rather than an oversight.
+# `single_stream_tps` is published rounded to one decimal, so feeding the
+# reported figure back as `comfort_tps` does not land on the unrounded
+# comparison the ladder actually makes, and the session count comes out of
+# whichever card the catalogue happens to describe. Pinning either would mean
+# a test contorted around today's catalogue, which breaks on the next entry
+# and gets deleted -- the kind of gate this repository has three comments
+# about. The sweep that found it is in the handoff with the command; if the
+# ladder ever decides something expensive, expose the unrounded figure first
+# and test it then.
+
+
+def test_a_machine_with_exactly_the_sessions_asked_for_fits(catalog):
+    """`concurrent_sessions >= needed`, at the equals.
+
+    This is the whole output of `recommend_for_team`: whether a card is
+    offered or struck out. Exactly enough sessions is enough — a
+    recommendation that refused the machine sized precisely for the team
+    would be telling somebody to buy the next one up for nothing.
+    """
+    offers = recommend_for_team(team_size=4, catalog=catalog)
+    assert offers, "nothing was recommended; this test has nothing to read"
+
+    for offer in offers:
+        sizing = offer.sizing
+        if offer.fits:
+            assert sizing.concurrent_sessions >= offer.sessions_needed, (
+                f"{offer.accelerator_id} is offered with {sizing.concurrent_sessions} "
+                f"sessions against {offer.sessions_needed} needed"
+            )
+        elif offer.disqualified is None:
+            assert (
+                sizing.concurrent_sessions < offer.sessions_needed
+                or sizing.verdict == "does-not-fit"
+            ), f"{offer.accelerator_id} was struck out with room to spare and no reason"
+
+    exact = [o for o in offers if o.sizing.concurrent_sessions == o.sessions_needed]
+    for offer in exact:
+        assert offer.fits or offer.disqualified is not None, (
+            f"{offer.accelerator_id} carries exactly the {offer.sessions_needed} sessions "
+            "asked for and was refused without a reason"
+        )
