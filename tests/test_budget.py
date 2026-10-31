@@ -712,26 +712,44 @@ def test_measuring_does_not_send_unless_asked():
     assert counter.backend == "ratio"
 
 
-def test_a_stalled_tokenizer_is_abandoned_quickly():
-    """A probe is a liveness check, not a measurement, and it had the
-    measurement's timeout.
+def test_a_probe_must_not_wait_like_a_count():
+    """The constant, asserted for free.
 
     `_server_works` asks each dialect to tokenize the word "ping". With
     `TOKENIZE_TIMEOUT` that was two dialects times 120 seconds before the
     gateway fell back -- and the call is synchronous inside an async handler,
     so the event loop serves nobody for the duration. An engine that cannot
     tokenize "ping" in five seconds is one to stop waiting for.
+    """
+    from ai_bunker.budget import PROBE_TIMEOUT, TOKENIZE_TIMEOUT
 
-    Measured against a socket that accepts and never answers, which is a
-    saturated engine rather than a dead one: 10.3 seconds instead of 240.
+    assert PROBE_TIMEOUT < TOKENIZE_TIMEOUT, "a probe must not wait like a count"
+    assert PROBE_TIMEOUT <= 5, "a liveness check somebody waits on"
+
+
+def test_a_stalled_tokenizer_is_abandoned_quickly(monkeypatch):
+    """And the behaviour: a socket that accepts and never answers -- a
+    saturated engine rather than a dead one -- is given up on.
+
+    The timeout is patched down to a fifth of a second, and the pair of tests
+    is what the single one used to be. It ran at the shipped five seconds
+    against two dialects and therefore *cost* ten, twice per continuous
+    integration run, to prove something the two halves prove between them:
+    the constant is small (above, free) and the code honours it (here, fast).
+
+    What the split gives up, stated rather than implied: nothing now measures
+    the real 10.3 seconds end to end at the shipped constants. The composition
+    is sound -- a timeout honoured at 0.2s is honoured at 5s -- and a reader
+    who wants the end-to-end number has `scripts/bench_context.py` and a
+    terminal.
     """
     import socket
     import threading
     import time
 
-    from ai_bunker.budget import PROBE_TIMEOUT, TOKENIZE_TIMEOUT
+    from ai_bunker import budget as budget_module
 
-    assert PROBE_TIMEOUT < TOKENIZE_TIMEOUT, "a probe must not wait like a count"
+    monkeypatch.setattr(budget_module, "PROBE_TIMEOUT", 0.2)
 
     server = socket.socket()
     server.bind(("127.0.0.1", 0))
@@ -755,8 +773,9 @@ def test_a_stalled_tokenizer_is_abandoned_quickly():
         server.close()
 
     assert counter.backend == "ratio"
-    # Generous against the measured 10.3s, strict against the 240s it was.
-    assert elapsed < PROBE_TIMEOUT * 6, f"took {elapsed:.1f}s to give up"
+    # Generous against the patched budget, strict against the 240 seconds this
+    # took before a probe had a timeout of its own.
+    assert elapsed < 0.2 * 8, f"took {elapsed:.1f}s to give up"
 
 
 # ---------------------------------------------------------------------------

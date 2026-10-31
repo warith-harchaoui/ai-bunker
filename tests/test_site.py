@@ -24,7 +24,7 @@ import sys
 
 import pytest
 
-from ai_bunker.adopt import ROOT, site_root, without_site
+from ai_bunker.adopt import ROOT, site_root
 from ai_bunker.charter import load_charter
 from ai_bunker.rules import load_rules
 from ai_bunker.rules import test_rules as check_rules
@@ -134,15 +134,9 @@ def test_no_published_figure_is_stale():
     when a file quotes something the repository no longer says. It costs one
     collection subprocess, the same one the test below already pays for.
     """
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "sync_counts", ROOT / "scripts" / "sync_counts.py"
+    assert _sync_counts().main(["--check"]) == 0, (
+        "a published figure has drifted; run sync_counts.py"
     )
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    assert module.main(["--check"]) == 0, "a published figure has drifted; run sync_counts.py"
 
 
 @pytest.mark.gate
@@ -187,50 +181,48 @@ def test_the_site_has_both_languages():
 
 
 @functools.lru_cache(maxsize=1)
-def _collected_tests() -> int:
-    """Count what pytest actually collects, by asking pytest.
+def _sync_counts():
+    """`scripts/sync_counts.py`, imported by path and once."""
+    import importlib.util
 
-    This used to parse the AST instead, because a `--collect-only` subprocess
-    re-imports the whole suite from inside a test that is part of it, and the
-    suite was slow enough to blow a two-minute timeout. That is no longer true:
-    collection takes about five seconds now.
-
-    The AST approximation had a quiet cost. It expanded `parametrize` by
-    reading the decorator, counted anything it could not resolve as a single
-    case, and said so in its own docstring -- so it under-counted. The site
-    advertised 383 while `pytest` printed 394, and the guard happily agreed
-    with the site because it was comparing the site to its own estimate rather
-    than to the suite. On a project whose claim is that every published number
-    is measured, that is the one place an estimate must not be.
-
-    And it counts what a *clone* collects, not what this machine does. Twenty-one
-    of these tests are parametrised over the website's pages, so the total was
-    1,156 here and 1,135 in continuous integration, and the README quoted the
-    larger one -- a published figure no reader could reproduce. `without_site`
-    is what makes the two agree; its docstring carries the rest of the story.
-    """
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "--collect-only",
-            "-q",
-            "--no-header",
-            "-p",
-            "no:cacheprovider",
-        ],
-        env=without_site(),
-        capture_output=True,
-        text=True,
-        cwd=ROOT,
-        timeout=300,
-        check=False,
+    spec = importlib.util.spec_from_file_location(
+        "sync_counts", ROOT / "scripts" / "sync_counts.py"
     )
-    # `-q --collect-only` prints one "path: n" line per test file.
-    counts = [int(n) for n in re.findall(r"^\S+\.py: (\d+)$", result.stdout, re.M)]
-    assert counts, f"could not read collected counts from pytest:\n{result.stdout[-2000:]}"
-    return sum(counts)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def _collected_tests() -> int:
+    """What pytest actually collects, asked of the module that owns the figure.
+
+    This used to run its own `--collect-only` subprocess, beside the one
+    `sync_counts.py` runs — two full re-imports of the suite, 10.8 seconds
+    together, on both interpreters, to learn one number twice. `sync_counts`
+    is the *writer* of that figure, so it is the one place that should measure
+    it, and this reads it from there.
+
+    The measurement itself is unchanged and its history is worth keeping. It
+    used to parse the AST, which expanded `parametrize` by reading the
+    decorator and counted anything it could not resolve as one case — so it
+    under-counted, the site advertised 383 while pytest printed 394, and the
+    guard agreed with the site because it was comparing the site to its own
+    estimate. On a project whose claim is that every published number is
+    measured, that is the one place an estimate must not be.
+
+    And it counts what a *clone* collects. Twenty-one tests are parametrised
+    over the website's pages, so the total was 1,156 here and 1,135 in the
+    lane; `adopt.without_site` is what makes the two agree.
+
+    One subprocess, and the cache that makes it one is *not* here: it is the
+    `lru_cache` on `sync_counts.collected_tests`. That is the only thing in
+    this round whose correctness rests on a decorator in another file, so it
+    is written down rather than left to be rediscovered -- take it off there
+    and this quietly starts paying for a second full re-import of the suite,
+    beside the one `--check` pays for above.
+    """
+    return _sync_counts().collected_tests()
 
 
 def test_the_site_quotes_no_test_count(all_text):

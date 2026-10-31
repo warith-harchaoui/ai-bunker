@@ -22,6 +22,7 @@ Warith Harchaoui
 from __future__ import annotations
 
 import argparse
+import functools
 import re
 import subprocess
 import sys
@@ -69,8 +70,17 @@ if WEB is not None:
     ]
 
 
+@functools.lru_cache(maxsize=1)
 def collected_tests() -> int:
     """What `pytest` actually collects **in a clone**. Not an estimate.
+
+    Cached, and that is not a micro-optimisation: this spawns a subprocess
+    that re-imports the whole suite, and the suite calls it from two places —
+    here, through `--check`, and from `test_site.py`. Measured at 7.2s and
+    3.6s, paid on both interpreters, for one number. Which is exactly the
+    defect round 29 took out of the workflow — *coverage was a second step,
+    and a second step means a second full suite* — reproduced inside the suite
+    by the round that added the second caller.
 
     `without_site` is not decoration: twenty-one tests are parametrised over
     the website's pages, so this machine collects twenty-one more than anybody
