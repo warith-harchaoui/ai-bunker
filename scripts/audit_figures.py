@@ -489,12 +489,103 @@ def _ink(content: str, size: float, weight: int) -> tuple[float, float]:
     is what a band around a line of type is. One number for every string --
     `capHeight` -- was the bug this replaced: `E` and `É` are not the same
     height, and a figure captioned in French is mostly the second kind.
+
+    One band for the whole label is an approximation, and it is pessimistic in
+    a specific way: exact for a rule that crosses the line of type, too
+    cautious for a rule passing over a word whose only tall letter is at the
+    other end. A silhouette per character would be exact. Measured before
+    building it, which is the whole point -- across the 260 pairs of
+    horizontal rule and label that share an x-range in the committed figures,
+    the band comes within **6.35px** of reporting a crossing and an exact
+    silhouette would come within 10.00px. The widest margin the band gives
+    away anywhere is 9.88px, and the number of pairs where the two models
+    reach a different verdict is **zero**.
+
+    So the exact model buys nothing here, and the band stays. `band_slack`
+    recomputes those figures, and
+    `test_figures.py::test_the_single_band_per_label_is_not_load_bearing` is
+    the trigger: if an edit ever brings a figure within twice `PROXIMITY` of
+    the band firing, the pessimism has become load-bearing and the silhouette
+    is worth building after all.
     """
     table = PER_WEIGHT[str(weight)]
     plain = _plain(content)
     above = max((table[char][INK_TOP] for char in plain), default=0.0)
     below = max((table[char][INK_BOTTOM] for char in plain), default=DESCENDER)
     return size * above, size * below
+
+
+def _char_boxes(label: tuple) -> list[tuple[float, float, float, float]]:
+    """Each character's own rectangle, where :func:`_ink` answers with one band.
+
+    Wide advances, laid end to end from the label's left edge, unrotated only.
+    This is not what the audit uses and is not meant to be: it exists so the
+    cost of the band can be measured rather than argued about. See
+    :func:`band_slack`.
+    """
+    content, x, y, size, weight, tracking, anchor, _ = label
+    table = PER_WEIGHT[str(weight)]
+    plain = _plain(content)
+    left, _ = _span(x, _text_width(content, size, weight, tracking, True), anchor)
+    boxes = []
+    for char in plain:
+        advance = size * (table[char][ADVANCE_HIGH] + tracking)
+        boxes.append(
+            (
+                left,
+                left + advance,
+                y - size * table[char][INK_TOP],
+                y + size * table[char][INK_BOTTOM],
+            )
+        )
+        left += advance
+    return boxes
+
+
+def band_slack() -> list[tuple[str, str, float, float]]:
+    """What the one-band-per-label approximation costs, per pair, in pixels.
+
+    ``(figure, label, band clearance, exact clearance)`` for every horizontal
+    rule that shares an x-range with a measurable unrotated label in the
+    committed figures. Clearance is the vertical gap between the rule's body --
+    its stroke plus ``PROXIMITY`` -- and the label's ink: positive is a miss,
+    negative is the crossing the audit reports.
+
+    The band's clearance is taken against one band for the whole string. The
+    exact one is taken against only those characters the rule actually passes
+    over, each with its own ink extent, and is therefore never smaller.
+    """
+    import xml.etree.ElementTree as ET
+
+    out = []
+    for path in sorted((ROOT / "assets").glob("figure-*.svg")):
+        root = ET.fromstring(path.read_text(encoding="utf-8"))
+        style = "".join("".join(n.itertext()) for n in root.iter(f"{SVG_NS}style"))
+        across = []
+        for node in root.iter(f"{SVG_NS}path"):
+            half = _stroke_of(node.get("class", ""), style) / 2
+            horizontal, _ = _rules(node.get("d", ""))
+            across += [(*segment, half) for segment in horizontal]
+
+        for label in _labels(root, _type_rules(style)):
+            content, _, _, _, weight, _, _, rotation = label
+            if rotation != 0.0 or _unmeasured(content, weight):
+                continue
+            x0, x1, y0, y1 = _box(label, widest=True)
+            chars = _char_boxes(label)
+            for rule_y, rule_from, rule_to, half in across:
+                if not _overlaps((rule_from, rule_to), (x0, x1)):
+                    continue
+                body = (rule_y - half - PROXIMITY, rule_y + half + PROXIMITY)
+                gaps = [
+                    max(top - body[1], body[0] - bottom)
+                    for left, right, top, bottom in chars
+                    if _overlaps((rule_from, rule_to), (left, right))
+                ]
+                if not gaps:
+                    continue
+                out.append((path.name, content[:30], max(y0 - body[1], body[0] - y1), max(gaps)))
+    return out
 
 
 def _rules(d: str) -> tuple[list[tuple[float, float, float]], list[tuple[float, float, float]]]:
@@ -724,7 +815,28 @@ def audit_geometry(path: Path, quiet: bool = False) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true", help="only report failures")
+    parser.add_argument(
+        "--slack",
+        action="store_true",
+        help="what the one-band-per-label approximation costs, in pixels",
+    )
     args = parser.parse_args()
+
+    if args.slack:
+        pairs = band_slack()
+        if not pairs:
+            print("no horizontal rule in any committed figure shares an x-range with a label")
+            return 0
+        band = min(pair[2] for pair in pairs)
+        exact = min(pair[3] for pair in pairs)
+        away = max(pair[3] - pair[2] for pair in pairs)
+        disagree = sum(1 for pair in pairs if (pair[2] < 0) != (pair[3] < 0))
+        print(f"{len(pairs)} (horizontal rule, label) pairs share an x-range")
+        print(f"  band comes within        {band:6.2f}px of reporting a crossing")
+        print(f"  an exact silhouette      {exact:6.2f}px")
+        print(f"  widest margin given away {away:6.2f}px")
+        print(f"  pairs the two models judge differently: {disagree}")
+        return 0
 
     failures, checked = [], 0
     for scheme in ("light", "dark"):

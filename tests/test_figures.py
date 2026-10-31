@@ -701,3 +701,42 @@ def test_the_trigger_line_no_longer_runs_through_the_note_it_hid_behind(tmp_path
 
     now = audit.audit_geometry(figure("M660 98 V178 M660 218 V266"), quiet=True)
     assert now == [], now
+
+
+def test_the_single_band_per_label_is_not_load_bearing():
+    """The approximation in `_ink`, measured instead of argued about.
+
+    One ink band for a whole label is pessimistic in a known direction: exact
+    for a rule crossing the line of type, too cautious for a rule passing over
+    a word whose only tall letter is at the other end. A silhouette per
+    character would be exact, and the question the queue asked was whether
+    exactness buys anything. It does not, today: across the pairs of
+    horizontal rule and label that share an x-range in the committed figures,
+    the band comes within 6.35px of reporting a crossing where an exact
+    silhouette comes within 10.00px, and no pair is judged differently by the
+    two models.
+
+    Which makes this the trigger rather than the conclusion. The first
+    assertion is the one that matters -- the approximation changes no verdict.
+    The second says the pessimism still has room: if an edit brings a figure
+    within twice `PROXIMITY` of the band firing, the band has become
+    load-bearing, this fails, and the silhouette is worth building after all.
+    Re-measure with `python3 scripts/audit_figures.py --slack`.
+    """
+    audit = _audit()
+    pairs = audit.band_slack()
+    assert pairs, "no rule shares an x-range with a label; this measures nothing"
+
+    disagree = [pair for pair in pairs if (pair[2] < 0) != (pair[3] < 0)]
+    assert not disagree, (
+        "the band and an exact per-character silhouette now reach different "
+        f"verdicts, so the approximation is deciding findings: {disagree[:3]}"
+    )
+
+    tightest = min(pairs, key=lambda pair: pair[2])
+    assert tightest[2] > 2 * audit.PROXIMITY, (
+        f"{tightest[0]} has {tightest[1]!r} within {tightest[2]:.2f}px of the band "
+        f"reporting a crossing, where an exact silhouette would leave "
+        f"{tightest[3]:.2f}px. The one-band-per-label approximation has become "
+        f"load-bearing; see `_ink` and build the silhouette, or move the rule"
+    )
