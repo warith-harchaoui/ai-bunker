@@ -471,6 +471,19 @@ HTTP 413
 }}
 ```
 
+Le même refus existe pour l'autre chose dont une session peut manquer, et il
+est **inactif sauf demande**. `gateway.max_concurrent` borne le nombre de
+tours simultanés contre le moteur ; au-delà, la passerelle répond `429` avec
+`Retry-After` en nommant le réglage, avant d'avoir transmis ou filtré quoi que
+ce soit. Non réglé vaut illimité, et c'est le défaut : le bon chiffre est une
+propriété de la machine et non de ce logiciel — `ai-bunker sizing` l'affiche
+sous `concurrent_sessions` — et une passerelle qui le calculerait à l'exécution
+inventerait une borne, comme une sonde qui relèverait `served_context`
+inventerait de la capacité. Laissé vide, c'est le moteur qui tranche : Ollama
+met en file jusqu'à `OLLAMA_MAX_QUEUE` puis répond `503` en cours de requête,
+vLLM met en file sur `max-num-seqs` et ne refuse jamais, donc l'appelant
+attend. `ai-bunker doctor` dit dans lequel des deux cas vous êtes.
+
 **4 — Filtrer les appels d'outils sortants.** Quand le modèle répond par un
 `tool_call` portant une commande shell, **cette commande n'a pas encore
 tourné**. C'est le seul point d'application qu'aucun client ne peut contourner.
@@ -1077,7 +1090,7 @@ ce tableau le dit.
 | `ai_bunker/sizing.py` + `report.py` — modèle, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — la décision d'achat, chiffrée | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens, détaillée et bloquante | ✅ |
-| 1199 tests, `ruff` propre | ✅ |
+| 1208 tests, `ruff` propre | ✅ |
 | `scripts/lint_acronyms.py` — chaque sigle explicité avant usage | ✅ |
 | `ai_bunker/budget.py` — comptabilité de tokens côté serveur | ✅ |
 | `ai_bunker/charter.py` — index, fiches à la demande, empreinte | ✅ |

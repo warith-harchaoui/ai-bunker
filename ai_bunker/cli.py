@@ -555,6 +555,26 @@ def cmd_doctor(args) -> int:
         "no key: this gateway is open to anyone who can reach it. Fine on a trusted "
         "network, a decision either way",
     )
+    # Reported, never refused, and that is the asymmetry this project applies
+    # everywhere: how many sessions a machine should carry is a *choice* an
+    # operator makes from `ai-bunker sizing`, so it is said out loud and not
+    # imposed. What this cannot do is work the number out and apply it on its
+    # own -- a gateway inventing its own bound is the same mistake as a probe
+    # raising `served_context` from one reply.
+    check(
+        bool(settings.max_concurrent),
+        (
+            f"at most {settings.max_concurrent} turns in flight"
+            if settings.max_concurrent
+            else "turns in flight are unbounded"
+        ),
+        ""
+        if settings.max_concurrent
+        else "no `gateway.max_concurrent`: this gateway forwards everything it is "
+        "given and the engine decides. Ollama queues to OLLAMA_MAX_QUEUE and then "
+        "answers 503 mid-request; vLLM queues on max-num-seqs and never refuses, so "
+        "callers simply wait. `ai-bunker sizing` prints what this machine carries",
+    )
     check(
         settings.sovereign,
         "no route leaves this network",

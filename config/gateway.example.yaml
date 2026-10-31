@@ -12,6 +12,22 @@ gateway:
   # most likely to reach a git history.
   api_key: ${AI_BUNKER_API_KEY}
 
+  # How many turns may be against the engine at once. Unset is unbounded, and
+  # unbounded is the default: the right number is a property of this machine,
+  # not of this software, and `ai-bunker sizing` is what works it out -- read
+  # `concurrent_sessions` off its report. A gateway that guessed would be
+  # inventing a bound, the way a probe that raised `served_context` would be
+  # inventing capacity.
+  #
+  # Set it and anything past it is refused here, by name, with 429 and
+  # Retry-After, before a byte is forwarded or screened. Leave it and the
+  # engine decides instead: Ollama queues to OLLAMA_MAX_QUEUE and then answers
+  # 503 mid-request, vLLM queues on max-num-seqs and never refuses at all. In
+  # both cases the caller is told nothing it can act on, which is the failure
+  # this gateway exists to turn into a named refusal.
+  #
+  # max_concurrent: 4
+
 upstreams:
   local:
     base_url: http://127.0.0.1:8001/v1

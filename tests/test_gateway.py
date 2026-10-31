@@ -1245,3 +1245,226 @@ def test_a_configured_image_route_forwards_to_the_upstream_that_serves_it(client
         needs={},
     ).post("/v1/images/generations", json={"model": "sdxl", "prompt": "a cat"}, headers=AUTH)
     assert by_name.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# How many turns at once, and who gets to say.
+# ---------------------------------------------------------------------------
+
+
+def test_nothing_is_bounded_until_an_operator_says_so():
+    """The default is the behaviour this gateway already had.
+
+    How many sessions a machine carries is a property of the machine --
+    `ai_bunker.sizing` computes it from the key-value cache geometry -- and a
+    gateway that worked it out at runtime and enforced it would be inventing a
+    bound, which is the same mistake as a probe that raises `served_context`
+    from one reply. So: zero means unbounded, zero is the default, and an
+    unset deployment behaves exactly as it did before the setting existed.
+    """
+    from ai_bunker.gateway import InFlight
+
+    open_gate = InFlight(0)
+    assert open_gate.limit == 0
+    places = [open_gate.take() for _ in range(50)]
+    assert all(place is not None for place in places)
+    assert open_gate.held == 0, "an unbounded gate counts nothing it will never refuse"
+
+
+def test_a_place_is_given_back_once_however_many_times_it_is_released():
+    """The handler releases on every path it owns and hands ownership to the
+    streaming generator on the one it does not. Idempotence is what makes that
+    a question of which correct path ran rather than a counter to debug.
+    """
+    from ai_bunker.gateway import InFlight
+
+    gate = InFlight(2)
+    first, second = gate.take(), gate.take()
+    assert first is not None and second is not None
+    assert gate.held == 2
+    assert gate.take() is None, "a third place in a gate of two"
+
+    first.release()
+    first.release()
+    first.release()
+    assert gate.held == 1, "three releases of one place freed three"
+    assert gate.take() is not None
+
+
+def test_a_gateway_at_capacity_refuses_by_name_and_forwards_nothing(client, upstream):
+    """`429` with `Retry-After`, which is what a gateway's own limit looks like.
+
+    The engine's answer to the same situation is what this replaces: Ollama
+    queues to `OLLAMA_MAX_QUEUE` and then returns a bare `503` mid-request,
+    and vLLM queues on `max_num_seqs` and never refuses at all, so the caller
+    simply waits. Neither says anything a client can act on. This one names
+    the setting that produced it.
+    """
+    served = client(max_concurrent=1)
+    state = served.app.state.bunker
+    occupied = state.inflight.take()
+    assert occupied is not None
+    try:
+        response = served.post("/v1/chat/completions", json=_chat(), headers=AUTH)
+    finally:
+        occupied.release()
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "1"
+    error = response.json()["error"]
+    assert error["code"] == "too_many_concurrent_requests"
+    assert error["max_concurrent"] == 1
+    assert "gateway.max_concurrent" in error["message"]
+    assert not upstream.requests, "a refused turn must not reach the engine"
+
+
+def test_the_place_comes_back_when_a_turn_ends(client, upstream):
+    served = client(max_concurrent=1)
+    state = served.app.state.bunker
+    for _ in range(3):
+        assert served.post("/v1/chat/completions", json=_chat(), headers=AUTH).status_code == 200
+        assert state.inflight.held == 0, "a finished turn kept its place"
+
+
+def test_the_place_comes_back_when_the_turn_is_refused_on_the_way_in(client, upstream):
+    """The `finally` has to cover the early returns too, and there are four of
+    them between taking a place and forwarding. This exercises the unread
+    `413`, which is the first and the one that returns before anything has
+    been screened at all.
+    """
+    small = {"local": Upstream(name="local", base_url="http://up.test/v1", served_context=100)}
+    served = client(max_concurrent=1, upstreams=small)
+    state = served.app.state.bunker
+
+    response = served.post(
+        "/v1/chat/completions",
+        json=_chat(messages=[{"role": "user", "content": "x" * 5_000}]),
+        headers=AUTH,
+    )
+    assert response.status_code == 413
+    assert state.inflight.held == 0, "a refused turn kept its place"
+
+
+def test_embeddings_are_counted_with_everything_else(client, upstream):
+    """A bound that covered only `/v1/chat/completions` is a bound one
+    `/v1/embeddings` loop walks around. The engine does not care which
+    endpoint asked: a running embedding occupies a slot.
+    """
+    served = client(max_concurrent=1)
+    state = served.app.state.bunker
+    occupied = state.inflight.take()
+    assert occupied is not None
+    try:
+        response = served.post(
+            "/v1/embeddings", json={"model": "devstral", "input": "hello"}, headers=AUTH
+        )
+    finally:
+        occupied.release()
+    assert response.status_code == 429
+    assert state.inflight.held == 0
+
+
+def test_a_stream_holds_its_place_until_the_last_byte():
+    """`StreamingResponse` returns the moment the generator is handed over.
+
+    A place released in the handler would be free while the engine is still
+    generating into the stream it stands for, so the bound would be on turns
+    *starting* rather than turns in flight -- the opposite of the point.
+
+    Tested at the seam rather than through the application, and that is not
+    laziness: `TestClient` drains an event stream before it returns the
+    response object, so by the time a test could look, the generator has
+    finished and the count is legitimately zero. A test written against the
+    client would pass whether the release happened at the first byte or the
+    last, which is the one thing worth knowing here.
+    """
+    import asyncio
+
+    from ai_bunker.gateway import InFlight, _release_after
+
+    gate = InFlight(1)
+    slot = gate.take()
+    assert slot is not None
+
+    async def frames():
+        for piece in (b"one", b"two", b"three"):
+            yield piece
+
+    async def drain() -> list[bytes]:
+        seen = []
+        async for chunk in _release_after(frames(), slot):
+            assert gate.held == 1, "the place went back before the stream ended"
+            seen.append(chunk)
+        return seen
+
+    assert asyncio.run(drain()) == [b"one", b"two", b"three"]
+    assert gate.held == 0
+
+
+def test_a_reader_who_walks_away_mid_stream_gives_the_place_back():
+    """The failure that would only appear in production, and only slowly.
+
+    Closing a response closes the generator relaying it, which raises
+    `GeneratorExit` at the `yield` -- so the release has to be in a `finally`
+    rather than after the loop. Without it, a gateway bounded at N refuses
+    everybody after N disconnections and recovers only on restart: a bound
+    that tightens every time a reader is impatient.
+
+    The engine here never stops, which is the case that matters. A generator
+    that ends on its own would hide the defect completely.
+    """
+    import asyncio
+
+    from ai_bunker.gateway import InFlight, _release_after
+
+    gate = InFlight(1)
+    slot = gate.take()
+    assert slot is not None
+
+    async def endless():
+        while True:
+            yield b"tok "
+
+    async def leave() -> None:
+        relay = _release_after(endless(), slot)
+        async for _ in relay:
+            break  # one frame, then the reader is gone
+        assert gate.held == 1, "merely pausing a stream is not ending it"
+        await relay.aclose()  # what closing the response does
+
+    asyncio.run(leave())
+    assert gate.held == 0, "an abandoned stream kept its place for good"
+
+
+def test_a_stream_through_the_gateway_leaks_no_place(client, streaming_upstream):
+    """And the same property through the application, where what can be
+    observed is only that nothing leaked: read one to the end, abandon the
+    next, and a third must still be admitted.
+    """
+    served = client(max_concurrent=1)
+    state = served.app.state.bunker
+
+    with served.stream(
+        "POST", "/v1/chat/completions", json=_chat(stream=True), headers=AUTH
+    ) as response:
+        assert response.status_code == 200
+        response.read()
+    assert state.inflight.held == 0
+
+    with served.stream(
+        "POST", "/v1/chat/completions", json=_chat(stream=True), headers=AUTH
+    ) as response:
+        assert response.status_code == 200
+        next(response.iter_lines())
+    assert state.inflight.held == 0, "an abandoned stream kept its place"
+
+    # A third, through the same single place, which is the point: a gateway
+    # whose only slot survived both a completed stream and an abandoned one.
+    # Streamed like the others because `streaming_upstream` answers every
+    # request with Server-Sent Events, atomic or not.
+    with served.stream(
+        "POST", "/v1/chat/completions", json=_chat(stream=True), headers=AUTH
+    ) as response:
+        assert response.status_code == 200, "the gateway never got its place back"
+        response.read()
+    assert state.inflight.held == 0

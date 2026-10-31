@@ -139,6 +139,10 @@ class State:
         #: the work, and a cancelled caller leaves it held until that work
         #: finishes.
         self.pipeline = threading.Lock()
+        #: Turns in flight against the engine. Unbounded unless an operator
+        #: says otherwise -- see `InFlight`, and `Settings.max_concurrent`
+        #: for why this gateway declines to work the number out for itself.
+        self.inflight = InFlight(settings.max_concurrent)
         self.breaker = Breaker(threshold=settings.breaker_refusals, window=settings.breaker_window)
         self.pins = Pins()
         self.approved_tools = (
@@ -257,6 +261,121 @@ def _authenticate(request: Request) -> None:
                 }
             },
         )
+
+
+class Slot:
+    """One place in flight, given back exactly once however the turn ends.
+
+    Idempotent on purpose: the handler releases on every path it owns, and
+    hands ownership to the streaming generator on the one it does not, so a
+    double release is a question of which of two correct code paths ran first
+    rather than a bug to track down.
+    """
+
+    __slots__ = ("_owner",)
+
+    def __init__(self, owner: InFlight | None) -> None:
+        self._owner = owner
+
+    def release(self) -> None:
+        owner, self._owner = self._owner, None
+        if owner is not None:
+            owner.give_back()
+
+
+class InFlight:
+    """How many turns may be against the engine at once.
+
+    **Zero is unbounded, and that is the default.** The right number is a
+    property of the machine rather than of this software --
+    :mod:`ai_bunker.sizing` works it out from the key-value cache geometry as
+    ``concurrent_sessions`` -- and a gateway that read it off a catalogue at
+    runtime would be inventing a bound, which is the same mistake as a probe
+    that raises ``served_context``. An operator sets it or nothing refuses.
+
+    What it is for, when it is set: the layer below queues and then gives up
+    without explaining. Ollama queues to ``OLLAMA_MAX_QUEUE`` and answers
+    ``503`` to whatever arrives after that, mid-request; vLLM queues on
+    ``max_num_seqs`` and never refuses at all, so the client simply waits.
+    Neither tells the caller anything it can act on, and converting exactly
+    that into a named refusal *before* anything is forwarded is what this
+    gateway is for. The bound here is the one quantity it can know exactly --
+    its own turns in flight -- rather than one it would have to guess.
+
+    A threading lock, like ``State.pipeline`` and for a smaller version of the
+    same reason: the count is touched from the event loop and from the
+    generator draining a stream, and the critical section is an increment, so
+    nothing is ever held across an ``await``.
+    """
+
+    __slots__ = ("_held", "_lock", "limit")
+
+    def __init__(self, limit: int) -> None:
+        self.limit = max(0, int(limit))
+        self._held = 0
+        self._lock = threading.Lock()
+
+    @property
+    def held(self) -> int:
+        with self._lock:
+            return self._held
+
+    def take(self) -> Slot | None:
+        """A slot, or ``None`` when the gateway is full."""
+        if not self.limit:
+            return Slot(None)
+        with self._lock:
+            if self._held >= self.limit:
+                return None
+            self._held += 1
+        return Slot(self)
+
+    def give_back(self) -> None:
+        with self._lock:
+            self._held = max(0, self._held - 1)
+
+
+def _at_capacity(limit: int) -> JSONResponse:
+    """The refusal, shaped the way the field shapes it.
+
+    ``429`` with ``Retry-After``, which is what a gateway's own limit looks
+    like to a client that knows how to back off -- and distinguishable from
+    the engine's ``503``, which means the layer below ran out of queue. The
+    number is named so the person reading the error can find the setting that
+    produced it.
+    """
+    response = _error(
+        429,
+        f"This gateway already has {limit} turns in flight, which is the "
+        f"`gateway.max_concurrent` it is configured with. Nothing was forwarded and "
+        f"nothing was screened. Retry in a moment, or raise the setting if this "
+        f"machine was sized for more than {limit} concurrent sessions.",
+        "too_many_concurrent_requests",
+        max_concurrent=limit,
+    )
+    response.headers["Retry-After"] = "1"
+    return response
+
+
+async def _release_after(stream: Any, slot: Slot) -> Any:
+    """Hold the slot until the last byte, not until the response object exists.
+
+    `StreamingResponse` returns the moment the generator is handed to it, so a
+    slot released in the handler would be free while the stream it stands for
+    is still running: the bound would be on turns *starting* rather than turns
+    in flight, which is the opposite of the point.
+
+    Released in a `finally`, which is also what covers a client that walks
+    away mid-stream -- the generator is closed, `GeneratorExit` is raised at
+    the `yield`, and the place goes back. A stream that kept its slot after
+    the reader left would be a gateway that refuses everybody after N
+    disconnections, recovering only on restart.
+    """
+    try:
+        async for chunk in stream:
+            yield chunk
+    finally:
+        slot.release()
 
 
 def _error(status: int, message: str, code: str, **extra: Any) -> JSONResponse:
@@ -639,81 +758,104 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session = session_of(
             body, header=request.headers.get(SESSION_HEADER, ""), credential=s.api_key
         )
-        try:
-            applied = await run_in_threadpool(
-                _prepare_serialised, state, body, upstream, locale=locale, session=session
-            )
-        except RequestTooLarge as exc:
-            # Refused unread. Nothing is audited, because nothing was
-            # screened and an audit line claiming otherwise would be the lie
-            # this gateway exists to avoid.
-            return _error(
-                413,
-                str(exc),
-                "request_too_large",
-                characters=exc.chars,
-                ceiling=exc.ceiling,
-            )
-        state.audit(applied.audit())
-
-        if s.enforce_budget and not applied.ok:
-            assert applied.budget is not None
-            biggest = applied.budget.biggest
-            # Refused here, with the component named, rather than downstream as
-            # a context-length error nobody can act on.
-            return _error(
-                413,
-                "This session has no room to work. " + " ".join(applied.budget.warnings),
-                "context_budget_exhausted",
-                budget=applied.budget.to_dict(),
-                attack_first=biggest.name if biggest else None,
-            )
-
-        if upstream.remote:
-            # Named with its reason: a request that silently went off-network
-            # is the failure that shows up on an invoice rather than in a log.
-            osh.warning(
-                f"[gateway] {model!r} -> {upstream.name} by {why}; this request "
-                "leaves the local network."
-            )
-
-        if body.get("stream"):
-            return StreamingResponse(
-                _stream(state, applied.request, upstream, locale=locale, session=session),
-                media_type="text/event-stream",
-            )
+        # Taken before anything is screened, and refused before anything is
+        # forwarded. A gateway at capacity that screens first pays for work it
+        # is about to throw away, which is the opposite of shedding load; and
+        # nothing is audited for the same reason the unread 413 below audits
+        # nothing -- an audit line about a request nobody screened is the lie
+        # this gateway exists to avoid.
+        slot = state.inflight.take()
+        if slot is None:
+            return _at_capacity(state.inflight.limit)
 
         try:
-            response = await _forward(applied.request, upstream, "/chat/completions", request)
-        except ClientGone:
-            return _error(
-                499,
-                "The client disconnected before the engine answered; the upstream "
-                "call was cancelled.",
-                "client_disconnected",
-            )
-        except httpx.HTTPError as exc:
-            return _error(502, f"Upstream {upstream.name} is unreachable: {exc}", "upstream_error")
+            try:
+                applied = await run_in_threadpool(
+                    _prepare_serialised, state, body, upstream, locale=locale, session=session
+                )
+            except RequestTooLarge as exc:
+                # Refused unread. Nothing is audited, because nothing was
+                # screened and an audit line claiming otherwise would be the lie
+                # this gateway exists to avoid.
+                return _error(
+                    413,
+                    str(exc),
+                    "request_too_large",
+                    characters=exc.chars,
+                    ceiling=exc.ceiling,
+                )
+            state.audit(applied.audit())
 
-        if s.enforce_commands:
-            outbound = apply_outbound(
-                response,
-                rules=state.rules,
-                charter_fingerprint=state.charter.fingerprint[:16],
-                project_root=s.project_root or None,
-                check_payments=s.check_payments,
-                trust=state.trust(),
-                locale=locale,
-                breaker=state.breaker,
-                session=session,
-            )
-            state.audit(outbound.audit())
-            if outbound.refusal is not None:
-                response = _substitute_refusal(response, outbound.refusal)
+            if s.enforce_budget and not applied.ok:
+                assert applied.budget is not None
+                biggest = applied.budget.biggest
+                # Refused here, with the component named, rather than downstream as
+                # a context-length error nobody can act on.
+                return _error(
+                    413,
+                    "This session has no room to work. " + " ".join(applied.budget.warnings),
+                    "context_budget_exhausted",
+                    budget=applied.budget.to_dict(),
+                    attack_first=biggest.name if biggest else None,
+                )
 
-        return response
+            if upstream.remote:
+                # Named with its reason: a request that silently went off-network
+                # is the failure that shows up on an invoice rather than in a log.
+                osh.warning(
+                    f"[gateway] {model!r} -> {upstream.name} by {why}; this request "
+                    "leaves the local network."
+                )
 
-    # -- embeddings ------------------------------------------------------
+            if body.get("stream"):
+                # Ownership of the place moves to the generator: a stream is in
+                # flight long after this function has returned, and the `finally`
+                # below would hand the slot back while the engine is still
+                # generating into it.
+                relayed = _release_after(
+                    _stream(state, applied.request, upstream, locale=locale, session=session),
+                    slot,
+                )
+                slot = None
+                return StreamingResponse(relayed, media_type="text/event-stream")
+
+            try:
+                response = await _forward(applied.request, upstream, "/chat/completions", request)
+            except ClientGone:
+                return _error(
+                    499,
+                    "The client disconnected before the engine answered; the upstream "
+                    "call was cancelled.",
+                    "client_disconnected",
+                )
+            except httpx.HTTPError as exc:
+                return _error(
+                    502, f"Upstream {upstream.name} is unreachable: {exc}", "upstream_error"
+                )
+
+            if s.enforce_commands:
+                outbound = apply_outbound(
+                    response,
+                    rules=state.rules,
+                    charter_fingerprint=state.charter.fingerprint[:16],
+                    project_root=s.project_root or None,
+                    check_payments=s.check_payments,
+                    trust=state.trust(),
+                    locale=locale,
+                    breaker=state.breaker,
+                    session=session,
+                )
+                state.audit(outbound.audit())
+                if outbound.refusal is not None:
+                    response = _substitute_refusal(response, outbound.refusal)
+
+            return response
+
+        finally:
+            if slot is not None:
+                slot.release()
+
+    # -- embeddings ----------------------------------------------------------
 
     @app.post("/v1/embeddings", dependencies=[Depends(_authenticate)])
     async def embeddings(request: Request):
@@ -739,6 +881,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 characters=size,
                 ceiling=ceiling,
             )
+        # Bounded with the same counter as a completion, and the reason is that
+        # the engine does not care which endpoint asked: an embedding occupies a
+        # slot while it runs. A bound that covered only `/v1/chat/completions`
+        # would be a bound one `/v1/embeddings` loop walks around, which is a
+        # setting that reads like protection and is not. Nothing streams here,
+        # so the place goes back in a plain `finally`.
+        slot = state.inflight.take()
+        if slot is None:
+            return _at_capacity(state.inflight.limit)
         try:
             upstream = state.settings.upstream_for(str(body.get("model") or ""))
             return await _forward(body, upstream, "/embeddings", request)
@@ -753,6 +904,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return _error(400, str(exc), "model_not_found")
         except httpx.HTTPError as exc:
             return _error(502, f"Upstream unreachable: {exc}", "upstream_error")
+        finally:
+            slot.release()
 
     # -- images ----------------------------------------------------------
 

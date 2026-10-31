@@ -174,14 +174,23 @@ believes.
 - **Throughput: Bifrost.** Written in Go specifically to get out from under Python's
   global interpreter lock, with semantic caching. This is Python in the request path,
   and honest about it.
-- **Admission accounting: `go-llmflow/gateway`, and this one is a hole.** Its budget
-  work reserves a request's **worst-case** cost before admitting it and settles
+- **Admission accounting: `go-llmflow/gateway`, and this entry was half stale.** Its
+  budget work reserves a request's **worst-case** cost before admitting it and settles
   afterwards, because counting after the response lets concurrent requests all check
   against the same figure and overshoot together — measured there at 3.3× the limit
-  under concurrency against 0.03% with holds. This project screens and measures a
-  request, then admits it; `max_tokens` does not enter the ceiling check at all, so a
-  request admitted just under the line can produce a turn that is over it. The
-  arithmetic is the same arithmetic and it is not implemented here yet.
+  under concurrency against 0.03% with holds. This entry then said `max_tokens` does
+  not enter the ceiling check here. It does, and has since round 29: `pipeline.py`
+  reads the client's declared worst case and `budget.py` refuses on it, so a request
+  that cannot produce one turn is now refused by name rather than admitted. Corrected
+  rather than quietly deleted, because a comparison that undersells one side is as
+  wrong as one that oversells it.
+  What does not carry over is the holds themselves, and the reason is structural: the
+  overshoot they prevent needs a limit that *accumulates* across requests — a spend
+  cap, a tokens-per-minute budget — and this gateway has none. Its ceiling is
+  `served_context`, which the engine serves per sequence, so concurrent turns take
+  separate slots with separate windows and there is no shared figure to draw down.
+  What concurrency does contend for is engine slots, and that now has a bound of its
+  own: `gateway.max_concurrent`, off unless an operator sets it.
 - **Governance: `agentgateway`.** It is a Linux Foundation project with an
   institutional home for the gateway layer. This is one author's repository. For
   anyone whose procurement asks who owns the thing, that is the answer and it is not
@@ -211,11 +220,13 @@ None of this was invented here, and saying so costs nothing.
   named here as the best idea in this survey that this project had not taken, and it is
   taken now: `tool.contract_changed`, in two tiers. What is still theirs alone is
   knowing which server a tool came from, which an OpenAI-shaped request does not say.
-- **`go-llmflow/gateway`: reserve, then settle.** The pattern above, named here
-  because it is the best idea in this survey that this project has **not** taken. A
-  gate that checks and then admits is a gate that two concurrent requests walk
-  through together. Recorded in `.private/ASSESSMENTS.md` as the next round's work
-  rather than claimed here as a feature.
+- **`go-llmflow/gateway`: reserve, then settle.** The pattern above. Taken as far as
+  it applies: the declared worst case enters the ceiling, which is the half that was
+  missing. The holds are not taken, and that is a finding rather than a backlog item
+  — they exist to stop concurrent requests overshooting a limit that accumulates, and
+  nothing here accumulates. Reading the pattern against the code is what established
+  that; carrying it as "next round's work" for three rounds is what stopped anybody
+  from doing so.
 - **Envoy AI Gateway: attribution applies to money too.** Per-team cost attribution
   is the floor-by-owner argument pointed at the invoice instead of the window. The
   two are the same sentence — a number nobody can decompose is a number nobody can

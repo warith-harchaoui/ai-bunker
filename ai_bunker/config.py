@@ -164,6 +164,21 @@ class Settings:
     #: Width of that window in seconds, and how long a stopped session stays
     #: stopped before it recovers on its own.
     breaker_window: int = BREAKER_WINDOW
+    #: How many requests may be in flight against the engine at once. **Zero
+    #: is unbounded and is the default**, which is what this gateway did
+    #: before the setting existed, because the right number is a property of
+    #: the machine and not of this software: `ai_bunker.sizing` computes it
+    #: from the key-value cache geometry as `concurrent_sessions`, and a
+    #: gateway that guessed it at runtime would be inventing a bound the way a
+    #: probe raising `served_context` would be inventing capacity.
+    #:
+    #: Set it and the gateway refuses past it, by name and before forwarding,
+    #: with `429` and `Retry-After`. Leave it and the engine decides: Ollama
+    #: queues to `OLLAMA_MAX_QUEUE` and then answers `503` mid-request, vLLM
+    #: queues on `max_num_seqs` and never refuses. Either way the client is
+    #: told nothing it can act on, which is the failure this project exists to
+    #: turn into a named refusal.
+    max_concurrent: int = 0
     #: OTLP/HTTP collector base URL. The decision log is already a trajectory
     #: record; this ships it where trajectory-evaluation tooling can read it.
     #: Empty disables export entirely -- and a collector that is down never
@@ -347,7 +362,7 @@ def _warn_about_duplicates(text: str, path: Path) -> None:
 #: operator chooses. A `needs` entry written in long form does have fixed
 #: keys, and those are checked.
 SECTION_KEYS: dict[str, frozenset[str]] = {
-    "gateway": frozenset({"api_key"}),
+    "gateway": frozenset({"api_key", "max_concurrent"}),
     "budget": frozenset({"compaction_reserve", "declared_fraction", "min_working_tokens"}),
     "enforcement": frozenset(
         {
@@ -577,6 +592,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
 
     settings = Settings(
         api_key=api_key,
+        max_concurrent=int(gateway.get("max_concurrent") or 0),
         charter_dir=str(raw.get("charter_dir") or "charter"),
         rules_dir=str(raw.get("rules_dir") or "charter/rules"),
         upstreams=upstreams,

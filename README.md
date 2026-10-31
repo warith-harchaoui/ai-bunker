@@ -438,6 +438,19 @@ HTTP 413
 }}
 ```
 
+The same refusal exists for the other thing a session can run out of, and it
+is **off unless you ask for it**. `gateway.max_concurrent` bounds how many
+turns may be against the engine at once; past it the gateway answers `429`
+with `Retry-After`, naming the setting, before anything is forwarded or
+screened. Unset is unbounded and is the default, because the right number is a
+property of the machine rather than of this software — `ai-bunker sizing`
+prints it as `concurrent_sessions`, and a gateway that worked it out at
+runtime would be inventing a bound the way a probe that raised
+`served_context` would be inventing capacity. Leave it unset and the engine
+decides instead: Ollama queues to `OLLAMA_MAX_QUEUE` and then answers `503`
+mid-request, vLLM queues on `max-num-seqs` and never refuses, so the caller
+waits. `ai-bunker doctor` says which of the two you are running.
+
 **4 — Screen outbound tool calls.** When the model answers with a `tool_call`
 carrying a shell command, **that command has not run yet**. This is the one
 enforcement point no client can bypass. The refusal comes back shaped as a
@@ -1004,7 +1017,7 @@ Nothing above is a claim about shipped code unless this table says so.
 | `ai_bunker/sizing.py` + `report.py` — roofline model, catalogue, CLI | ✅ |
 | `docs/SIZING.md` — the buying decision, costed | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting, itemised and gated | ✅ |
-| 1199 tests, `ruff` clean | ✅ |
+| 1208 tests, `ruff` clean | ✅ |
 | `scripts/lint_acronyms.py` — every abbreviation spelled out before use | ✅ |
 | `ai_bunker/budget.py` — server-side token accounting | ✅ |
 | `ai_bunker/charter.py` — index, pages on demand, fingerprint | ✅ |

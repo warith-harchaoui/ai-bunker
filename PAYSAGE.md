@@ -190,14 +190,26 @@ et aucun moyen d'utiliser le modèle sans elle.
   40 kilooctets. Le filtrage croît avec ce qui arrive, et c'est la raison d'être du
   plafond de requête. Face à un modèle qui met des secondes à répondre, les deux
   premiers disparaissent ; le troisième non, et un proxy en Go ne le paierait pas.
-- **Comptabilité à l'admission : `go-llmflow/gateway`, et là c'est un trou.** Son
-  travail sur les budgets réserve le coût **pire cas** d'une requête avant de
-  l'admettre, puis régularise après — parce que compter après la réponse laisse des
-  requêtes concurrentes se mesurer toutes au même chiffre et dépasser ensemble :
-  3,3× la limite sous concurrence là-bas, contre 0,03 % avec réservation. Ce projet
-  filtre et mesure une requête, puis l'admet ; `max_tokens` n'entre pas du tout dans
-  le plafond, donc une requête admise juste sous la ligne peut produire un tour
-  au-dessus. C'est la même arithmétique, et elle n'est pas encore écrite ici.
+- **Comptabilité à l'admission : `go-llmflow/gateway`, et cette entrée était à
+  moitié périmée.** Son travail sur les budgets réserve le coût **pire cas** d'une
+  requête avant de l'admettre, puis régularise après — parce que compter après la
+  réponse laisse des requêtes concurrentes se mesurer toutes au même chiffre et
+  dépasser ensemble : 3,3× la limite sous concurrence là-bas, contre 0,03 % avec
+  réservation. Cette entrée disait ensuite que `max_tokens` n'entrait pas dans le
+  plafond ici. Il y entre, et depuis le tour 29 : `pipeline.py` lit le pire cas
+  déclaré par le client et `budget.py` refuse dessus, donc une requête incapable de
+  produire un tour est refusée par son nom au lieu d'être admise. Corrigé plutôt que
+  supprimé en silence : une comparaison qui sous-vend un camp est aussi fausse que
+  celle qui le survend.
+  Ce qui ne se transpose pas, ce sont les réservations elles-mêmes, et la raison est
+  structurelle : le dépassement qu'elles empêchent suppose une limite qui
+  **s'accumule** entre requêtes — un plafond de dépense, un budget de tokens par
+  minute — et cette passerelle n'en a aucune. Son plafond est `served_context`, que le
+  moteur sert par séquence : des tours concurrents prennent des emplacements distincts
+  avec chacun sa fenêtre, il n'y a pas de chiffre commun à décompter. Ce que la
+  concurrence se dispute vraiment, ce sont les emplacements du moteur, et cela a
+  désormais sa propre borne : `gateway.max_concurrent`, inactive sauf si un opérateur
+  la règle.
 - **Gouvernance : `agentgateway`.** C'est un projet de la Linux Foundation, avec un
   foyer institutionnel pour la couche passerelle. Ceci est le dépôt d'un seul auteur.
   Pour quiconque doit répondre à un achat qui demande à qui appartient la chose,
@@ -230,11 +242,13 @@ Rien de tout cela n'a été inventé ici, et le dire ne coûte rien.
   projet n'avait pas prise ; elle l'est désormais : `tool.contract_changed`, en deux
   niveaux. Ce qui leur reste en propre, c'est de savoir de quel serveur vient un outil,
   ce qu'une requête au format OpenAI ne dit pas.
-- **`go-llmflow/gateway` : réserver, puis régulariser.** Le motif ci-dessus, nommé ici
-  parce que c'est la meilleure idée de ce relevé que ce projet **n'a pas** prise. Une
-  barrière qui vérifie puis admet est une barrière que deux requêtes concurrentes
-  franchissent ensemble. Consignée dans `.private/ASSESSMENTS.md` comme le travail du
-  tour suivant, plutôt que revendiquée ici comme une fonctionnalité.
+- **`go-llmflow/gateway` : réserver, puis régulariser.** Le motif ci-dessus, pris
+  aussi loin qu'il s'applique : le pire cas déclaré entre dans le plafond, c'était la
+  moitié qui manquait. Les réservations, elles, ne sont pas prises — et c'est un
+  constat, pas un reliquat : elles existent pour empêcher des requêtes concurrentes de
+  dépasser une limite qui s'accumule, et rien ici ne s'accumule. C'est en lisant le
+  motif contre le code qu'on l'établit ; le porter trois tours comme « travail du tour
+  suivant » est ce qui a empêché quiconque de le faire.
 - **Envoy AI Gateway : l'attribution vaut aussi pour l'argent.** L'attribution des
   coûts par équipe, c'est l'argument du plancher-par-propriétaire pointé vers la
   facture au lieu de la fenêtre. Les deux sont la même phrase — un nombre que personne
