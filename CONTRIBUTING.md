@@ -118,7 +118,7 @@ asserts a path exists, a glob — rehearse against the committed files only:
 git archive HEAD | tar -x -C /tmp/rehearsal
 cd /tmp/rehearsal && python3 -m venv .venv
 .venv/bin/pip install -q -e ".[api,mcp,dev]"
-CI=1 .venv/bin/python -m pytest -q
+CI=1 AI_BUNKER_SITE="$PWD/pyproject.toml" .venv/bin/python -m pytest -q
 ```
 
 `git archive` exports exactly what is committed: no ignored files, no `.git`,
@@ -126,6 +126,18 @@ no local extras. It is slower than running the suite in place and it is the
 only check that answers *what does somebody else get*. It found a test calling
 `git rev-parse` with `check=True` in a tree that has no git, and a glob that
 resolved only on the machine that had run a renderer.
+
+**`AI_BUNKER_SITE` is in that command for a reason, and it was missing from
+it for longer than it should have been.** `git archive` exports the
+repository; it does not move the *website*, which `adopt.site_root()` finds
+by absolute path wherever the suite happens to be unpacked. So a rehearsal
+without that variable is a clone of this repository sitting next to a
+checkout the lane does not have — and the fixtures that skip when the site is
+absent go on not skipping. A test that depends on the site being there passes
+the rehearsal and fails in continuous integration, which is precisely what it
+did: pointing the variable at a file that is not a site is what makes the two
+agree. The weaker in-place command above had the variable all along; the
+stricter one did not, which is the wrong way round.
 
 Two checks are deliberately **not** in that list.
 
