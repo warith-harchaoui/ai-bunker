@@ -145,3 +145,71 @@ def test_every_guarded_claim_explains_itself(guard):
     for claim in guard.CLAIMS:
         assert claim.because.strip(), claim.name
         assert claim.forbidden or claim.required_somewhere, claim.name
+
+
+def test_every_registered_claim_can_actually_be_broken(guard, monkeypatch):
+    """The figure audit's harness, pointed at the claim linter.
+
+    Round 36 broke the committed figures on purpose and the two mutations
+    that slipped through led to a caption running off the canvas for half the
+    world's browsers. This is the same question asked of the other gate that
+    reads prose: is every claim in the register one this script can actually
+    catch somebody contradicting?
+
+    Two mutations per claim, both in memory so no file is touched. Each
+    forbidden phrase is appended to the first file the claim guards, and the
+    claim's name has to come back. Then every required phrase is deleted from
+    everywhere, and the name has to come back again.
+
+    It found nothing: fourteen planted phrases, eight stripped requirements,
+    no misses. That is worth keeping rather than worth celebrating — what it
+    locks is the mistake nobody has made yet, a claim registered with a
+    phrase that cannot match anything, which would sit in the register
+    looking like protection and be none.
+    """
+    real_read = guard._read
+    assert guard.check() == [], "the repository is not clean; this measures nothing"
+
+    deaf: list[str] = []
+    planted = 0
+
+    for claim in guard.CLAIMS:
+        target = claim.files[0]
+
+        for phrase in claim.forbidden:
+
+            def planted_read(relative, _phrase=phrase, _target=target):
+                text = real_read(relative)
+                if text is None:
+                    return None
+                return f"{text}\n{_phrase}\n" if relative == _target else text
+
+            monkeypatch.setattr(guard, "_read", planted_read)
+            reported = guard.check()
+            monkeypatch.setattr(guard, "_read", real_read)
+            planted += 1
+            if not any(claim.name in line for line in reported):
+                deaf.append(f"{claim.name}: {phrase[:48]!r} planted in {target}, not reported")
+
+        if claim.required_somewhere:
+
+            def stripped_read(relative, _claim=claim):
+                text = real_read(relative)
+                if text is None:
+                    return None
+                for phrase in _claim.required_somewhere:
+                    text = text.replace(phrase, "")
+                return text
+
+            monkeypatch.setattr(guard, "_read", stripped_read)
+            reported = guard.check()
+            monkeypatch.setattr(guard, "_read", real_read)
+            planted += 1
+            if not any(claim.name in line for line in reported):
+                deaf.append(f"{claim.name}: every required phrase removed, not reported")
+
+    assert planted >= 20, f"only {planted} mutations; this stopped exercising the register"
+    assert not deaf, (
+        "a claim is registered that this script cannot catch anybody contradicting, "
+        f"so it is protection in name only: {deaf}"
+    )
