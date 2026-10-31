@@ -167,15 +167,23 @@ addopts = "-q -p no:deepeval -p no:langsmith_plugin -p no:hydra_pytest -p no:fak
 # in a `gate` job that runs once. This is the same argument applied to the
 # gates that live inside the suite rather than beside it.
 #
-# Measured where it can be measured. The 3.10 leg of the lane takes 63
-# seconds, read off the step itself over three runs. What the deselection
-# takes off that 63 is *not* written down here, and the reason is worth
-# keeping: the maintainer's machine runs other work, and two back-to-back
-# rehearsals of one unchanged tree put the saving at 8.6 seconds and then at
-# 1.4. A number that moves by a factor of six between two readings has not
-# been measured, it has been sampled, and a projected figure is the one thing
-# this repository does not let itself publish. The lane is the quiet machine,
-# so the lane is what gets to say, once this has run there.
+# Measured, and measured in the lane, because this machine could not. Two
+# back-to-back rehearsals of one unchanged tree put the saving at 8.6 seconds
+# and then at 1.4, the maintainer's machine running other sessions throughout.
+# A number that moves by a factor of six between two readings has been
+# sampled, not measured, and a projected figure is the one thing this
+# repository does not let itself publish.
+#
+# The lane is the quiet machine. Its 3.10 `Tests` step took 63, 63 and 69
+# seconds over the three runs before this one; it takes 44 now. So: about 19
+# seconds off a 63-second leg.
+#
+# What that 19 does not say, because one run cannot separate it: two changes
+# land on this leg at once. The deselection is one. The other is that the two
+# `test_site.py` tests it deselects were the only callers of a
+# `--collect-only` subprocess that re-imports the whole suite, so the leg
+# stopped paying for that too. 19 seconds is what the round took off 3.10,
+# not what the marker took off alone.
 #
 # What it gives up, stated rather than implied: a defect that appears when one
 # of those gates runs under 3.10 and not under 3.13 would now reach a release.
