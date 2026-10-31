@@ -119,15 +119,24 @@ def _looks_like_a_path(token: str) -> bool:
 def _resolves(token: str) -> bool:
     """Whether a ticked path names something in this repository.
 
-    A full relative path is checked as written; a pattern with `*` is matched,
-    because a handoff legitimately points at `video/film/renders/*.mp4` rather
-    than at one render. A bare basename -- `ci.yml`, `pipeline.py`, the way
-    prose names a file whose directory the reader already knows -- is resolved
-    by searching, because requiring the full path everywhere would make a
-    handoff unreadable to buy nothing.
+    A full relative path is checked as written. A bare basename -- `ci.yml`,
+    `pipeline.py`, the way prose names a file whose directory the reader
+    already knows -- is resolved by searching, because requiring the full path
+    everywhere would make a handoff unreadable to buy nothing.
+
+    **A pattern is a location, not a file, and is not checked.** The first
+    version of this matched the glob, which was wrong in a way worth recording
+    because it is the mistake this repository keeps making in both directions:
+    `video/film/renders/*.mp4` resolved on the machine that had rendered the
+    film and nowhere else, so the gate passed here and turned the lane red on
+    the first push. The MP4 is deliberately not committed -- the handoff is
+    telling the next session where renders *land*, which is a claim about a
+    place and not about a file that must be present. What this gives up is
+    catching a pattern whose directory has moved; what it buys is a gate whose
+    answer does not depend on who ran a renderer.
     """
     if "*" in token:
-        return any(ROOT.glob(token))
+        return True
     if (ROOT / token).exists():
         return True
     if "/" in token:

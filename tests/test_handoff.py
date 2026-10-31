@@ -119,14 +119,22 @@ def test_a_bare_basename_is_resolved_by_searching(guard, handoff):
     assert guard.dead_paths() == []
 
 
-def test_a_render_pattern_is_a_claim_about_a_directory(guard, handoff):
-    """`video/film/renders/*.mp4` points at whatever was rendered, not at one
-    file, and the first version of this reported it as missing."""
+def test_a_pattern_is_a_place_and_is_not_checked(guard, handoff):
+    """`video/film/renders/*.mp4` names where renders land, not a file that
+    must be present — the MP4 is deliberately not committed.
+
+    The first version matched the glob, and that is the finding worth keeping:
+    it resolved on the machine that had rendered the film, passed every local
+    gate, and turned the lane red on the first push. A check whose answer
+    depends on who ran a renderer is not a check. Both patterns below are
+    silent, including the one naming an extension nothing has ever produced,
+    because neither is a claim this gate can decide.
+    """
     handoff("| Rendu | `video/film/renders/*.mp4` — 1 min 54 s |\n")
     assert guard.dead_paths() == []
 
     handoff("| Rendu | `video/film/renders/*.mov` |\n")
-    assert len(guard.dead_paths()) == 1
+    assert guard.dead_paths() == []
 
 
 def test_a_function_written_with_its_module_is_not_a_path(guard, handoff):
