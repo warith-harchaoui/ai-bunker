@@ -893,3 +893,51 @@ def test_the_geometry_audit_catches_a_defect_planted_in_every_shipped_figure(tmp
         "the geometry audit is green over figures that are broken on purpose, so its "
         f"silence on the real ones says less than it looks: {missed}"
     )
+
+
+def test_every_ink_on_surface_the_figures_render_is_declared(monkeypatch):
+    """`ASSET_PAIRS` is a list, and round 36 priced what those cost here.
+
+    It is the set of ink-and-background combinations whose contrast is
+    checked. A combination that renders and is not in it is type nobody has
+    ever measured — and there was one: `muted` inside the gateway band, the
+    `ON THE WAY IN` / `AU RETOUR` labels, in every shipped figure since the
+    figure existed. 5.38:1 in light and 5.79:1 in dark, so nothing was
+    broken; nothing was watching either, and the twin list for the website
+    had the pair all along.
+
+    So the list is now derived from the artefacts and compared, rather than
+    maintained by whoever last edited a figure. A rectangle with `fill: none`
+    is not a surface — the page shows through a stroked outline — and that is
+    read from each figure's own stylesheet rather than listed, because a list
+    of exceptions is the thing this test exists to stop needing.
+    """
+    audit = _audit()
+    assert audit.undeclared_pairs() == []
+
+    # And the half that matters: it has to be able to say so. Dropping the
+    # pair that was missing until round 37 puts the audit back where it was.
+    shortened = [p for p in audit.ASSET_PAIRS if p[:2] != ("muted", "band")]
+    assert len(shortened) == len(audit.ASSET_PAIRS) - 1, "the pair under test is gone"
+    monkeypatch.setattr(audit, "ASSET_PAIRS", shortened)
+
+    reported = audit.undeclared_pairs()
+    assert reported, "the audit is silent about ink it does not measure"
+    assert all("'muted' on band" in line for line in reported), reported
+
+
+def test_a_new_tinted_shape_with_type_on_it_is_reported(monkeypatch):
+    """The other direction, and the one a future figure will trip.
+
+    `ASSET_SURFACES` knows three backgrounds. The committed figures also draw
+    bar segments — `seg-blue`, `seg-red` and three more — which carry no type
+    today. Put a label on one and its contrast is against a colour this audit
+    cannot resolve, so the honest answer is to say so rather than to assume
+    the page is behind it.
+    """
+    audit = _audit()
+    monkeypatch.setattr(audit, "RECT_SURFACES", {})
+
+    reported = audit.undeclared_pairs()
+    assert reported, "every surface became unknown and the audit said nothing"
+    assert any("is not a surface this audit knows" in line for line in reported), reported

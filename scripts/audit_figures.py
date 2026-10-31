@@ -209,6 +209,13 @@ ASSET_PAIRS = [
     ("green", None, "plan: the marker on the coder row"),
     ("red", None, "trade: the note naming the machines that lose the coder"),
     ("blue", "band", "pipeline: AI-BUNKER, inside the gateway band"),
+    # Added in round 37 by `undeclared_pairs`, not by reading the figures
+    # again: `AU RETOUR` and `ON THE WAY IN` are muted type inside the band,
+    # they have been in the shipped figures the whole time, and this list did
+    # not have them. 5.38:1 in light and 5.79:1 in dark, so nothing was
+    # broken -- but nothing was watching either, and the twin list for the
+    # website had the pair all along.
+    ("muted", "band", "pipeline: the direction labels inside the band"),
     ("ink", "orange card", "pipeline 01/04: the stage titles"),
     ("muted", "orange card", "pipeline 01/04: the sub-labels"),
     ("orange", "orange card", "pipeline: the '01' and '04' markers"),
@@ -216,6 +223,92 @@ ASSET_PAIRS = [
     ("muted", "blue card", "pipeline 02/03: the sub-labels"),
     ("blue", "blue card", "pipeline 02/03: the markers"),
 ]
+
+
+#: A rect class, and the surface in :data:`ASSET_SURFACES` it paints. Classes
+#: the stylesheet gives ``fill: none`` are not surfaces at all -- a stroked
+#: outline leaves the page showing through -- and :func:`undeclared_pairs`
+#: reads that from the stylesheet rather than listing them here.
+RECT_SURFACES = {"band": "band", "card-blue": "blue card", "card-orange": "orange card"}
+
+
+def _unfilled(style: str) -> set[str]:
+    """Class names the stylesheet paints with no fill."""
+    out = set()
+    for selector, body in re.findall(r"\.([a-z-]+)\s*\{([^}]*)\}", style):
+        if re.search(r"fill:\s*none", body):
+            out.add(selector)
+    return out
+
+
+def undeclared_pairs() -> list[str]:
+    """Ink-on-surface combinations the committed figures render and nothing audits.
+
+    :data:`ASSET_PAIRS` is a hand-written list, and round 36 spent itself on
+    what hand-written lists in this repository cost. This derives the same
+    thing from the artefacts: every ``<text>`` in every committed figure, its
+    ink token read off its class, and its surface found by asking which
+    filled rectangle encloses its anchor.
+
+    A rectangle with ``fill: none`` is not a surface -- the page shows
+    through a stroked outline -- which is why that is read from the
+    stylesheet. A filled rectangle this does not recognise *is* reported,
+    because a new tinted shape with type on it is exactly the thing a
+    contrast audit must not be silent about.
+    """
+    import xml.etree.ElementTree as ET
+
+    tokens = {"ink", "muted", "blue", "orange", "green", "red"}
+    declared = {(ink, surface) for ink, surface, _ in ASSET_PAIRS}
+    findings: list[str] = []
+    seen: set[tuple[str, str | None]] = set()
+
+    for path in sorted((ROOT / "assets").glob("figure-*.svg")):
+        root = ET.fromstring(path.read_text(encoding="utf-8"))
+        style = "".join("".join(n.itertext()) for n in root.iter(f"{SVG_NS}style"))
+        hollow = _unfilled(style)
+
+        boxes = []
+        for node in root.iter(f"{SVG_NS}rect"):
+            name = node.get("class", "")
+            if name in hollow:
+                continue
+            try:
+                x, y = float(node.get("x")), float(node.get("y"))
+                w, h = float(node.get("width")), float(node.get("height"))
+            except (TypeError, ValueError):
+                continue
+            boxes.append((name, x, y, x + w, y + h))
+
+        for node in root.iter(f"{SVG_NS}text"):
+            if not (node.text or "").strip():
+                continue
+            classes = (node.get("class") or "").split()
+            ink = next((c for c in classes if c in tokens), "ink")
+            try:
+                x, y = float(node.get("x")), float(node.get("y"))
+            except (TypeError, ValueError):
+                continue
+            over = [b for b in boxes if b[1] <= x <= b[3] and b[2] <= y <= b[4]]
+            if over:
+                nearest = min(over, key=lambda b: (b[3] - b[1]) * (b[4] - b[2]))
+                surface = RECT_SURFACES.get(nearest[0])
+                if surface is None:
+                    findings.append(
+                        f"{path.name}: {(node.text or '')[:28]!r} sits on a filled "
+                        f"{nearest[0]!r} rectangle, which is not a surface this audit knows"
+                    )
+                    continue
+            else:
+                surface = None
+            if (ink, surface) in declared or (ink, surface) in seen:
+                continue
+            seen.add((ink, surface))
+            findings.append(
+                f"{path.name}: {ink!r} on {surface or 'the page'} renders "
+                f"({(node.text or '')[:28]!r}) and ASSET_PAIRS does not declare it"
+            )
+    return findings
 
 
 def _figures_module():
@@ -904,6 +997,15 @@ def main() -> int:
             print(f"{scheme} — assets/figure-*.svg:")
         failures += audit_assets(scheme, quiet=args.quiet)
         checked += len(ASSET_PAIRS)
+
+    # The list of pairs has to describe the figures, or the ratios above are
+    # a true answer to a question nobody asked. Round 37 found `muted` type
+    # inside the gateway band rendering in every shipped figure and declared
+    # nowhere.
+    missing = undeclared_pairs()
+    failures += missing
+    if not args.quiet and not missing:
+        print("  ok           every ink-on-surface the figures render is declared")
 
     figures = sorted((ROOT / "assets").glob("figure-*.svg"))
     if not args.quiet:
